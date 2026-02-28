@@ -1,0 +1,11 @@
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+*.swo
+*.zip
+node_modules/
+vendor/
+wp-config.php
+wp-content/uploads/
