@@ -3251,6 +3251,90 @@ function csc_ajax_health_weekly_data() {
     wp_send_json_success( array( 'data' => get_option( CSC_HEALTH_WEEKLY_KEY, array() ) ) );
 }
 
+// ─── AJAX: Test sysstat availability ─────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_health_sysstat_test', 'csc_ajax_health_sysstat_test' );
+function csc_ajax_health_sysstat_test() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $result = array(
+        'exec_available' => function_exists( 'exec' ),
+        'sar_installed'  => false,
+        'sar_path'       => '',
+        'sar_version'    => '',
+        'sysstat_active' => false,
+        'sar_has_data'   => false,
+        'cpu_count'      => csc_health_get_cpu_count(),
+        'cpu_pct_now'    => csc_health_get_cpu_pct(),
+        'mem_pct_now'    => csc_health_get_mem_pct(),
+        'source'         => 'snapshot',
+        'instructions'   => '',
+    );
+
+    if ( ! function_exists( 'exec' ) ) {
+        $result['instructions'] = 'PHP exec() is disabled. Enable it in php.ini to allow sysstat metric collection.';
+        wp_send_json_success( $result );
+    }
+
+    // Check if sar is installed
+    $which = array();
+    @exec( 'which sar 2>/dev/null', $which );
+    if ( ! empty( $which[0] ) ) {
+        $result['sar_installed'] = true;
+        $result['sar_path']     = trim( $which[0] );
+
+        // Get version
+        $ver = array();
+        @exec( 'sar -V 2>&1', $ver );
+        if ( ! empty( $ver[0] ) ) {
+            $result['sar_version'] = trim( $ver[0] );
+        }
+
+        // Check if sysstat service is collecting data
+        $active = array();
+        @exec( 'systemctl is-active sysstat 2>/dev/null', $active );
+        $result['sysstat_active'] = ( ! empty( $active[0] ) && trim( $active[0] ) === 'active' );
+
+        // Try reading sar data to confirm it works
+        $test = array();
+        $end   = gmdate( 'H:i:s' );
+        $start = gmdate( 'H:i:s', time() - 3600 );
+        @exec( 'LC_ALL=C sar -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
+        $data_lines = 0;
+        foreach ( $test as $line ) {
+            $line = trim( $line );
+            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%idle' ) !== false || strpos( $line, 'Linux' ) !== false ) { continue; }
+            $parts = preg_split( '/\s+/', $line );
+            if ( count( $parts ) >= 8 && is_numeric( $parts[7] ) ) { $data_lines++; }
+        }
+        $result['sar_has_data']  = $data_lines > 0;
+        $result['sar_samples']   = $data_lines;
+        $result['source']        = $data_lines > 0 ? 'sar' : 'snapshot';
+        $result['sar_raw_output'] = implode( "\n", array_slice( $test, 0, 10 ) );
+
+        if ( ! $result['sysstat_active'] ) {
+            $result['instructions'] = 'sysstat is installed but the service is not active. Run: sudo systemctl enable sysstat && sudo systemctl start sysstat';
+        } elseif ( ! $result['sar_has_data'] ) {
+            $result['instructions'] = 'sysstat is active but no data yet. It collects every 10 minutes. Wait 10 minutes and try again.';
+        }
+    } else {
+        // Detect OS for install instructions
+        $os_info = array();
+        @exec( 'cat /etc/os-release 2>/dev/null | head -3', $os_info );
+        $os_str = implode( ' ', $os_info );
+        if ( stripos( $os_str, 'Amazon' ) !== false || stripos( $os_str, 'rhel' ) !== false || stripos( $os_str, 'centos' ) !== false ) {
+            $result['instructions'] = 'sysstat is not installed. Run: sudo yum install sysstat -y && sudo systemctl enable sysstat && sudo systemctl start sysstat';
+        } elseif ( stripos( $os_str, 'ubuntu' ) !== false || stripos( $os_str, 'debian' ) !== false ) {
+            $result['instructions'] = 'sysstat is not installed. Run: sudo apt install sysstat -y && sudo systemctl enable sysstat && sudo systemctl start sysstat';
+        } else {
+            $result['instructions'] = 'sysstat is not installed. Install it with your package manager, then enable the service: sudo systemctl enable sysstat && sudo systemctl start sysstat';
+        }
+    }
+
+    wp_send_json_success( $result );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ADMIN PAGE
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3928,7 +4012,41 @@ function csc_render_page() {
         <!-- ═══ Site Health ═══ -->
         <div class="csc-tab-content" id="tab-site-health">
             <div class="csc-card">
-                <div class="csc-card-header" style="background:linear-gradient(135deg,#1b5e20 0%,#43a047 100%)"><span>📊 Site Health Overview</span></div>
+                <div class="csc-card-header" style="background:linear-gradient(135deg,#1b5e20 0%,#43a047 100%)">
+                    <span>📊 Site Health Overview</span>
+                    <?php csc_explain_btn( 'site-health', 'Site Health Metrics', array(
+                        array(
+                            'name' => 'Disk Storage Tracking',
+                            'rec'  => 'Recommended',
+                            'desc' => 'Measures wp-content disk usage weekly. Calculates growth rate over 3 months and estimates weeks until disk full. Green = 6+ months remaining, Amber = 3 to 6 months, Red = under 3 months.',
+                        ),
+                        array(
+                            'name' => 'CPU Peak Monitoring',
+                            'rec'  => 'Recommended',
+                            'desc' => 'Records the maximum CPU usage percentage each hour. With sysstat installed, captures per minute peaks from sar (so brief spikes are caught). Without sysstat, falls back to an instantaneous load average snapshot.',
+                        ),
+                        array(
+                            'name' => 'Memory Peak Monitoring',
+                            'rec'  => 'Recommended',
+                            'desc' => 'Records the maximum memory usage percentage each hour. With sysstat installed, captures per minute peaks from sar. Without sysstat, falls back to an instantaneous /proc/meminfo reading.',
+                        ),
+                        array(
+                            'name' => 'sysstat (sar)',
+                            'rec'  => 'Recommended',
+                            'desc' => 'sysstat continuously samples CPU and memory every few minutes in the background, giving accurate peak values rather than single point snapshots. Install: Amazon Linux / RHEL: sudo yum install sysstat -y. Ubuntu / Debian: sudo apt install sysstat -y. Then enable: sudo systemctl enable sysstat && sudo systemctl start sysstat. Use the Test Sysstat button below to verify.',
+                        ),
+                        array(
+                            'name' => 'Data Retention',
+                            'rec'  => 'Info',
+                            'desc' => 'Hourly metrics and weekly snapshots are automatically expired after 6 months (180 days). Stored in wp_options with autoload disabled to avoid memory overhead.',
+                        ),
+                        array(
+                            'name' => 'Max Resource Percentage',
+                            'rec'  => 'Info',
+                            'desc' => 'Each hourly sample stores max(cpu%, mem%) as the single worst case resource metric. This helps identify whether the server is becoming constrained by CPU, memory, or both.',
+                        ),
+                    ) ); ?>
+                </div>
                 <div class="csc-card-body" id="csc-health-overview">
                     <div id="csc-health-loading" style="text-align:center;padding:30px;color:#888">Loading health metrics…</div>
                     <div id="csc-health-content" style="display:none">
@@ -3998,7 +4116,7 @@ function csc_render_page() {
                         </div>
 
                         <!-- Data collection status -->
-                        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;background:#f8f9fc;border-radius:6px;border:1px solid #e0e0e0;margin-bottom:16px">
+                        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;background:#f8f9fc;border-radius:6px;border:1px solid #e0e0e0;margin-bottom:10px">
                             <span style="font-size:12px;color:#50575e">📈 Hourly samples: <strong id="hm-hourly-count">0</strong></span>
                             <span style="font-size:12px;color:#50575e">📅 Weekly snapshots: <strong id="hm-weekly-count">0</strong></span>
                             <span style="font-size:12px;color:#50575e">🕐 Last hourly: <strong id="hm-last-hourly">—</strong></span>
@@ -4006,9 +4124,20 @@ function csc_render_page() {
                             <span style="font-size:12px;color:#50575e">📊 Data span: <strong id="hm-data-span">—</strong> weeks</span>
                         </div>
 
+                        <!-- sysstat status -->
+                        <div id="csc-sysstat-status" style="padding:12px 16px;border-radius:6px;border:1px solid #e0e0e0;margin-bottom:16px;font-size:12px;display:none">
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                                <span id="csc-sysstat-icon" style="font-size:14px">—</span>
+                                <strong id="csc-sysstat-label">Checking sysstat...</strong>
+                                <span id="csc-sysstat-detail" style="color:#50575e"></span>
+                            </div>
+                            <div id="csc-sysstat-instructions" style="display:none;margin-top:8px;padding:8px 12px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:4px;font-family:monospace;font-size:11px;word-break:break-all"></div>
+                        </div>
+
                         <div class="csc-button-row" style="gap:10px">
                             <button class="csc-btn csc-btn-secondary" id="btn-health-refresh">🔄 Refresh</button>
                             <button class="csc-btn csc-btn-primary" id="btn-health-collect">📊 Collect Now</button>
+                            <button class="csc-btn csc-btn-secondary" id="btn-sysstat-test">🔧 Test Sysstat</button>
                         </div>
                     </div>
                 </div>

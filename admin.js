@@ -1408,15 +1408,27 @@
             $('#hm-weeks-left').text('Collecting…').css('color', '#78909c');
         }
 
-        // CPU
-        $('#hm-cpu-now').text(d.cpu_load_now >= 0 ? d.cpu_load_now.toFixed(2) : '—');
-        $('#hm-cpu-24h').text(d.cpu_max_24h >= 0 ? d.cpu_max_24h.toFixed(2) : '—');
-        $('#hm-cpu-7d').text(d.cpu_max_7d >= 0 ? d.cpu_max_7d.toFixed(2) : '—');
+        // CPU — show percentage with load average in parentheses
+        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now + '%' : '—';
+        if (d.cpu_load_now >= 0) { cpuNow += ' (load ' + d.cpu_load_now.toFixed(2) + ')'; }
+        $('#hm-cpu-now').text(cpuNow);
+        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h + '%' : (d.cpu_max_24h >= 0 ? d.cpu_max_24h.toFixed(2) + ' load' : '—'));
+        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d + '%' : (d.cpu_max_7d >= 0 ? d.cpu_max_7d.toFixed(2) + ' load' : '—'));
 
-        // Memory
-        $('#hm-mem-now').text(d.mem_used_now >= 0 ? healthFormatBytes(d.mem_used_now) + (d.mem_total > 0 ? ' / ' + healthFormatBytes(d.mem_total) : '') : '—');
-        $('#hm-mem-24h').text(d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '—');
-        $('#hm-mem-7d').text(d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '—');
+        // Memory — show percentage with bytes in parentheses
+        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now + '%' : '—';
+        if (d.mem_used_now >= 0 && d.mem_total > 0) { memNow += ' (' + healthFormatBytes(d.mem_used_now) + ' / ' + healthFormatBytes(d.mem_total) + ')'; }
+        $('#hm-mem-now').text(memNow);
+        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h + '%' : (d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '—'));
+        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d + '%' : (d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '—'));
+
+        // Max resource
+        if (d.max_resource_now !== undefined) {
+            var resText = d.max_resource_now >= 0 ? d.max_resource_now + '% now' : '';
+            if (d.max_resource_24h >= 0) { resText += (resText ? ' | ' : '') + d.max_resource_24h + '% peak 24h'; }
+            if (d.max_resource_7d >= 0) { resText += (resText ? ' | ' : '') + d.max_resource_7d + '% peak 7d'; }
+            if (resText) { $('#hm-cpu-7d').closest('.csc-health-metric').after('<div class="csc-health-metric" style="grid-column:1/-1"><div class="csc-health-metric-label">Max Resource (higher of CPU/Mem)</div><div class="csc-health-metric-value">' + resText + '</div></div>'); }
+        }
 
         // Data status
         $('#hm-hourly-count').text(d.hourly_count);
@@ -1461,6 +1473,62 @@
             $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now');
             if (resp.success && resp.data.health) { healthRenderData(resp.data.health); }
         }).fail(function() { $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now'); });
+    });
+
+
+    // Sysstat test
+    $('#btn-sysstat-test').on('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Testing...');
+        var $box = $('#csc-sysstat-status');
+        $box.show();
+        $('#csc-sysstat-label').text('Testing sysstat...');
+        $('#csc-sysstat-icon').text('⏳');
+        $('#csc-sysstat-detail').text('');
+        $('#csc-sysstat-instructions').hide();
+
+        $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
+            $btn.prop('disabled', false).html('🔧 Test Sysstat');
+            if (!resp.success) {
+                $('#csc-sysstat-icon').text('❌');
+                $('#csc-sysstat-label').text('Test failed');
+                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
+                return;
+            }
+            var d = resp.data;
+            if (!d.exec_available) {
+                $('#csc-sysstat-icon').text('❌');
+                $('#csc-sysstat-label').text('exec() disabled');
+                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
+            } else if (!d.sar_installed) {
+                $('#csc-sysstat-icon').text('❌');
+                $('#csc-sysstat-label').text('sysstat not installed');
+                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
+            } else if (!d.sysstat_active) {
+                $('#csc-sysstat-icon').text('⚠️');
+                $('#csc-sysstat-label').text('sysstat installed but service inactive');
+                $('#csc-sysstat-detail').text(d.sar_version + ' at ' + d.sar_path);
+                $box.css({ background: '#fffbeb', borderColor: '#fde68a' });
+            } else if (!d.sar_has_data) {
+                $('#csc-sysstat-icon').text('⚠️');
+                $('#csc-sysstat-label').text('sysstat active, no data yet');
+                $('#csc-sysstat-detail').text(d.sar_version + ' — wait 10 minutes for first samples');
+                $box.css({ background: '#fffbeb', borderColor: '#fde68a' });
+            } else {
+                $('#csc-sysstat-icon').text('✅');
+                $('#csc-sysstat-label').text('sysstat working');
+                $('#csc-sysstat-detail').text(d.sar_version + ' | ' + d.sar_samples + ' samples/hr | CPU ' + d.cpu_pct_now + '% | Mem ' + d.mem_pct_now + '%');
+                $box.css({ background: '#f0fdf4', borderColor: '#bbf7d0' });
+            }
+            if (d.instructions) {
+                $('#csc-sysstat-instructions').text(d.instructions).show();
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html('🔧 Test Sysstat');
+            $('#csc-sysstat-icon').text('❌');
+            $('#csc-sysstat-label').text('Network error');
+            $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
+        });
     });
 
     }); // document.ready
