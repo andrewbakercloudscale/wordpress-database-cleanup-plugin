@@ -1425,12 +1425,19 @@
         $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h + '%' : (d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '—'));
         $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d + '%' : (d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '—'));
 
-        // Max resource
+        // Max resource — render as 3 equal cards matching the row above
         if (d.max_resource_now !== undefined) {
-            var resText = d.max_resource_now >= 0 ? d.max_resource_now + '% now' : '';
-            if (d.max_resource_24h >= 0) { resText += (resText ? ' | ' : '') + d.max_resource_24h + '% peak 24h'; }
-            if (d.max_resource_7d >= 0) { resText += (resText ? ' | ' : '') + d.max_resource_7d + '% peak 7d'; }
-            if (resText) { $('#hm-cpu-7d').closest('.csc-health-metric').after('<div class="csc-health-metric" style="grid-column:1/-1"><div class="csc-health-metric-label">Max Resource (higher of CPU/Mem)</div><div class="csc-health-metric-value">' + resText + '</div></div>'); }
+            var $grid = $('#hm-mem-7d').closest('[style*="grid"]');
+            if ($grid.length && !$('#hm-maxres-now').length) {
+                $grid.after('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&mdash;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&mdash;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&mdash;</div></div>' +
+                '</div>');
+            }
+            if (d.max_resource_now >= 0) $('#hm-maxres-now').text(d.max_resource_now + '%');
+            if (d.max_resource_24h >= 0) $('#hm-maxres-24h').text(d.max_resource_24h + '%');
+            if (d.max_resource_7d >= 0) $('#hm-maxres-7d').text(d.max_resource_7d + '%');
         }
 
         // Data status
