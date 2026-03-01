@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.6
+ * Version:     2.1.7
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.6' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.7' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -2829,6 +2829,29 @@ function csc_health_get_memory_total_bytes(): int {
 }
 
 /**
+ * Find the sar binary path. Apache's PATH is often restricted, so we check common locations.
+ */
+function csc_health_find_sar(): string {
+    static $cached = null;
+    if ( $cached !== null ) { return $cached; }
+    $paths = array( '/usr/bin/sar', '/usr/sbin/sar', '/usr/local/bin/sar' );
+    foreach ( $paths as $p ) {
+        if ( @is_executable( $p ) ) { $cached = $p; return $p; }
+    }
+    // Last resort: try which
+    if ( function_exists( 'exec' ) ) {
+        $out = array();
+        @exec( 'which sar 2>/dev/null', $out );
+        if ( ! empty( $out[0] ) && @is_executable( trim( $out[0] ) ) ) {
+            $cached = trim( $out[0] );
+            return $cached;
+        }
+    }
+    $cached = '';
+    return '';
+}
+
+/**
  * Get the number of CPU cores.
  */
 function csc_health_get_cpu_count(): int {
@@ -2862,12 +2885,13 @@ function csc_health_get_cpu_count(): int {
  * CPU% = 100 - %idle
  */
 function csc_health_get_cpu_pct(): float {
-    if ( function_exists( 'exec' ) ) {
+    $sar = csc_health_find_sar();
+    if ( $sar !== '' && function_exists( 'exec' ) ) {
         // Try sar first: get last 60 minutes of CPU data
         $output = array();
         $end   = gmdate( 'H:i:s' );
         $start = gmdate( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C sar -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
+        @exec( 'LC_ALL=C ' . $sar . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_cpu = -1;
         foreach ( $output as $line ) {
@@ -2908,11 +2932,12 @@ function csc_health_get_cpu_pct(): float {
  * We use the %memused column directly.
  */
 function csc_health_get_mem_pct(): float {
-    if ( function_exists( 'exec' ) ) {
+    $sar = csc_health_find_sar();
+    if ( $sar !== '' && function_exists( 'exec' ) ) {
         $output = array();
         $end   = gmdate( 'H:i:s' );
         $start = gmdate( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C sar -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
+        @exec( 'LC_ALL=C ' . $sar . ' -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_mem = -1;
         foreach ( $output as $line ) {
@@ -2963,12 +2988,7 @@ function csc_health_collect_hourly() {
     $max_resource = max( $cpu_pct, $mem_pct );
 
     // Record whether sar was used (true peak) or fallback (instantaneous)
-    $sar_available = false;
-    if ( function_exists( 'exec' ) ) {
-        $check = array();
-        @exec( 'which sar 2>/dev/null', $check );
-        $sar_available = ! empty( $check );
-    }
+    $sar_available = ( csc_health_find_sar() !== '' );
 
     $entry = array(
         'ts'               => current_time( 'mysql' ),
@@ -3277,16 +3297,15 @@ function csc_ajax_health_sysstat_test() {
         wp_send_json_success( $result );
     }
 
-    // Check if sar is installed
-    $which = array();
-    @exec( 'which sar 2>/dev/null', $which );
-    if ( ! empty( $which[0] ) ) {
+    // Check if sar is installed using full path detection
+    $sar_path = csc_health_find_sar();
+    if ( $sar_path !== '' ) {
         $result['sar_installed'] = true;
-        $result['sar_path']     = trim( $which[0] );
+        $result['sar_path']     = $sar_path;
 
         // Get version
         $ver = array();
-        @exec( 'sar -V 2>&1', $ver );
+        @exec( $sar_path . ' -V 2>&1', $ver );
         if ( ! empty( $ver[0] ) ) {
             $result['sar_version'] = trim( $ver[0] );
         }
@@ -3300,7 +3319,7 @@ function csc_ajax_health_sysstat_test() {
         $test = array();
         $end   = gmdate( 'H:i:s' );
         $start = gmdate( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C sar -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
+        @exec( 'LC_ALL=C ' . $sar_path . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
         $data_lines = 0;
         foreach ( $test as $line ) {
             $line = trim( $line );
