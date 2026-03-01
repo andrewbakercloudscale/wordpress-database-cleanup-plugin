@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.8
+ * Version:     2.2.9
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.8' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.9' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -2831,6 +2831,36 @@ function csc_health_get_memory_total_bytes(): int {
 /**
  * Find the sar binary path. Apache's PATH is often restricted, so we check common locations.
  */
+/**
+ * Get the system timezone for sar queries. WordPress may override PHP's timezone
+ * via date_default_timezone_set(), but sar uses the OS timezone. We need to match.
+ */
+function csc_health_system_time( string $fmt, int $ts = 0 ): string {
+    static $sys_tz = null;
+    if ( $sys_tz === null ) {
+        // Read system timezone, not WordPress timezone
+        $tz_file = @file_get_contents( '/etc/timezone' );
+        if ( $tz_file ) {
+            $sys_tz = trim( $tz_file );
+        } else {
+            $link = @readlink( '/etc/localtime' );
+            if ( $link && preg_match( '#zoneinfo/(.+)$#', $link, $m ) ) {
+                $sys_tz = $m[1];
+            } else {
+                // Fallback: ask the OS
+                $out = array();
+                @exec( 'date +%Z 2>/dev/null', $out );
+                $sys_tz = ! empty( $out[0] ) ? trim( $out[0] ) : 'UTC';
+            }
+        }
+    }
+    $old_tz = date_default_timezone_get();
+    date_default_timezone_set( $sys_tz );
+    $result = date( $fmt, $ts ?: time() );
+    date_default_timezone_set( $old_tz );
+    return $result;
+}
+
 function csc_health_find_sar(): string {
     static $cached = null;
     if ( $cached !== null ) { return $cached; }
@@ -2889,8 +2919,8 @@ function csc_health_get_cpu_pct(): float {
     if ( $sar !== '' && function_exists( 'exec' ) ) {
         // Try sar first: get last 60 minutes of CPU data
         $output = array();
-        $end   = date( 'H:i:s' );
-        $start = date( 'H:i:s', time() - 3600 );
+        $end   = csc_health_system_time( 'H:i:s' );
+        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_cpu = -1;
@@ -2935,8 +2965,8 @@ function csc_health_get_mem_pct(): float {
     $sar = csc_health_find_sar();
     if ( $sar !== '' && function_exists( 'exec' ) ) {
         $output = array();
-        $end   = date( 'H:i:s' );
-        $start = date( 'H:i:s', time() - 3600 );
+        $end   = csc_health_system_time( 'H:i:s' );
+        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar . ' -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_mem = -1;
@@ -3317,8 +3347,8 @@ function csc_ajax_health_sysstat_test() {
 
         // Try reading sar data to confirm it works
         $test = array();
-        $end   = date( 'H:i:s' );
-        $start = date( 'H:i:s', time() - 3600 );
+        $end   = csc_health_system_time( 'H:i:s' );
+        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar_path . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
         $data_lines = 0;
         foreach ( $test as $line ) {
@@ -3353,6 +3383,12 @@ function csc_ajax_health_sysstat_test() {
             $result['instructions'] = 'Install sysstat with your package manager, then run: ' . $enable_cmds;
         }
     }
+
+    // Debug: timezone info for diagnosing sar time window mismatches
+    $result['debug_wp_tz']      = date_default_timezone_get();
+    $result['debug_sys_time']   = csc_health_system_time( 'H:i:s' );
+    $result['debug_php_time']   = date( 'H:i:s' );
+    $result['debug_sar_window'] = csc_health_system_time( 'H:i:s', time() - 3600 ) . ' to ' . csc_health_system_time( 'H:i:s' );
 
     wp_send_json_success( $result );
 }
@@ -4085,27 +4121,27 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3f8ff 100%);border:1px solid #90caf9;border-radius:10px;padding:16px 20px;margin-bottom:14px">
                             <div style="font-size:13px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">💾 Disk Storage</div>
                             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">wp-content</div>
                                     <div class="csc-health-metric-value" id="hm-disk-used" style="color:#0d47a1">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Disk Free</div>
                                     <div class="csc-health-metric-value" id="hm-disk-free" style="color:#1b5e20">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Disk Total</div>
                                     <div class="csc-health-metric-value" id="hm-disk-total" style="color:#263238">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Database</div>
                                     <div class="csc-health-metric-value" id="hm-db-size" style="color:#4a148c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Growth / Week</div>
                                     <div class="csc-health-metric-value" id="hm-growth" style="color:#bf360c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Est. Time to Storage Full</div>
                                     <div class="csc-health-metric-value" id="hm-weeks-left" style="color:#0d47a1">—</div>
                                 </div>
@@ -4116,15 +4152,15 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#fff3e0 0%,#fffaf4 100%);border:1px solid #ffcc80;border-radius:10px;padding:16px 20px;margin-bottom:14px">
                             <div style="font-size:13px;font-weight:800;color:#e65100;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">⚡ CPU</div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Current</div>
                                     <div class="csc-health-metric-value" id="hm-cpu-now" style="color:#bf360c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Peak (24h)</div>
                                     <div class="csc-health-metric-value" id="hm-cpu-24h" style="color:#bf360c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Peak (7d)</div>
                                     <div class="csc-health-metric-value" id="hm-cpu-7d" style="color:#bf360c">—</div>
                                 </div>
@@ -4135,15 +4171,15 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#f3e5f5 0%,#faf5fc 100%);border:1px solid #ce93d8;border-radius:10px;padding:16px 20px;margin-bottom:20px">
                             <div style="font-size:13px;font-weight:800;color:#7b1fa2;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">🧠 Memory</div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Current</div>
                                     <div class="csc-health-metric-value" id="hm-mem-now" style="color:#4a148c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Peak (24h)</div>
                                     <div class="csc-health-metric-value" id="hm-mem-24h" style="color:#4a148c">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:transparent;border-color:rgba(255,255,255,0.5);border-radius:8px">
+                                <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Peak (7d)</div>
                                     <div class="csc-health-metric-value" id="hm-mem-7d" style="color:#4a148c">—</div>
                                 </div>
@@ -4253,7 +4289,7 @@ function csc_render_page() {
     /* Force all metric cards inside coloured sections to be transparent with themed labels */
     div[style*="#fff3e0"] .csc-health-metric,
     div[style*="#e3f2fd"] .csc-health-metric,
-    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: rgba(255,255,255,0.5) !important; }
+    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
     div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
     div[style*="#fff3e0"] .csc-health-metric-value { color: #bf360c !important; }
     div[style*="#e3f2fd"] .csc-health-metric-label { color: #1565c0 !important; }
