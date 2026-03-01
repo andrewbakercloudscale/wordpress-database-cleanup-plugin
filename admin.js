@@ -1399,13 +1399,16 @@
         $('#hm-disk-total').text(healthFormatBytes(d.disk_total));
         $('#hm-db-size').text(healthFormatBytes(d.db_size));
         $('#hm-growth').text(d.growth_per_week > 0 ? healthFormatBytes(d.growth_per_week) + '/wk' : (d.weekly_count >= 2 ? 'Stable / shrinking' : 'Collecting…'));
-        if (d.weeks_remaining > 0) {
+        if (d.weeks_remaining > 104) {
+            $('#hm-weeks-left').text('>> 2 Years').css('color', '#2e7d32');
+        } else if (d.weeks_remaining > 0) {
             var wk = Math.round(d.weeks_remaining);
-            $('#hm-weeks-left').text(wk + ' wk' + (wk !== 1 ? 's' : '') + ' (~' + Math.round(wk / 4.3) + ' mo)').css('color', ragColors[rag]);
-        } else if (d.weekly_count >= 2) {
-            $('#hm-weeks-left').text('∞ (stable)').css('color', '#2e7d32');
+            var wlColor = d.disk_rag === 'red' ? '#c62828' : (d.disk_rag === 'amber' ? '#e65100' : '#2e7d32');
+            $('#hm-weeks-left').text(wk + ' weeks').css('color', wlColor);
+        } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
+            $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
         } else {
-            $('#hm-weeks-left').text('Collecting…').css('color', '#78909c');
+            $('#hm-weeks-left').text('—').css('color', '');
         }
 
         // CPU — show percentage with load average in parentheses

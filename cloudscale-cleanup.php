@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.9
+ * Version:     2.3.0
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.9' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.0' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4294,6 +4294,8 @@ function csc_render_page() {
     div[style*="#fff3e0"] .csc-health-metric-value { color: #bf360c !important; }
     div[style*="#e3f2fd"] .csc-health-metric-label { color: #1565c0 !important; }
     div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
+    /* Remove all borders from metric cards globally */
+    .csc-health-metric { border: none !important; }
     </style>
 
     <script>
