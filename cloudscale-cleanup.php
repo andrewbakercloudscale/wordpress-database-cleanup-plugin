@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.3.1
+ * Version:     2.3.2
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.1' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.2' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4336,6 +4336,24 @@ function csc_render_page() {
             $('#hm-mem-now').text(memNow);
             $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
             $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
+
+            /* Max Resource — 3 equal cards inside memory section */
+            if (d.max_resource_now !== undefined) {
+                /* Remove any old single-span max resource row from cached JS */
+                $('[style*="grid-column:1/-1"]').filter(function(){ return $(this).text().indexOf('Max Resource') >= 0; }).remove();
+                var $memGrid = $('#hm-mem-7d').closest('[style*="grid"]');
+                if ($memGrid.length && !$('#hm-maxres-now').length) {
+                    $memGrid.after('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">' +
+                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&mdash;</div></div>' +
+                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&mdash;</div></div>' +
+                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&mdash;</div></div>' +
+                    '</div>');
+                }
+                if (d.max_resource_now >= 0) $('#hm-maxres-now').text(d.max_resource_now + '%');
+                if (d.max_resource_24h >= 0) $('#hm-maxres-24h').text(d.max_resource_24h + '%');
+                if (d.max_resource_7d >= 0) $('#hm-maxres-7d').text(d.max_resource_7d + '%');
+            }
+
             $('#hm-hourly-count').text(d.hourly_count);
             $('#hm-weekly-count').text(d.weekly_count);
             $('#hm-last-hourly').text(d.last_hourly || 'Never');
