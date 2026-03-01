@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.4
+ * Version:     2.2.5
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.4' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.5' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4324,28 +4324,33 @@ function csc_render_page() {
         /* Test Sysstat button */
         $(document).on('click', '#btn-sysstat-test', function() {
             var $b = $(this).prop('disabled',true).html('⏳ Testing...');
-            var $box = $('#csc-sysstat-status').show();
-            $('#csc-sysstat-label').text('Testing sysstat...');
+            var blue = {background:'#e3f2fd',borderColor:'#90caf9'};
+            var $box = $('#csc-sysstat-status').show().css(blue);
+            $('#csc-sysstat-label').text('Testing sysstat...').css('color','#1565c0');
             $('#csc-sysstat-icon').text('⏳');
-            $('#csc-sysstat-detail').text('');
+            $('#csc-sysstat-detail').text('').css('color','#1565c0');
             $('#csc-sysstat-instructions').hide();
             $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
                 $b.prop('disabled',false).html('🔧 Test Sysstat');
-                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'}); return; }
+                $box.css(blue);
+                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); return; }
                 var d = resp.data;
                 if (!d.exec_available) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled in php.ini');
                 } else if (!d.sar_installed) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed');
+                    if (d.instructions) $('#csc-sysstat-detail').html('<code style="font-size:11px">'+d.instructions.replace(/Run: /, '')+'</code>');
                 } else if (!d.sysstat_active) {
-                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but inactive'); $('#csc-sysstat-detail').text(d.sar_version+' at '+d.sar_path); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
+                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but service inactive');
+                    $('#csc-sysstat-detail').html(d.sar_version+' at '+d.sar_path+' &mdash; <code style="font-size:11px">sudo systemctl enable sysstat && sudo systemctl start sysstat</code>');
                 } else if (!d.sar_has_data) {
-                    $('#csc-sysstat-icon').text('🔵'); $('#csc-sysstat-label').text('sysstat active, no data yet'); $('#csc-sysstat-detail').text('sysstat version '+d.sar_version+' — wait 10 mins for first samples'); $box.css({background:'#e3f2fd',borderColor:'#90caf9'});
+                    $('#csc-sysstat-icon').text('🔵'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' active, waiting for first samples');
+                    $('#csc-sysstat-detail').text('Collects every 10 minutes. Refresh after 10 mins.');
                 } else {
-                    $('#csc-sysstat-icon').text('✅'); $('#csc-sysstat-label').text('sysstat working'); $('#csc-sysstat-detail').text(d.sar_version+' | '+d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%'); $box.css({background:'#f0fdf4',borderColor:'#bbf7d0'});
+                    $('#csc-sysstat-icon').text('✅'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' working');
+                    $('#csc-sysstat-detail').text(d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%');
                 }
-                if (d.instructions) { $('#csc-sysstat-instructions').text(d.instructions).show(); }
-            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'}); });
+            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); });
         });
     });
     </script>
