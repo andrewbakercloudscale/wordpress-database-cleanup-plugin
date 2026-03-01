@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.7
+ * Version:     2.2.8
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.7' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.8' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4250,6 +4250,14 @@ function csc_render_page() {
     /* Inline fallback: ensures 6th tab (Settings) always has brown background even if cached CSS lacks it */
     .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
     .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
+    /* Force all metric cards inside coloured sections to be transparent with themed labels */
+    div[style*="#fff3e0"] .csc-health-metric,
+    div[style*="#e3f2fd"] .csc-health-metric,
+    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: rgba(255,255,255,0.5) !important; }
+    div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
+    div[style*="#fff3e0"] .csc-health-metric-value { color: #bf360c !important; }
+    div[style*="#e3f2fd"] .csc-health-metric-label { color: #1565c0 !important; }
+    div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
     </style>
 
     <script>
