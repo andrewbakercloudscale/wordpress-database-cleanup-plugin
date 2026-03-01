@@ -4218,50 +4218,99 @@ function csc_render_page() {
     </style>
 
     <script>
-    /* Inline: force health data load on page init regardless of cached admin.js version */
+    /* Inline: health render, auto load, and button handlers (cache proof) */
     jQuery(function($) {
-        var $loading = $('#csc-health-loading');
-        var $content = $('#csc-health-content');
-        if ($loading.length && $loading.is(':visible') && $content.length && !$content.is(':visible')) {
+        var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
+        var ragColors = {green:'#2e7d32',amber:'#e65100',red:'#c62828',grey:'#78909c'};
+        var ragBgs = {green:'#e8f5e9',amber:'#fff3e0',red:'#ffebee',grey:'#f5f5f5'};
+        var ragLabels = {green:'6+ months of disk space remaining',amber:'3 to 6 months of disk space remaining',red:'Less than 3 months of disk space remaining',grey:'Collecting weekly data to calculate trend'};
+
+        function cscHealthRender(d) {
+            var rag = d.disk_rag || 'grey';
+            $('#csc-health-rag-bar').css('background', ragBgs[rag]);
+            $('#csc-health-rag-dot').css('background', ragColors[rag]);
+            $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase()+rag.slice(1)).css('color', ragColors[rag]);
+            $('#csc-health-rag-detail').text(ragLabels[rag] || '').css('color', ragColors[rag]);
+            $('#hm-disk-used').text(fmt(d.disk_used));
+            $('#hm-disk-free').text(fmt(d.disk_free));
+            $('#hm-disk-total').text(fmt(d.disk_total));
+            $('#hm-db-size').text(fmt(d.db_size));
+            $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting…'));
+            if (d.weeks_remaining > 0) {
+                var wl = Math.round(d.weeks_remaining);
+                var wlColor = d.disk_rag === 'red' ? '#c62828' : (d.disk_rag === 'amber' ? '#e65100' : '#2e7d32');
+                $('#hm-weeks-left').text(wl + ' weeks').css('color', wlColor);
+            } else { $('#hm-weeks-left').text('—').css('color',''); }
+            var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
+            if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
+            $('#hm-cpu-now').text(cpuNow);
+            $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '—');
+            $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '—');
+            var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '—';
+            if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
+            $('#hm-mem-now').text(memNow);
+            $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
+            $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
+            $('#hm-hourly-count').text(d.hourly_count);
+            $('#hm-weekly-count').text(d.weekly_count);
+            $('#hm-last-hourly').text(d.last_hourly || 'Never');
+            $('#hm-last-weekly').text(d.last_weekly || 'Never');
+            $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
+            $('#csc-health-loading').hide();
+            $('#csc-health-content').show();
+        }
+
+        /* Auto load health data */
+        if ($('#csc-health-loading').is(':visible')) {
             $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
-                if (resp.success && typeof healthRenderData === 'function') {
-                    healthRenderData(resp.data);
-                } else if (resp.success) {
-                    /* healthRenderData not global — do minimal render */
-                    var d = resp.data;
-                    var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
-                    var ragColors = {green:'#2e7d32',amber:'#e65100',red:'#c62828',grey:'#78909c'};
-                    var ragBgs = {green:'#e8f5e9',amber:'#fff3e0',red:'#ffebee',grey:'#f5f5f5'};
-                    var rag = d.disk_rag || 'grey';
-                    $('#csc-health-rag-bar').css('background', ragBgs[rag]);
-                    $('#csc-health-rag-dot').css('background', ragColors[rag]);
-                    $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase()+rag.slice(1)).css('color', ragColors[rag]);
-                    $('#hm-disk-used').text(fmt(d.disk_used));
-                    $('#hm-disk-free').text(fmt(d.disk_free));
-                    $('#hm-disk-total').text(fmt(d.disk_total));
-                    $('#hm-db-size').text(fmt(d.db_size));
-                    $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting…'));
-                    $('#hm-weeks-left').text(d.weeks_remaining > 0 ? Math.round(d.weeks_remaining) : '—');
-                    var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
-                    if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
-                    $('#hm-cpu-now').text(cpuNow);
-                    $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '—');
-                    $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '—');
-                    var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '—';
-                    if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
-                    $('#hm-mem-now').text(memNow);
-                    $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
-                    $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
-                    $('#hm-hourly-count').text(d.hourly_count);
-                    $('#hm-weekly-count').text(d.weekly_count);
-                    $('#hm-last-hourly').text(d.last_hourly || 'Never');
-                    $('#hm-last-weekly').text(d.last_weekly || 'Never');
-                    $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
-                    $loading.hide();
-                    $content.show();
-                }
+                if (resp.success) cscHealthRender(resp.data);
             });
         }
+
+        /* Refresh button */
+        $(document).on('click', '#btn-health-refresh', function() {
+            var $b = $(this).prop('disabled',true).html('⏳ Loading…');
+            $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+                $b.prop('disabled',false).html('🔄 Refresh');
+                if (resp.success) cscHealthRender(resp.data);
+            }).fail(function(){ $b.prop('disabled',false).html('🔄 Refresh'); });
+        });
+
+        /* Collect Now button */
+        $(document).on('click', '#btn-health-collect', function() {
+            var $b = $(this).prop('disabled',true).html('⏳ Collecting…');
+            $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
+                $b.prop('disabled',false).html('📊 Collect Now');
+                if (resp.success && resp.data.health) cscHealthRender(resp.data.health);
+            }).fail(function(){ $b.prop('disabled',false).html('📊 Collect Now'); });
+        });
+
+        /* Test Sysstat button */
+        $(document).on('click', '#btn-sysstat-test', function() {
+            var $b = $(this).prop('disabled',true).html('⏳ Testing...');
+            var $box = $('#csc-sysstat-status').show();
+            $('#csc-sysstat-label').text('Testing sysstat...');
+            $('#csc-sysstat-icon').text('⏳');
+            $('#csc-sysstat-detail').text('');
+            $('#csc-sysstat-instructions').hide();
+            $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
+                $b.prop('disabled',false).html('🔧 Test Sysstat');
+                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); $box.css({background:'#fef2f2',borderColor:'#fecaca'}); return; }
+                var d = resp.data;
+                if (!d.exec_available) {
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled'); $box.css({background:'#fef2f2',borderColor:'#fecaca'});
+                } else if (!d.sar_installed) {
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed'); $box.css({background:'#fef2f2',borderColor:'#fecaca'});
+                } else if (!d.sysstat_active) {
+                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but inactive'); $('#csc-sysstat-detail').text(d.sar_version+' at '+d.sar_path); $box.css({background:'#fffbeb',borderColor:'#fde68a'});
+                } else if (!d.sar_has_data) {
+                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat active, no data yet'); $('#csc-sysstat-detail').text(d.sar_version+' — wait 10 mins'); $box.css({background:'#fffbeb',borderColor:'#fde68a'});
+                } else {
+                    $('#csc-sysstat-icon').text('✅'); $('#csc-sysstat-label').text('sysstat working'); $('#csc-sysstat-detail').text(d.sar_version+' | '+d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%'); $box.css({background:'#f0fdf4',borderColor:'#bbf7d0'});
+                }
+                if (d.instructions) { $('#csc-sysstat-instructions').text(d.instructions).show(); }
+            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); $box.css({background:'#fef2f2',borderColor:'#fecaca'}); });
+        });
     });
     </script>
 
