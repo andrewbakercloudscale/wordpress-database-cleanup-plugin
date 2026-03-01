@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.0.1
+ * Version:     2.1.1
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.0.1' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.1' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -163,28 +163,34 @@ function csc_render_dashboard_widget() {
     $fmt = function ( $val ) {
         return $val
             ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), time() ) . ' ago' ) . '</span>'
-            : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">Never</span>';
+            : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">Not yet run</span>';
     };
+
+    $db_url  = admin_url( 'tools.php?page=cloudscale-cleanup&tab=db-cleanup' );
+    $img_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-cleanup' );
+    $opt_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-optimise' );
+    $tile    = 'display:block;text-decoration:none;border-radius:8px;padding:10px 8px;text-align:center;transition:filter 0.15s,transform 0.15s;cursor:pointer';
+    $hover   = "onmouseover=\"this.style.filter='brightness(1.15)';this.style.transform='scale(1.03)'\" onmouseout=\"this.style.filter='';this.style.transform=''\"";
     ?>
     <div style="padding:4px 0 8px">
         <p style="margin:0 0 14px;font-size:13px;color:#50575e;line-height:1.5">
             CloudScale Cleanup is keeping your database and media library lean —
-            revisions, transients, unused images, and orphaned files all handled.
+            revisions, transients, unused media, and unregistered files all handled.
         </p>
 
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
-            <div style="background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);border-radius:8px;padding:10px 8px;text-align:center;box-shadow:0 2px 6px rgba(21,101,192,0.35)">
+            <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </div>
-            <div style="background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);border-radius:8px;padding:10px 8px;text-align:center;box-shadow:0 2px 6px rgba(69,39,160,0.35)">
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">🖼 Images</div>
+            </a>
+            <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; ?>>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">🖼 Unused Media</div>
                 <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </div>
-            <div style="background:linear-gradient(135deg,#00695c 0%,#00897b 100%);border-radius:8px;padding:10px 8px;text-align:center;box-shadow:0 2px 6px rgba(0,105,92,0.35)">
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Optimise</div>
+            </a>
+            <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; ?>>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </div>
+            </a>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:10px">
@@ -253,11 +259,11 @@ class CSC_Front_Widget extends WP_Widget {
                     <span class="csc-fw-value"><?php echo $last_db  ? esc_html( human_time_diff( strtotime( $last_db  ), time() ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
                 <li>
-                    <span class="csc-fw-label">Image Cleanup</span>
+                    <span class="csc-fw-label">Unused Media</span>
                     <span class="csc-fw-value"><?php echo $last_img ? esc_html( human_time_diff( strtotime( $last_img ), time() ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
                 <li>
-                    <span class="csc-fw-label">Img Optimisation</span>
+                    <span class="csc-fw-label">Img Optimise</span>
                     <span class="csc-fw-value"><?php echo $last_opt ? esc_html( human_time_diff( strtotime( $last_opt ), time() ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
             </ul>
@@ -434,9 +440,42 @@ function csc_cron_img_cleanup() {
         'post_type' => 'attachment', 'post_status' => 'inherit',
         'posts_per_page' => -1, 'fields' => 'ids',
     ) );
-    foreach ( $all as $id ) {
-        if ( ! isset( $used[ $id ] ) ) { wp_delete_attachment( $id, true ); }
+
+    // Load existing media recycle manifest
+    if ( ! csc_media_recycle_ensure_dir() ) {
+        return;
     }
+    $manifest = csc_media_recycle_read_manifest();
+
+    $recycled = 0;
+    foreach ( $all as $id ) {
+        if ( isset( $used[ $id ] ) ) { continue; }
+        try {
+            $result = csc_media_recycle_save_attachment( intval( $id ) );
+            if ( ! empty( $result['error'] ) ) {
+                error_log( '[CSC] Cron recycle error for ID ' . $id . ': ' . $result['error'] );
+                continue;
+            }
+            $manifest[ (string) $id ] = array(
+                'post'        => $result['post'],
+                'meta'        => $result['meta'],
+                'files_moved' => $result['files_moved'],
+                'recycled_at' => current_time( 'mysql' ),
+            );
+            wp_delete_attachment( $id, true );
+            $recycled++;
+        } catch ( Exception $e ) {
+            error_log( '[CSC] Cron recycle exception for ID ' . $id . ': ' . $e->getMessage() );
+        } catch ( Throwable $e ) {
+            error_log( '[CSC] Cron recycle fatal for ID ' . $id . ': ' . $e->getMessage() );
+        }
+    }
+
+    if ( ! csc_media_recycle_write_manifest( $manifest ) ) {
+        error_log( '[CSC] Cron: Failed to write media recycle manifest.' );
+    }
+
+    error_log( '[CSC] Cron: Recycled ' . $recycled . ' unused attachment(s). Total in recycle bin: ' . count( $manifest ) );
     update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
     update_option( 'csc_last_scheduled_img_cleanup', current_time( 'mysql' ) );
     csc_schedule_crons();
@@ -831,7 +870,202 @@ function csc_ajax_scan_images() {
     wp_send_json_success( $lines );
 }
 
-// Chunked run — Step 1
+// ─── Media Recycle Bin helpers ────────────────────────────────────────────────
+
+function csc_media_recycle_dir(): string {
+    return trailingslashit( wp_upload_dir()['basedir'] ) . '.csc-media-recycle/';
+}
+
+function csc_media_recycle_manifest(): string {
+    return csc_media_recycle_dir() . 'manifest.json';
+}
+
+function csc_media_recycle_count(): int {
+    $manifest = csc_media_recycle_manifest();
+    if ( ! file_exists( $manifest ) ) { return 0; }
+    $data = json_decode( file_get_contents( $manifest ), true );
+    return is_array( $data ) ? count( $data ) : 0;
+}
+
+/**
+ * Ensure the media recycle directory exists, is protected from direct web
+ * access, and contains index.php / .htaccess guards.
+ */
+function csc_media_recycle_ensure_dir(): bool {
+    $dir = csc_media_recycle_dir();
+    if ( ! wp_mkdir_p( $dir ) ) {
+        error_log( '[CSC] Cannot create media recycle directory: ' . $dir );
+        return false;
+    }
+    // Prevent directory listing and direct file access
+    $htaccess = $dir . '.htaccess';
+    if ( ! file_exists( $htaccess ) ) {
+        @file_put_contents( $htaccess, "Order deny,allow\nDeny from all\n" );
+    }
+    $index = $dir . 'index.php';
+    if ( ! file_exists( $index ) ) {
+        @file_put_contents( $index, "<?php // Silence is golden.\n" );
+    }
+    return true;
+}
+
+/**
+ * Read the media recycle manifest with corruption detection.
+ * If manifest.json is corrupted, try the backup. If both fail, return empty.
+ */
+function csc_media_recycle_read_manifest(): array {
+    $path   = csc_media_recycle_manifest();
+    $backup = $path . '.bak';
+
+    // Try primary manifest
+    if ( file_exists( $path ) ) {
+        $raw  = file_get_contents( $path );
+        $data = json_decode( $raw, true );
+        if ( is_array( $data ) ) {
+            return $data;
+        }
+        error_log( '[CSC] Media recycle manifest.json corrupted (json_last_error=' . json_last_error() . '). Trying backup.' );
+    }
+
+    // Try backup manifest
+    if ( file_exists( $backup ) ) {
+        $raw  = file_get_contents( $backup );
+        $data = json_decode( $raw, true );
+        if ( is_array( $data ) ) {
+            error_log( '[CSC] Recovered media recycle manifest from backup.' );
+            // Restore the primary from backup
+            @copy( $backup, $path );
+            return $data;
+        }
+        error_log( '[CSC] Media recycle backup manifest also corrupted.' );
+    }
+
+    return array();
+}
+
+/**
+ * Write the media recycle manifest atomically with a backup copy.
+ * Returns true on success, false on failure.
+ */
+function csc_media_recycle_write_manifest( array $manifest ): bool {
+    $path   = csc_media_recycle_manifest();
+    $backup = $path . '.bak';
+    $json   = json_encode( $manifest, JSON_PRETTY_PRINT );
+
+    if ( $json === false ) {
+        error_log( '[CSC] Failed to encode media recycle manifest (json_last_error=' . json_last_error() . ').' );
+        return false;
+    }
+
+    // Backup current manifest before overwriting
+    if ( file_exists( $path ) ) {
+        @copy( $path, $backup );
+    }
+
+    // Write atomically: write to temp file then rename
+    $tmp = $path . '.tmp';
+    $written = file_put_contents( $tmp, $json );
+    if ( $written === false ) {
+        error_log( '[CSC] Failed to write media recycle manifest temp file.' );
+        return false;
+    }
+
+    if ( ! @rename( $tmp, $path ) ) {
+        // Fallback: direct write if rename fails (cross device)
+        $written = file_put_contents( $path, $json );
+        @unlink( $tmp );
+        if ( $written === false ) {
+            error_log( '[CSC] Failed to write media recycle manifest (direct write also failed).' );
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Save a single attachment's complete data (post row + meta + files) into the
+ * media recycle manifest so it can be fully restored later.
+ */
+function csc_media_recycle_save_attachment( int $id ): array {
+    global $wpdb;
+    $post = get_post( $id, ARRAY_A );
+    if ( ! $post ) { return array( 'error' => 'Attachment post not found for ID ' . $id ); }
+
+    $meta = $wpdb->get_results(
+        $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d", $id ),
+        ARRAY_A
+    );
+
+    $file   = get_attached_file( $id );
+    $upload = wp_upload_dir();
+    $base   = trailingslashit( $upload['basedir'] );
+    $recycle = csc_media_recycle_dir() . 'files/';
+
+    // Collect all physical files: original + thumbnails
+    $files_moved = array();
+    $errors      = array();
+
+    // Build list of all files for this attachment
+    $all_files = array();
+    if ( $file && file_exists( $file ) ) {
+        $all_files[] = $file;
+    }
+    $attachment_meta = wp_get_attachment_metadata( $id );
+    if ( is_array( $attachment_meta ) && ! empty( $attachment_meta['file'] ) ) {
+        $dir = trailingslashit( $base . dirname( $attachment_meta['file'] ) );
+        if ( ! empty( $attachment_meta['sizes'] ) && is_array( $attachment_meta['sizes'] ) ) {
+            foreach ( $attachment_meta['sizes'] as $size_data ) {
+                if ( ! empty( $size_data['file'] ) ) {
+                    $thumb_path = $dir . $size_data['file'];
+                    if ( file_exists( $thumb_path ) ) {
+                        $all_files[] = $thumb_path;
+                    }
+                }
+            }
+        }
+        // Scaled original backup (WP 5.3+)
+        if ( ! empty( $attachment_meta['original_image'] ) ) {
+            $orig_path = $dir . $attachment_meta['original_image'];
+            if ( file_exists( $orig_path ) ) {
+                $all_files[] = $orig_path;
+            }
+        }
+    }
+
+    $all_files = array_unique( $all_files );
+
+    // Move each file to recycle dir
+    foreach ( $all_files as $src_path ) {
+        $rel  = str_replace( $base, '', $src_path );
+        $dest = $recycle . $rel;
+        if ( ! wp_mkdir_p( dirname( $dest ) ) ) {
+            $errors[] = 'Cannot create dir for: ' . $rel;
+            continue;
+        }
+        if ( @rename( $src_path, $dest ) ) {
+            $files_moved[] = $rel;
+        } else {
+            // Try copy+delete as fallback (cross-device move)
+            if ( @copy( $src_path, $dest ) && @unlink( $src_path ) ) {
+                $files_moved[] = $rel;
+            } else {
+                $errors[] = 'Failed to move: ' . $rel;
+            }
+        }
+    }
+
+    return array(
+        'id'          => $id,
+        'post'        => $post,
+        'meta'        => $meta,
+        'files_moved' => $files_moved,
+        'errors'      => $errors,
+    );
+}
+
+// ─── Chunked Move to Recycle — Step 1: build queue ───────────────────────────
+
 add_action( 'wp_ajax_csc_img_start', 'csc_ajax_img_start' );
 function csc_ajax_img_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
@@ -848,11 +1082,11 @@ function csc_ajax_img_start() {
     wp_send_json_success( array(
         'total'     => count( $queue ),
         'remaining' => count( $queue ),
-        'lines'     => array( array( 'type' => 'info', 'text' => '  Found ' . count( $queue ) . ' unused attachments to delete.' ) ),
+        'lines'     => array( array( 'type' => 'info', 'text' => '  Found ' . count( $queue ) . ' unused attachments. Moving to recycle bin.' ) ),
     ) );
 }
 
-// Step 2
+// Step 2: process a chunk — move to recycle instead of deleting
 add_action( 'wp_ajax_csc_img_chunk', 'csc_ajax_img_chunk' );
 function csc_ajax_img_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
@@ -864,24 +1098,348 @@ function csc_ajax_img_chunk() {
     $chunk = array_splice( $queue, 0, CSC_CHUNK_IMAGES );
     set_transient( 'csc_img_queue', $queue, HOUR_IN_SECONDS );
 
+    // Load existing manifest
+    if ( ! csc_media_recycle_ensure_dir() ) {
+        wp_send_json_error( 'Cannot create media recycle directory.' );
+    }
+    $manifest = csc_media_recycle_read_manifest();
+
     $lines = array();
     foreach ( $chunk as $id ) {
         $title = get_the_title( $id );
-        wp_delete_attachment( $id, true );
-        $lines[] = array( 'type' => 'deleted', 'text' => '  Deleted ID ' . $id . ' — ' . esc_html( $title ) );
+        try {
+            $result = csc_media_recycle_save_attachment( $id );
+            if ( ! empty( $result['error'] ) ) {
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' — ' . $result['error'] );
+                continue;
+            }
+            $file_count = count( $result['files_moved'] );
+            $err_count  = count( $result['errors'] );
+
+            // Store in manifest keyed by attachment ID
+            $manifest[ (string) $id ] = array(
+                'post'        => $result['post'],
+                'meta'        => $result['meta'],
+                'files_moved' => $result['files_moved'],
+                'recycled_at' => current_time( 'mysql' ),
+            );
+
+            // Now remove the attachment record from the database
+            // (force=true skips trash and deletes immediately, but we already moved files)
+            wp_delete_attachment( $id, true );
+
+            $msg = '  [RECYCLED] ID ' . $id . ' — ' . esc_html( $title ) . ' (' . $file_count . ' file(s))';
+            if ( $err_count > 0 ) {
+                $msg .= ' ⚠ ' . $err_count . ' error(s): ' . implode( '; ', $result['errors'] );
+            }
+            $lines[] = array( 'type' => 'deleted', 'text' => $msg );
+        } catch ( Exception $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $id . ' — ' . $e->getMessage() );
+        } catch ( Throwable $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $id . ' — ' . $e->getMessage() );
+        }
+    }
+
+    // Save updated manifest
+    if ( ! csc_media_recycle_write_manifest( $manifest ) ) {
+        $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] Failed to write media recycle manifest.' );
     }
 
     wp_send_json_success( array( 'remaining' => count( $queue ), 'lines' => $lines ) );
 }
 
-// Step 3
+// Step 3: finish
 add_action( 'wp_ajax_csc_img_finish', 'csc_ajax_img_finish' );
 function csc_ajax_img_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
     delete_transient( 'csc_img_queue' );
     update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
-    wp_send_json_success( array( 'lines' => array( array( 'type' => 'success', 'text' => 'Image cleanup complete.' ) ) ) );
+    $recycle_count = csc_media_recycle_count();
+    wp_send_json_success( array(
+        'lines' => array(
+            array( 'type' => 'success', 'text' => 'Unused media moved to recycle bin.' ),
+            array( 'type' => 'info',    'text' => '  ♻️ ' . $recycle_count . ' item(s) in media recycle bin.' ),
+            array( 'type' => 'info',    'text' => '  Use Restore to put them back, or Permanently Delete to remove them.' ),
+        ),
+        'recycle' => $recycle_count,
+    ) );
+}
+
+// ─── Media Recycle: Status ───────────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_media_recycle_status', 'csc_ajax_media_recycle_status' );
+function csc_ajax_media_recycle_status() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    wp_send_json_success( array( 'recycle' => csc_media_recycle_count() ) );
+}
+
+// ─── Media Recycle: Browse ───────────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_media_recycle_browse', 'csc_ajax_media_recycle_browse' );
+function csc_ajax_media_recycle_browse() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+
+    $manifest = csc_media_recycle_read_manifest();
+    if ( empty( $manifest ) ) {
+        wp_send_json_success( array( 'files' => array(), 'total' => 0, 'total_size' => 0 ) );
+        return;
+    }
+
+    $recycle    = csc_media_recycle_dir() . 'files/';
+    $files      = array();
+    $total_size = 0;
+
+    foreach ( $manifest as $att_id => $entry ) {
+        $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'Untitled';
+        $size  = 0;
+        foreach ( $entry['files_moved'] as $rel ) {
+            $path = $recycle . $rel;
+            if ( file_exists( $path ) ) { $size += filesize( $path ); }
+        }
+        $total_size += $size;
+        $files[] = array(
+            'id'        => $att_id,
+            'name'      => $title,
+            'file_count' => count( $entry['files_moved'] ),
+            'size'      => $size,
+            'size_fmt'  => size_format( $size ),
+            'recycled'  => isset( $entry['recycled_at'] ) ? $entry['recycled_at'] : '',
+        );
+    }
+
+    wp_send_json_success( array(
+        'files'      => $files,
+        'total'      => count( $files ),
+        'total_size' => size_format( $total_size ),
+    ) );
+}
+
+// ─── Media Recycle: Restore All ──────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_media_restore', 'csc_ajax_media_restore' );
+function csc_ajax_media_restore() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $lines = array();
+    $lines[] = array( 'type' => 'section', 'text' => '=== RESTORING MEDIA FROM RECYCLE BIN ===' );
+
+    $manifest = csc_media_recycle_read_manifest();
+    if ( empty( $manifest ) ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Media recycle bin is empty.' );
+        wp_send_json_success( array( 'lines' => $lines, 'restored' => 0, 'recycle' => 0 ) );
+        return;
+    }
+
+    $recycle  = csc_media_recycle_dir() . 'files/';
+    $base     = trailingslashit( wp_upload_dir()['basedir'] );
+    $restored = 0;
+    $errors   = 0;
+
+    foreach ( $manifest as $att_id => $entry ) {
+        try {
+            $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'ID ' . $att_id;
+
+            // 1. Move files back
+            $file_errors = array();
+            foreach ( $entry['files_moved'] as $rel ) {
+                $src  = $recycle . $rel;
+                $dest = $base . $rel;
+                if ( ! file_exists( $src ) ) {
+                    $file_errors[] = 'Missing: ' . $rel;
+                    continue;
+                }
+                if ( ! wp_mkdir_p( dirname( $dest ) ) ) {
+                    $file_errors[] = 'Cannot create dir for: ' . $rel;
+                    continue;
+                }
+                if ( ! @rename( $src, $dest ) ) {
+                    if ( ! ( @copy( $src, $dest ) && @unlink( $src ) ) ) {
+                        $file_errors[] = 'Move failed: ' . $rel;
+                    }
+                }
+            }
+
+            // 2. Re-insert the attachment post
+            $post_data = $entry['post'];
+            unset( $post_data['ID'] ); // let WP assign a new ID
+            $post_data['import_id'] = intval( $att_id ); // try to keep original ID
+            $new_id = wp_insert_post( $post_data, true );
+
+            if ( is_wp_error( $new_id ) ) {
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $att_id . ' — ' . esc_html( $title ) . ': ' . $new_id->get_error_message() );
+                $errors++;
+                continue;
+            }
+
+            // 3. Restore meta rows
+            if ( ! empty( $entry['meta'] ) ) {
+                global $wpdb;
+                foreach ( $entry['meta'] as $row ) {
+                    $wpdb->insert( $wpdb->postmeta, array(
+                        'post_id'    => $new_id,
+                        'meta_key'   => $row['meta_key'],
+                        'meta_value' => $row['meta_value'],
+                    ) );
+                }
+            }
+
+            $msg = '  [RESTORED] ID ' . $att_id . ' — ' . esc_html( $title );
+            if ( ! empty( $file_errors ) ) {
+                $msg .= ' ⚠ ' . implode( '; ', $file_errors );
+            }
+            $lines[] = array( 'type' => 'success', 'text' => $msg );
+            unset( $manifest[ $att_id ] );
+            $restored++;
+
+        } catch ( Exception $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $att_id . ' — ' . $e->getMessage() );
+            $errors++;
+        } catch ( Throwable $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $att_id . ' — ' . $e->getMessage() );
+            $errors++;
+        }
+    }
+
+    // Update or remove manifest
+    if ( empty( $manifest ) ) {
+        @unlink( csc_media_recycle_manifest() );
+        csc_rmdir_recursive( csc_media_recycle_dir() );
+    } else {
+        csc_media_recycle_write_manifest( $manifest );
+    }
+
+    $lines[] = array( 'type' => 'success', 'text' => '  ✅ Restored ' . $restored . ' attachment(s).' . ( $errors ? ' ' . $errors . ' error(s).' : '' ) );
+    wp_send_json_success( array( 'lines' => $lines, 'restored' => $restored, 'recycle' => count( $manifest ) ) );
+}
+
+// ─── Media Recycle: Restore Single ───────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_media_restore_single', 'csc_ajax_media_restore_single' );
+function csc_ajax_media_restore_single() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+
+    $att_id = sanitize_text_field( $_POST['att_id'] ?? '' );
+    if ( empty( $att_id ) ) { wp_send_json_error( 'No attachment ID specified.' ); }
+
+    $manifest = csc_media_recycle_read_manifest();
+    if ( empty( $manifest ) ) { wp_send_json_error( 'Media recycle bin is empty.' ); }
+    if ( ! isset( $manifest[ $att_id ] ) ) { wp_send_json_error( 'Attachment not found in recycle bin.' ); }
+
+    $entry   = $manifest[ $att_id ];
+    $recycle = csc_media_recycle_dir() . 'files/';
+    $base    = trailingslashit( wp_upload_dir()['basedir'] );
+
+    try {
+        // Move files back
+        foreach ( $entry['files_moved'] as $rel ) {
+            $src  = $recycle . $rel;
+            $dest = $base . $rel;
+            if ( file_exists( $src ) ) {
+                wp_mkdir_p( dirname( $dest ) );
+                if ( ! @rename( $src, $dest ) ) {
+                    @copy( $src, $dest ) && @unlink( $src );
+                }
+            }
+        }
+
+        // Re-insert post
+        $post_data = $entry['post'];
+        unset( $post_data['ID'] );
+        $post_data['import_id'] = intval( $att_id );
+        $new_id = wp_insert_post( $post_data, true );
+        if ( is_wp_error( $new_id ) ) {
+            wp_send_json_error( 'Failed to restore post: ' . $new_id->get_error_message() );
+        }
+
+        // Restore meta
+        if ( ! empty( $entry['meta'] ) ) {
+            global $wpdb;
+            foreach ( $entry['meta'] as $row ) {
+                $wpdb->insert( $wpdb->postmeta, array(
+                    'post_id'    => $new_id,
+                    'meta_key'   => $row['meta_key'],
+                    'meta_value' => $row['meta_value'],
+                ) );
+            }
+        }
+
+        unset( $manifest[ $att_id ] );
+        if ( empty( $manifest ) ) {
+            @unlink( csc_media_recycle_manifest() );
+            csc_rmdir_recursive( csc_media_recycle_dir() );
+        } else {
+            csc_media_recycle_write_manifest( $manifest );
+        }
+
+        $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'ID ' . $att_id;
+        wp_send_json_success( array( 'restored' => esc_html( $title ), 'remaining' => count( $manifest ) ) );
+
+    } catch ( Exception $e ) {
+        wp_send_json_error( 'Exception: ' . $e->getMessage() );
+    } catch ( Throwable $e ) {
+        wp_send_json_error( 'Fatal: ' . $e->getMessage() );
+    }
+}
+
+// ─── Media Recycle: Permanently Delete ───────────────────────────────────────
+
+add_action( 'wp_ajax_csc_media_purge', 'csc_ajax_media_purge' );
+function csc_ajax_media_purge() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $lines = array();
+    $lines[] = array( 'type' => 'section', 'text' => '=== PERMANENTLY DELETING MEDIA RECYCLE BIN ===' );
+
+    $manifest = csc_media_recycle_read_manifest();
+    if ( empty( $manifest ) ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Media recycle bin is empty.' );
+        wp_send_json_success( array( 'lines' => $lines, 'deleted' => 0, 'recycle' => 0 ) );
+        return;
+    }
+    $recycle  = csc_media_recycle_dir() . 'files/';
+    $deleted  = 0;
+    $errors   = 0;
+    $freed    = 0;
+
+    foreach ( $manifest as $att_id => $entry ) {
+        try {
+            $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'ID ' . $att_id;
+            $file_deleted = 0;
+            foreach ( $entry['files_moved'] as $rel ) {
+                $path = $recycle . $rel;
+                if ( file_exists( $path ) ) {
+                    $freed += filesize( $path );
+                    if ( @unlink( $path ) ) {
+                        $file_deleted++;
+                    } else {
+                        $errors++;
+                    }
+                } else {
+                    $file_deleted++; // already gone
+                }
+            }
+            $lines[] = array( 'type' => 'deleted', 'text' => '  [DELETED] ID ' . $att_id . ' — ' . esc_html( $title ) . ' (' . $file_deleted . ' file(s))' );
+            $deleted++;
+        } catch ( Exception $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $att_id . ' — ' . $e->getMessage() );
+            $errors++;
+        } catch ( Throwable $e ) {
+            $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $att_id . ' — ' . $e->getMessage() );
+            $errors++;
+        }
+    }
+
+    // Wipe the entire recycle directory
+    csc_rmdir_recursive( csc_media_recycle_dir() );
+
+    $lines[] = array( 'type' => 'success', 'text' => '  ✅ Permanently deleted ' . $deleted . ' attachment(s). Freed ' . size_format( $freed ) . '.' . ( $errors ? ' ' . $errors . ' error(s).' : '' ) );
+    wp_send_json_success( array( 'lines' => $lines, 'deleted' => $deleted, 'recycle' => 0 ) );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2153,7 +2711,7 @@ function csc_render_page() {
 
         <div class="csc-tabs">
             <button class="csc-tab active" data-tab="db-cleanup">Database Cleanup</button>
-            <button class="csc-tab" data-tab="img-cleanup">Image Cleanup</button>
+            <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
             <button class="csc-tab" data-tab="settings">Settings</button>
@@ -2174,6 +2732,7 @@ function csc_render_page() {
             [ 'rec' => '✅ Recommended', 'name' => 'Expired Transients', 'desc' => 'Temporary cached values stored in your options table by plugins and themes. After expiry WordPress should delete them, but many accumulate. Completely safe to delete.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Orphaned Post Meta', 'desc' => 'Post meta rows referencing a post ID that no longer exists. Left behind when posts are deleted without their metadata being cleaned up.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Orphaned User Meta', 'desc' => 'Metadata rows referencing deleted user accounts. Accumulates when users are removed from the system.' ],
+            [ 'rec' => '💡 Tip', 'name' => 'Always dry run first', 'desc' => 'Press Dry Run to preview what will be removed, then review the output log carefully before running cleanup. No changes are made until you press the cleanup button.' ],
             ],
             '#00e676'
         ); ?></div>
@@ -2309,7 +2868,7 @@ function csc_render_page() {
                 <div class="csc-card-header csc-card-header-dark">Output Log</div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
-                    <pre class="csc-terminal" id="db-terminal">Ready. Press Dry Run to preview or Run Cleanup Now to execute.</pre>
+                    <pre class="csc-terminal" id="db-terminal">Ready. Press Dry Run to preview what will be removed, then review the output log before running cleanup.</pre>
                 </div>
             </div>
         </div>
@@ -2318,43 +2877,79 @@ function csc_render_page() {
         <div class="csc-tab-content" id="tab-img-cleanup">
             <div class="csc-cards-row">
                 <div class="csc-card">
-                    <div class="csc-card-header csc-card-header-purple"><span>Unused Image Cleanup</span> <?php csc_explain_btn(
+                    <div class="csc-card-header csc-card-header-purple"><span>Unused Media</span> <?php csc_explain_btn(
             'unused-images',
-            'Unused Image Cleanup — How images are detected',
+            'Unused Media — How detection works',
             [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What unused means', 'desc' => 'An attachment is considered unused if it cannot be found in post content, featured images, widget settings, theme mods, the site logo, or the site icon. The site logo and icon are always protected.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What unused means', 'desc' => 'An attachment is considered unused if it cannot be found in post content, featured images, widget settings, theme mods, the site logo, or the site icon. These are media files registered in WordPress but not referenced anywhere on your site.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'What is always protected', 'desc' => 'The site logo and site icon set in Appearance Customize are never flagged as unused, regardless of whether they appear in post content.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What gets deleted', 'desc' => 'wp_delete_attachment() is called for each unused ID. This removes the database record and all associated files on disk — the original upload plus every generated thumbnail size.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'Deletions are processed in batches of 25 per request so the operation never risks hitting PHP timeout limits, even on shared hosting with libraries of thousands of images.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'The recycle workflow', 'desc' => 'Unused media is moved to a recycle bin rather than deleted immediately. The recycle bin stores the full attachment record, metadata, and all physical files so they can be completely restored if needed. Only Permanently Delete removes files for good.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'Moves are processed in batches of 25 per request so the operation never risks hitting PHP timeout limits, even on shared hosting with libraries of thousands of images.' ],
+            [ 'rec' => '💡 Tip', 'name' => 'Always dry run first', 'desc' => 'Press Dry Run to preview which media will be flagged as unused, then review the output log carefully before moving to recycle. No files are touched until you press the recycle button.' ],
             ],
             '#00e5ff'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Identifies media library attachments not referenced in any post content, featured image, widget, or theme option. The site logo and site icon are always preserved regardless of reference status. Deletions are chunked at <?php echo CSC_CHUNK_IMAGES; ?> per request with a live progress bar.</p>
+                        <p>Finds media library attachments not referenced in any post, page, featured image, widget, or theme setting. These are registered in WordPress but nothing links to them. Moves are chunked at <?php echo CSC_CHUNK_IMAGES; ?> per request with a live progress bar.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-img">🔍 Dry Run — Preview</button>
-                            <button class="csc-btn csc-btn-danger"    id="btn-run-img">🗑 Delete Unused Images</button>
+                            <button class="csc-btn csc-btn-danger"    id="btn-run-img">♻️ Move to Recycle</button>
                         </div>
                         <div class="csc-progress-outer" id="img-progress-outer" style="display:none">
                             <div class="csc-progress-bar"><div class="csc-progress-fill" id="img-progress-fill"></div></div>
                             <div class="csc-progress-label" id="img-progress-label">Preparing…</div>
                         </div>
+                        <div id="media-recycle-actions" style="margin-top:12px;padding:12px 14px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px">
+                            <strong style="font-size:12px;color:#4a148c">♻️ Media Recycle Bin</strong>
+                            <span id="media-recycle-count" style="font-size:12px;color:#4a148c;margin-left:6px">— checking…</span>
+                            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+                                <button class="csc-btn" id="btn-restore-media"
+                                    style="background:#43a047;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer">
+                                    ↩️ Restore All
+                                </button>
+                                <button class="csc-btn" id="btn-purge-media"
+                                    style="background:#b71c1c;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer">
+                                    🗑 Permanently Delete
+                                </button>
+                                <button class="csc-btn" id="btn-browse-media-recycle"
+                                    style="background:#5c6bc0;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer">
+                                    📂 View Recycle Bin
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Media Recycle Bin Browser Modal -->
+                        <div id="csc-media-recycle-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;background:rgba(0,0,0,0.6);padding:20px;overflow-y:auto">
+                            <div style="max-width:900px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);overflow:hidden">
+                                <div style="background:linear-gradient(135deg,#7b1fa2 0%,#9c27b0 100%);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between">
+                                    <div>
+                                        <div style="font-size:18px;font-weight:700">♻️ Media Recycle Bin</div>
+                                        <div id="media-recycle-modal-summary" style="font-size:12px;opacity:0.8;margin-top:2px">Loading…</div>
+                                    </div>
+                                    <button id="btn-media-recycle-modal-close"
+                                        style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+                                        ✕
+                                    </button>
+                                </div>
+                                <div id="media-recycle-modal-list" style="max-height:500px;overflow-y:auto;padding:0 24px"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="csc-card">
-                    <div class="csc-card-header csc-card-header-amber"><span>Orphaned Filesystem Files</span> <?php csc_explain_btn(
+                    <div class="csc-card-header csc-card-header-amber"><span>Unregistered Files</span> <?php csc_explain_btn(
             'orphan-files',
-            'Orphaned Filesystem Files — What they are',
+            'Unregistered Files — What they are',
             [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What an orphaned file is', 'desc' => 'An orphaned file exists physically on disk inside wp-content/uploads but has no corresponding WordPress attachment record in the database.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What an unregistered file is', 'desc' => 'A file that exists physically on disk inside wp-content/uploads but has no corresponding WordPress media library record in the database. Unlike unused media (which has a database record but no references), these files have no database record at all.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'How they accumulate', 'desc' => 'Files uploaded via FTP without being registered in WordPress, partially completed uploads, images imported without the media importer, or files left behind by deleted plugins.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'The recycle workflow', 'desc' => 'Scan finds orphans. Move to Recycle places them in wp-content/uploads/.csc-recycle/ with a manifest recording their original paths. Restore moves them back exactly. Permanently Delete wipes the recycle bin.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What the scan checks', 'desc' => 'Every image file found recursively under the uploads directory is checked against files registered in _wp_attached_file and _wp_attachment_metadata. Files not in either set are reported as orphans.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'The recycle workflow', 'desc' => 'Scan finds unregistered files. Move to Recycle places them in wp-content/uploads/.csc-recycle/ with a manifest recording their original paths. Restore moves them back exactly. Permanently Delete wipes the recycle bin.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What the scan checks', 'desc' => 'Every file found recursively under the uploads directory is checked against files registered in _wp_attached_file and _wp_attachment_metadata, plus any file URLs referenced in published post content. Files not in any of these sets are reported as unregistered.' ],
             ],
             '#ff4081'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Scans the uploads directory for files that exist on disk but have no corresponding WordPress attachment record. Use the recycle workflow to safely remove them.</p>
+                        <p>Finds files sitting in your uploads folder that have no matching record in the WordPress media library. Typically from FTP uploads, failed imports, or plugins that wrote files directly. Use the recycle workflow to safely remove them.</p>
                         <script>
                         var cscPillOff = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #c3c4c7;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#50575e;margin:0 4px 4px 0';
                         var cscPillOn  = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0';
@@ -2380,7 +2975,7 @@ function csc_render_page() {
                             <span class="csc-orphan-pill" onclick="cscOrphanToggle(this,'audio')"     style="display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0">🎵 Audio</span>
                         </div>
                         <div class="csc-button-row" style="flex-wrap:wrap;gap:10px">
-                            <button class="csc-btn csc-btn-secondary" id="btn-scan-orphan">🔍 Scan Orphan Files</button>
+                            <button class="csc-btn csc-btn-secondary" id="btn-scan-orphan">🔍 Scan Unregistered Files</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-recycle-orphan">♻️ Move to Recycle</button>
                         </div>
                         <div id="orphan-recycle-actions" style="margin-top:12px;padding:12px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px">
@@ -2432,13 +3027,13 @@ function csc_render_page() {
             </div>
 
             <div class="csc-card">
-                <div class="csc-card-header csc-card-header-slate-img"><span>Scheduled Image Cleanup</span> <?php csc_explain_btn(
+                <div class="csc-card-header csc-card-header-slate-img"><span>Scheduled Media Cleanup</span> <?php csc_explain_btn(
             'img-schedule',
-            'Scheduled Image Cleanup — How it works',
+            'Scheduled Media Cleanup — How it works',
             [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Runs the unused image cleanup automatically on the selected days and hour. The same detection logic as the manual cleanup is used — the site logo and site icon are always protected.' ],
-            [ 'rec' => '⬜ Optional', 'name' => 'Use with caution on active sites', 'desc' => 'Automated image cleanup is most appropriate for sites where images are always attached to posts via the standard WordPress editor. Review a manual dry run before enabling the schedule.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'After each run', 'desc' => 'The next scheduled run is automatically registered, so the schedule stays active indefinitely.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Runs the unused media cleanup automatically on the selected days and hour. Unused attachments are moved to the media recycle bin (not deleted). The same detection logic as the manual cleanup is used — the site logo and site icon are always protected.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Use with caution on active sites', 'desc' => 'Automated cleanup is most appropriate for sites where images are always attached to posts via the standard WordPress editor. Review a manual dry run before enabling the schedule.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'After each run', 'desc' => 'The next scheduled run is automatically registered, so the schedule stays active indefinitely. You can review and restore recycled media at any time from the Media Cleanup tab.' ],
             ],
             '#69f0ae'
         ); ?></div>
@@ -2494,7 +3089,7 @@ function csc_render_page() {
                 <div class="csc-card-header csc-card-header-dark">Output Log</div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
-                    <pre class="csc-terminal" id="img-terminal">Ready. Press Dry Run to preview or Delete Unused Images to execute.</pre>
+                    <pre class="csc-terminal" id="img-terminal">Ready. Press Dry Run to preview which media will be flagged as unused, then review the output log before moving to recycle.</pre>
                 </div>
             </div>
         </div>
@@ -2511,6 +3106,7 @@ function csc_render_page() {
             [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'After each image is processed, all registered WordPress thumbnail sizes are regenerated from the new optimised original to ensure consistency.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'PNG to JPEG conversion', 'desc' => 'When enabled, PNG files without transparency are converted to JPEG. Photographic PNGs typically shrink by 40-70% when converted. PNG files with transparency are never converted.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'Images are processed 5 at a time per request to keep each request well under 30 seconds. Always take a full site backup before running on a production site.' ],
+            [ 'rec' => '💡 Tip', 'name' => 'Always dry run first', 'desc' => 'Press Dry Run to preview potential savings, then review the output log carefully before optimising. No files are modified until you press the optimise button.' ],
             ],
             '#ff1744'
         ); ?></div>
@@ -2556,7 +3152,7 @@ function csc_render_page() {
                 <div class="csc-card-header csc-card-header-dark">Output Log</div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
-                    <pre class="csc-terminal" id="optimise-terminal">Ready. Press Dry Run to preview savings or Optimise Images Now to execute.</pre>
+                    <pre class="csc-terminal" id="optimise-terminal">Ready. Press Dry Run to preview savings, then review the output log before optimising.</pre>
                 </div>
             </div>
         </div>
@@ -2717,7 +3313,7 @@ function csc_render_page() {
                             <div class="csc-stat-value"><?php echo esc_html( get_option( 'csc_last_db_cleanup', 'Never' ) ); ?></div>
                         </div>
                         <div class="csc-stat-box">
-                            <div class="csc-stat-label">Last Image Cleanup</div>
+                            <div class="csc-stat-label">Last Media Cleanup</div>
                             <div class="csc-stat-value"><?php echo esc_html( get_option( 'csc_last_img_cleanup', 'Never' ) ); ?></div>
                         </div>
                         <div class="csc-stat-box">
@@ -2752,7 +3348,7 @@ function csc_render_page() {
                             <td><?php echo $next_db  ? esc_html( 'Next: ' . date_i18n( 'D j M Y H:i', $next_db  ) ) : '—'; ?></td>
                         </tr>
                         <tr>
-                            <td>Image Cleanup</td>
+                            <td>Media Cleanup</td>
                             <td><span class="csc-badge <?php echo $img_en ? 'csc-badge-green' : 'csc-badge-grey'; ?>"><?php echo $img_en ? 'Enabled' : 'Disabled'; ?></span></td>
                             <td><?php echo $next_img ? esc_html( 'Next: ' . date_i18n( 'D j M Y H:i', $next_img ) ) : '—'; ?></td>
                         </tr>

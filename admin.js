@@ -7,7 +7,7 @@
 
     $(document).ready(function () {
 
-    console.log('[CSC] admin-v7.js loaded — build 2.0.1 — ' + new Date().toISOString());
+    console.log('[CSC] admin-v7.js loaded — build 2.1.0 — ' + new Date().toISOString());
     // ── Tab switching ──────────────────────────────────────────────────────────
 
     $('.csc-tab').on('click', function () {
@@ -274,6 +274,7 @@
                 if (resp.success) { appendLines(opts.termId, resp.data.lines); }
                 opts.$btn.prop('disabled', false).html(opts.restoreLabel);
                 finishProgress('#' + opts.progressOuter, opts.progressFill, opts.progressLabel, 'Complete.');
+                if (typeof opts.onFinish === 'function') { try { opts.onFinish(resp); } catch(e) { console.error('CSC onFinish callback error:', e); } }
             }).fail(networkError);
         }
 
@@ -313,7 +314,7 @@
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('db-terminal', resp.data);
-                appendLine('db-terminal', { type: 'info', text: '\nDry run complete. No changes have been made.' });
+                appendLine('db-terminal', { type: 'info', text: '\nDry run complete. No changes have been made. Review the output log above before running cleanup.' });
             } else {
                 appendLine('db-terminal', { type: 'error', text: 'Server error: ' + (resp.data || 'Unknown — check PHP error log') });
             }
@@ -354,17 +355,27 @@
     // IMAGE CLEANUP
     // ═════════════════════════════════════════════════════════════════════════
 
+    // ── Media recycle bin status helper ──
+    function mediaUpdateRecycleBin( count ) {
+        $('#media-recycle-count').text( count > 0 ? '— ' + count + ' attachment(s) in recycle bin' : '— recycle bin is empty' );
+    }
+
+    // Check media recycle bin on page load
+    $.post( CSC.ajax_url, { action: 'csc_media_recycle_status', nonce: CSC.nonce }, function( resp ) {
+        mediaUpdateRecycleBin( resp.success ? resp.data.recycle : 0 );
+    });
+
     $('#btn-scan-img').on('click', function () {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('img-terminal');
-        appendLine('img-terminal', { type: 'section', text: '=== DRY RUN — Unused Image Scan ===' });
+        appendLine('img-terminal', { type: 'section', text: '=== DRY RUN — Unused Media Scan ===' });
 
         $.post(CSC.ajax_url, { action: 'csc_scan_images', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('img-terminal', resp.data);
-                appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files deleted.' });
+                appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files moved or deleted. Review the output log above before moving to recycle.' });
             } else {
                 appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
@@ -379,16 +390,111 @@
             startAction:   'csc_img_start',
             chunkAction:   'csc_img_chunk',
             finishAction:  'csc_img_finish',
-            startLabel:    'DELETING UNUSED IMAGES',
+            startLabel:    'MOVING UNUSED MEDIA TO RECYCLE',
             termId:        'img-terminal',
             progressOuter: 'img-progress-outer',
             progressFill:  'img-progress-fill',
             progressLabel: 'img-progress-label',
-            confirmMsg:    'This will permanently delete unused media attachments. This cannot be undone. Proceed?',
+            confirmMsg:    'This will move unused media attachments to the recycle bin. You can restore them afterwards. Proceed?',
             $btn:          $(this),
-            restoreLabel:  '🗑 Delete Unused Images',
+            restoreLabel:  '♻️ Move to Recycle',
+            onFinish:      function( resp ) {
+                if ( resp && resp.data && typeof resp.data.recycle !== 'undefined' ) {
+                    mediaUpdateRecycleBin( resp.data.recycle );
+                }
+            },
         });
     });
+
+    // ── Media Recycle: Restore All ──
+    $('#btn-restore-media').on('click', function () {
+        if ( !confirm('Restore all media from the recycle bin? This will re-create the attachment records and move files back.') ) { return; }
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Restoring…');
+        clearTerminal('img-terminal');
+
+        $.post(CSC.ajax_url, { action: 'csc_media_restore', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('↩️ Restore All');
+            if (resp.success) {
+                appendLines('img-terminal', resp.data.lines);
+                mediaUpdateRecycleBin( resp.data.recycle );
+            } else {
+                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            $btn.prop('disabled', false).html('↩️ Restore All');
+            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+        });
+    });
+
+    // ── Media Recycle: Permanently Delete ──
+    $('#btn-purge-media').on('click', function () {
+        if ( !confirm('PERMANENTLY DELETE all media in the recycle bin? This cannot be undone.') ) { return; }
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Deleting…');
+        clearTerminal('img-terminal');
+
+        $.post(CSC.ajax_url, { action: 'csc_media_purge', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🗑 Permanently Delete');
+            if (resp.success) {
+                appendLines('img-terminal', resp.data.lines);
+                mediaUpdateRecycleBin( resp.data.recycle );
+            } else {
+                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            $btn.prop('disabled', false).html('🗑 Permanently Delete');
+            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+        });
+    });
+
+    // ── Media Recycle: Browse Modal ──
+    $('#btn-browse-media-recycle').on('click', function () {
+        var $modal = $('#csc-media-recycle-modal').show();
+        var $list  = $('#media-recycle-modal-list').html('<div style="padding:30px;text-align:center;color:#999">Loading media recycle bin…</div>');
+
+        $.post(CSC.ajax_url, { action: 'csc_media_recycle_browse', nonce: CSC.nonce }, function (res) {
+            if (!res.success || !res.data.files.length) {
+                $list.html('<div style="padding:30px;text-align:center;color:#999">Recycle bin is empty.</div>');
+                $('#media-recycle-modal-summary').text('0 attachments');
+                return;
+            }
+            $('#media-recycle-modal-summary').text(res.data.total + ' attachment(s) · ' + res.data.total_size);
+
+            $list.empty();
+            res.data.files.forEach(function (file) {
+                var $row = $('<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee">' +
+                    '<div style="flex:1;min-width:0">' +
+                        '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ID ' + file.id + ' — ' + $('<span>').text(file.name).html() + '</div>' +
+                        '<div style="font-size:11px;color:#888;margin-top:2px">' + file.file_count + ' file(s) · ' + file.size_fmt + (file.recycled ? ' · recycled ' + file.recycled : '') + '</div>' +
+                    '</div>' +
+                    '<button class="csc-media-restore-single" data-att-id="' + file.id + '" style="background:#43a047;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;margin-left:10px;white-space:nowrap">↩️ Restore</button>' +
+                '</div>');
+
+                $row.find('.csc-media-restore-single').on('click', function () {
+                    var $b = $(this);
+                    $b.prop('disabled', true).text('⏳…');
+                    $.post(CSC.ajax_url, { action: 'csc_media_restore_single', nonce: CSC.nonce, att_id: file.id }, function (res) {
+                        if (res.success) {
+                            $row.fadeOut(300, function () { $(this).remove(); });
+                            $('#media-recycle-modal-summary').text(res.data.remaining + ' attachment(s) remaining');
+                            mediaUpdateRecycleBin( res.data.remaining );
+                        } else {
+                            $b.prop('disabled', false).text('↩️ Restore');
+                            alert('Restore failed: ' + (res.data || 'Unknown error'));
+                        }
+                    }).fail(function () { $b.prop('disabled', false).text('↩️ Restore'); alert('Network error.'); });
+                });
+
+                $list.append($row);
+            });
+        }).fail(function () {
+            $list.html('<div style="padding:30px;text-align:center;color:#c00">Failed to load recycle bin.</div>');
+        });
+    });
+
+    $('#btn-media-recycle-modal-close').on('click', function () { $('#csc-media-recycle-modal').hide(); });
+    $('#csc-media-recycle-modal').on('click', function (e) { if (e.target === this) $(this).hide(); });
 
     // ── Orphan files recycle workflow ─────────────────────────────────────────
     // File types stored as data-ftype on buttons, set by inline onclick pill toggles
@@ -412,10 +518,10 @@
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('img-terminal');
-        appendLine('img-terminal', { type: 'section', text: '=== ORPHANED FILESYSTEM FILE SCAN ===' });
+        appendLine('img-terminal', { type: 'section', text: '=== UNREGISTERED FILE SCAN ===' });
 
         $.post(CSC.ajax_url, { action: 'csc_scan_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Scan Orphan Files');
+            $btn.prop('disabled', false).html('🔍 Scan Unregistered Files');
             if (resp.success) {
                 appendLines('img-terminal', resp.data.lines);
                 orphanUpdateRecycleBin( resp.data.recycle );
@@ -423,7 +529,7 @@
                 appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
         }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('🔍 Scan Orphan Files');
+            $btn.prop('disabled', false).html('🔍 Scan Unregistered Files');
             appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
         });
     });
@@ -510,7 +616,7 @@
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview Savings');
             if (resp.success) {
                 appendLines('optimise-terminal', resp.data);
-                appendLine('optimise-terminal', { type: 'info', text: '\nDry run complete. No files modified.' });
+                appendLine('optimise-terminal', { type: 'info', text: '\nDry run complete. No files modified. Review the output log above before optimising.' });
             } else {
                 appendLine('optimise-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
