@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.1
+ * Version:     2.4.2
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.1' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.2' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -116,40 +116,25 @@ function csc_add_menu() {
 
 add_action( 'admin_enqueue_scripts', 'csc_enqueue_assets' );
 /**
- * Create versioned copies of JS/CSS files so CDNs that strip query strings
- * still serve the correct version. Files are named admin-{version}.js/.css
- * and only regenerated when the version changes.
+ * Return the versioned filename for a JS/CSS asset. The build script creates
+ * admin-{ver}.js/.css files in the zip. If the versioned file exists, use it;
+ * otherwise fall back to the original (ensures nothing breaks).
  */
-function csc_get_versioned_asset( string $source_file, string $ext ): string {
-    $ver       = CLOUDSCALE_CLEANUP_VERSION;
-    $ver_slug  = str_replace( '.', '-', $ver );
+function csc_get_versioned_asset( string $ext ): string {
+    $ver_slug  = str_replace( '.', '-', CLOUDSCALE_CLEANUP_VERSION );
     $dest_name = 'admin-' . $ver_slug . '.' . $ext;
-    $dest_path = CLOUDSCALE_CLEANUP_DIR . $dest_name;
-    $src_path  = CLOUDSCALE_CLEANUP_DIR . $source_file;
-
-    // Only copy if versioned file doesn't exist yet
-    if ( ! file_exists( $dest_path ) && file_exists( $src_path ) ) {
-        // Clean up old versioned files
-        $old_files = glob( CLOUDSCALE_CLEANUP_DIR . 'admin-*.' . $ext );
-        if ( $old_files ) {
-            foreach ( $old_files as $old ) {
-                if ( basename( $old ) !== $dest_name ) {
-                    @unlink( $old );
-                }
-            }
-        }
-        @copy( $src_path, $dest_path );
+    if ( file_exists( CLOUDSCALE_CLEANUP_DIR . $dest_name ) ) {
+        return $dest_name;
     }
-
-    return file_exists( $dest_path ) ? $dest_name : $source_file;
+    return 'admin.' . $ext;
 }
 
 function csc_enqueue_assets( $hook ) {
     if ( $hook !== 'tools_page_cloudscale-cleanup' ) {
         return;
     }
-    $css_file = csc_get_versioned_asset( 'admin.css', 'css' );
-    $js_file  = csc_get_versioned_asset( 'admin.js', 'js' );
+    $css_file = csc_get_versioned_asset( 'css' );
+    $js_file  = csc_get_versioned_asset( 'js' );
 
     wp_enqueue_style(
         'cloudscale-cleanup-css',
