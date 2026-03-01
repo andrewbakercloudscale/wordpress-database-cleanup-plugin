@@ -127,7 +127,7 @@
     .csc-tab { padding: 10px 14px; font-size: 10.5px; letter-spacing: 0.3px; }
 }
 
-.csc-tab:nth-child(1) { background: linear-gradient(135deg, #1b5e20 0%, #43a047 100%); border-top-color: #81c784; }
+.csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%); border-top-color: #ce93d8; }
 .csc-tab:nth-child(2) { background: linear-gradient(135deg, #e91e63 0%, #f06292 100%); border-top-color: #ff80ab; }
 .csc-tab:nth-child(3) { background: linear-gradient(135deg, #00bcd4 0%, #26c6da 100%); border-top-color: #80deea; }
 .csc-tab:nth-child(4) { background: linear-gradient(135deg, #ff6f00 0%, #ffa726 100%); border-top-color: #ffcc80; }
@@ -139,7 +139,7 @@
     color: #ffffff;
 }
 
-.csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #81c784; }
+.csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8; }
 .csc-tab:nth-child(2).active, .csc-tab:nth-child(2):hover { border-top-color: #ff80ab; }
 .csc-tab:nth-child(3).active, .csc-tab:nth-child(3):hover { border-top-color: #80deea; }
 .csc-tab:nth-child(4).active, .csc-tab:nth-child(4):hover { border-top-color: #ffcc80; }
