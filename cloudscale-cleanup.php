@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.8
+ * Version:     2.1.9
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.8' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.9' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -226,7 +226,7 @@ function csc_render_dashboard_widget() {
             </div>
             <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
                 <div style="color:#78909c;font-weight:600;margin-bottom:2px">Wks Left</div>
-                <div style="font-weight:700;color:#263238"><?php echo $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) : '—'; ?></div>
+                <div style="font-weight:700;color:#263238"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) : '—' ); ?></div>
             </div>
         </div>
         <?php else : ?>
@@ -4078,59 +4078,72 @@ function csc_render_page() {
                             </div>
                         </div>
 
-                        <!-- Metric cards grid -->
-                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px">
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">wp-content Size</div>
-                                <div class="csc-health-metric-value" id="hm-disk-used">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Disk Free</div>
-                                <div class="csc-health-metric-value" id="hm-disk-free">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Disk Total</div>
-                                <div class="csc-health-metric-value" id="hm-disk-total">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Database Size</div>
-                                <div class="csc-health-metric-value" id="hm-db-size">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Growth / Week</div>
-                                <div class="csc-health-metric-value" id="hm-growth">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Weeks Remaining</div>
-                                <div class="csc-health-metric-value" id="hm-weeks-left">—</div>
+                        <!-- Row 1: Disk Storage (blue theme) -->
+                        <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3f8ff 100%);border:1px solid #90caf9;border-radius:10px;padding:16px 20px;margin-bottom:14px">
+                            <div style="font-size:13px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">💾 Disk Storage</div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">wp-content</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-used" style="color:#1565c0">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">Disk Free</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-free" style="color:#2e7d32">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">Disk Total</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-total" style="color:#37474f">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">Database</div>
+                                    <div class="csc-health-metric-value" id="hm-db-size" style="color:#6a1b9a">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">Growth / Week</div>
+                                    <div class="csc-health-metric-value" id="hm-growth" style="color:#e65100">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
+                                    <div class="csc-health-metric-label">Runway</div>
+                                    <div class="csc-health-metric-value" id="hm-weeks-left">—</div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- CPU and Memory -->
-                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px">
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">CPU Load (now)</div>
-                                <div class="csc-health-metric-value" id="hm-cpu-now">—</div>
+                        <!-- Row 2: CPU (orange theme) -->
+                        <div style="background:linear-gradient(135deg,#fff3e0 0%,#fffaf4 100%);border:1px solid #ffcc80;border-radius:10px;padding:16px 20px;margin-bottom:14px">
+                            <div style="font-size:13px;font-weight:800;color:#e65100;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">⚡ CPU</div>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
+                                    <div class="csc-health-metric-label">Current</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-now" style="color:#e65100">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
+                                    <div class="csc-health-metric-label">Peak (24h)</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-24h" style="color:#bf360c">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
+                                    <div class="csc-health-metric-label">Peak (7d)</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-7d" style="color:#bf360c">—</div>
+                                </div>
                             </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">CPU Max (24h)</div>
-                                <div class="csc-health-metric-value" id="hm-cpu-24h">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">CPU Max (7d)</div>
-                                <div class="csc-health-metric-value" id="hm-cpu-7d">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Memory Used (now)</div>
-                                <div class="csc-health-metric-value" id="hm-mem-now">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Memory Max (24h)</div>
-                                <div class="csc-health-metric-value" id="hm-mem-24h">—</div>
-                            </div>
-                            <div class="csc-health-metric">
-                                <div class="csc-health-metric-label">Memory Max (7d)</div>
-                                <div class="csc-health-metric-value" id="hm-mem-7d">—</div>
+                        </div>
+
+                        <!-- Row 3: Memory (purple theme) -->
+                        <div style="background:linear-gradient(135deg,#f3e5f5 0%,#faf5fc 100%);border:1px solid #ce93d8;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+                            <div style="font-size:13px;font-weight:800;color:#7b1fa2;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">🧠 Memory</div>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
+                                    <div class="csc-health-metric-label">Current</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-now" style="color:#7b1fa2">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
+                                    <div class="csc-health-metric-label">Peak (24h)</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-24h" style="color:#6a1b9a">—</div>
+                                </div>
+                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
+                                    <div class="csc-health-metric-label">Peak (7d)</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-7d" style="color:#6a1b9a">—</div>
+                                </div>
                             </div>
                         </div>
 
@@ -4255,10 +4268,14 @@ function csc_render_page() {
             $('#hm-disk-total').text(fmt(d.disk_total));
             $('#hm-db-size').text(fmt(d.db_size));
             $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting…'));
-            if (d.weeks_remaining > 0) {
+            if (d.weeks_remaining > 104) {
+                $('#hm-weeks-left').text('>> 2 Years').css('color', '#2e7d32');
+            } else if (d.weeks_remaining > 0) {
                 var wl = Math.round(d.weeks_remaining);
                 var wlColor = d.disk_rag === 'red' ? '#c62828' : (d.disk_rag === 'amber' ? '#e65100' : '#2e7d32');
                 $('#hm-weeks-left').text(wl + ' weeks').css('color', wlColor);
+            } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
+                $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
             } else { $('#hm-weeks-left').text('—').css('color',''); }
             var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
             if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
