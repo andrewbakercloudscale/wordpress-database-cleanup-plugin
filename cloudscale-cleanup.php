@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.3.2
+ * Version:     2.3.3
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.2' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.3' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4117,33 +4117,33 @@ function csc_render_page() {
                             </div>
                         </div>
 
-                        <!-- Row 1: Disk Storage (blue theme) -->
-                        <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3f8ff 100%);border:1px solid #90caf9;border-radius:10px;padding:16px 20px;margin-bottom:14px">
-                            <div style="font-size:13px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">💾 Disk Storage</div>
+                        <!-- Row 1: Disk Storage (brown theme) -->
+                        <div style="background:linear-gradient(135deg,#efebe9 0%,#faf7f5 100%);border:1px solid #bcaaa4;border-radius:10px;padding:16px 20px;margin-bottom:14px">
+                            <div style="font-size:13px;font-weight:800;color:#4e342e;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">💾 Disk Storage</div>
                             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">wp-content</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-used" style="color:#0d47a1">—</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-used" style="color:#4e342e">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Disk Free</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-free" style="color:#1b5e20">—</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-free" style="color:#4e342e">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Disk Total</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-total" style="color:#263238">—</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-total" style="color:#4e342e">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Database</div>
-                                    <div class="csc-health-metric-value" id="hm-db-size" style="color:#4a148c">—</div>
+                                    <div class="csc-health-metric-value" id="hm-db-size" style="color:#4e342e">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Growth / Week</div>
-                                    <div class="csc-health-metric-value" id="hm-growth" style="color:#bf360c">—</div>
+                                    <div class="csc-health-metric-value" id="hm-growth" style="color:#4e342e">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:transparent;border-color:transparent;border-radius:8px">
                                     <div class="csc-health-metric-label" style="color:inherit!important;font-size:12px!important;opacity:0.7">Est. Time to Storage Full</div>
-                                    <div class="csc-health-metric-value" id="hm-weeks-left" style="color:#0d47a1">—</div>
+                                    <div class="csc-health-metric-value" id="hm-weeks-left" style="color:#4e342e">—</div>
                                 </div>
                             </div>
                         </div>
@@ -4291,9 +4291,13 @@ function csc_render_page() {
     div[style*="#e3f2fd"] .csc-health-metric,
     div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
     div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
-    div[style*="#fff3e0"] .csc-health-metric-value { color: #bf360c !important; }
-    div[style*="#e3f2fd"] .csc-health-metric-label { color: #1565c0 !important; }
+    div[style*="#fff3e0"] .csc-health-metric-value { color: #e65100 !important; }
+    div[style*="#efebe9"] .csc-health-metric,
+    div[style*="#efebe9"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
+    div[style*="#efebe9"] .csc-health-metric-label { color: #4e342e !important; }
+    div[style*="#efebe9"] .csc-health-metric-value:not(#hm-weeks-left) { color: #4e342e !important; }
     div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
+    div[style*="#f3e5f5"] .csc-health-metric-value { color: #7b1fa2 !important; }
     /* Remove all borders from metric cards globally */
     .csc-health-metric { border: none !important; }
     </style>
