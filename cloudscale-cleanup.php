@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.5
+ * Version:     2.2.6
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.5' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.6' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -2889,8 +2889,8 @@ function csc_health_get_cpu_pct(): float {
     if ( $sar !== '' && function_exists( 'exec' ) ) {
         // Try sar first: get last 60 minutes of CPU data
         $output = array();
-        $end   = gmdate( 'H:i:s' );
-        $start = gmdate( 'H:i:s', time() - 3600 );
+        $end   = date( 'H:i:s' );
+        $start = date( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_cpu = -1;
@@ -2935,8 +2935,8 @@ function csc_health_get_mem_pct(): float {
     $sar = csc_health_find_sar();
     if ( $sar !== '' && function_exists( 'exec' ) ) {
         $output = array();
-        $end   = gmdate( 'H:i:s' );
-        $start = gmdate( 'H:i:s', time() - 3600 );
+        $end   = date( 'H:i:s' );
+        $start = date( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar . ' -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
 
         $max_mem = -1;
@@ -3317,8 +3317,8 @@ function csc_ajax_health_sysstat_test() {
 
         // Try reading sar data to confirm it works
         $test = array();
-        $end   = gmdate( 'H:i:s' );
-        $start = gmdate( 'H:i:s', time() - 3600 );
+        $end   = date( 'H:i:s' );
+        $start = date( 'H:i:s', time() - 3600 );
         @exec( 'LC_ALL=C ' . $sar_path . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
         $data_lines = 0;
         foreach ( $test as $line ) {
