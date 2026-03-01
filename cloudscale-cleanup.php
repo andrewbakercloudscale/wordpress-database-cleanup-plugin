@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.3.3
+ * Version:     2.3.4
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.3' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.4' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4303,6 +4303,19 @@ function csc_render_page() {
     </style>
 
     <script>
+    /* Guard: prevent cached admin.js from overwriting weeks-remaining with uncapped values */
+    (function() {
+        var el = document.getElementById('hm-weeks-left');
+        if (!el) return;
+        var obs = new MutationObserver(function() {
+            var t = el.textContent || '';
+            if (t.match(/\d{4,}.*wk/i) || t.match(/~\d+.*mo/i)) {
+                el.textContent = '>> 2 Years';
+                el.style.color = '#2e7d32';
+            }
+        });
+        obs.observe(el, { childList: true, characterData: true, subtree: true });
+    })();
     /* Inline: health render, auto load, and button handlers (cache proof) */
     jQuery(function($) {
         var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
