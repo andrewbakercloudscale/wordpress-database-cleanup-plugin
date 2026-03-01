@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.2
+ * Version:     2.2.3
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.2' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.3' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4082,29 +4082,29 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3f8ff 100%);border:1px solid #90caf9;border-radius:10px;padding:16px 20px;margin-bottom:14px">
                             <div style="font-size:13px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">💾 Disk Storage</div>
                             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">wp-content</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-used" style="color:#1565c0">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">wp-content</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-used" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">Disk Free</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-free" style="color:#2e7d32">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Disk Free</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-free" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">Disk Total</div>
-                                    <div class="csc-health-metric-value" id="hm-disk-total" style="color:#37474f">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Disk Total</div>
+                                    <div class="csc-health-metric-value" id="hm-disk-total" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">Database</div>
-                                    <div class="csc-health-metric-value" id="hm-db-size" style="color:#6a1b9a">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Database</div>
+                                    <div class="csc-health-metric-value" id="hm-db-size" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">Growth / Week</div>
-                                    <div class="csc-health-metric-value" id="hm-growth" style="color:#e65100">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Growth / Week</div>
+                                    <div class="csc-health-metric-value" id="hm-growth" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label" style="color:#0d47a1!important;font-size:12px!important">Est. Time to Storage Full</div>
-                                    <div class="csc-health-metric-value" id="hm-weeks-left">—</div>
+                                <div class="csc-health-metric" style="background:#1565c0;border-color:#1565c0;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Est. Time to Storage Full</div>
+                                    <div class="csc-health-metric-value" id="hm-weeks-left" style="color:#fff">—</div>
                                 </div>
                             </div>
                         </div>
@@ -4113,17 +4113,17 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#fff3e0 0%,#fffaf4 100%);border:1px solid #ffcc80;border-radius:10px;padding:16px 20px;margin-bottom:14px">
                             <div style="font-size:13px;font-weight:800;color:#e65100;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">⚡ CPU</div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
-                                    <div class="csc-health-metric-label" style="color:#bf360c!important;font-size:12px!important">Current</div>
-                                    <div class="csc-health-metric-value" id="hm-cpu-now" style="color:#e65100">—</div>
+                                <div class="csc-health-metric" style="background:#e65100;border-color:#e65100;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Current</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-now" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
-                                    <div class="csc-health-metric-label" style="color:#bf360c!important;font-size:12px!important">Peak (24h)</div>
-                                    <div class="csc-health-metric-value" id="hm-cpu-24h" style="color:#bf360c">—</div>
+                                <div class="csc-health-metric" style="background:#e65100;border-color:#e65100;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Peak (24h)</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-24h" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#ffe0b2">
-                                    <div class="csc-health-metric-label" style="color:#bf360c!important;font-size:12px!important">Peak (7d)</div>
-                                    <div class="csc-health-metric-value" id="hm-cpu-7d" style="color:#bf360c">—</div>
+                                <div class="csc-health-metric" style="background:#e65100;border-color:#e65100;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Peak (7d)</div>
+                                    <div class="csc-health-metric-value" id="hm-cpu-7d" style="color:#fff">—</div>
                                 </div>
                             </div>
                         </div>
@@ -4132,17 +4132,17 @@ function csc_render_page() {
                         <div style="background:linear-gradient(135deg,#f3e5f5 0%,#faf5fc 100%);border:1px solid #ce93d8;border-radius:10px;padding:16px 20px;margin-bottom:20px">
                             <div style="font-size:13px;font-weight:800;color:#7b1fa2;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:12px">🧠 Memory</div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
-                                    <div class="csc-health-metric-label" style="color:#4a148c!important;font-size:12px!important">Current</div>
-                                    <div class="csc-health-metric-value" id="hm-mem-now" style="color:#7b1fa2">—</div>
+                                <div class="csc-health-metric" style="background:#7b1fa2;border-color:#7b1fa2;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Current</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-now" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
-                                    <div class="csc-health-metric-label" style="color:#4a148c!important;font-size:12px!important">Peak (24h)</div>
-                                    <div class="csc-health-metric-value" id="hm-mem-24h" style="color:#6a1b9a">—</div>
+                                <div class="csc-health-metric" style="background:#7b1fa2;border-color:#7b1fa2;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Peak (24h)</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-24h" style="color:#fff">—</div>
                                 </div>
-                                <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#e1bee7">
-                                    <div class="csc-health-metric-label" style="color:#4a148c!important;font-size:12px!important">Peak (7d)</div>
-                                    <div class="csc-health-metric-value" id="hm-mem-7d" style="color:#6a1b9a">—</div>
+                                <div class="csc-health-metric" style="background:#7b1fa2;border-color:#7b1fa2;border-radius:8px">
+                                    <div class="csc-health-metric-label" style="color:rgba(255,255,255,0.85)!important;font-size:12px!important">Peak (7d)</div>
+                                    <div class="csc-health-metric-value" id="hm-mem-7d" style="color:#fff">—</div>
                                 </div>
                             </div>
                         </div>
