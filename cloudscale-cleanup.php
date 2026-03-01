@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.1
+ * Version:     2.1.2
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.1' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.2' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -162,7 +162,7 @@ function csc_render_dashboard_widget() {
 
     $fmt = function ( $val ) {
         return $val
-            ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), time() ) . ' ago' ) . '</span>'
+            ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' ) . '</span>'
             : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">Not yet run</span>';
     };
 
@@ -256,15 +256,15 @@ class CSC_Front_Widget extends WP_Widget {
             <ul class="csc-fw-list">
                 <li>
                     <span class="csc-fw-label">DB Cleanup</span>
-                    <span class="csc-fw-value"><?php echo $last_db  ? esc_html( human_time_diff( strtotime( $last_db  ), time() ) . ' ago' ) : 'Never run'; ?></span>
+                    <span class="csc-fw-value"><?php echo $last_db  ? esc_html( human_time_diff( strtotime( $last_db  ), current_time( 'timestamp' ) ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
                 <li>
                     <span class="csc-fw-label">Unused Media</span>
-                    <span class="csc-fw-value"><?php echo $last_img ? esc_html( human_time_diff( strtotime( $last_img ), time() ) . ' ago' ) : 'Never run'; ?></span>
+                    <span class="csc-fw-value"><?php echo $last_img ? esc_html( human_time_diff( strtotime( $last_img ), current_time( 'timestamp' ) ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
                 <li>
                     <span class="csc-fw-label">Img Optimise</span>
-                    <span class="csc-fw-value"><?php echo $last_opt ? esc_html( human_time_diff( strtotime( $last_opt ), time() ) . ' ago' ) : 'Never run'; ?></span>
+                    <span class="csc-fw-value"><?php echo $last_opt ? esc_html( human_time_diff( strtotime( $last_opt ), current_time( 'timestamp' ) ) . ' ago' ) : 'Never run'; ?></span>
                 </li>
             </ul>
             <div class="csc-fw-links">
