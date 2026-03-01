@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.7
+ * Version:     2.1.8
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.7' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.8' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4314,21 +4314,21 @@ function csc_render_page() {
             $('#csc-sysstat-instructions').hide();
             $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
                 $b.prop('disabled',false).html('🔧 Test Sysstat');
-                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); $box.css({background:'#fef2f2',borderColor:'#fecaca'}); return; }
+                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'}); return; }
                 var d = resp.data;
                 if (!d.exec_available) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled'); $box.css({background:'#fef2f2',borderColor:'#fecaca'});
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
                 } else if (!d.sar_installed) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed'); $box.css({background:'#fef2f2',borderColor:'#fecaca'});
+                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
                 } else if (!d.sysstat_active) {
-                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but inactive'); $('#csc-sysstat-detail').text(d.sar_version+' at '+d.sar_path); $box.css({background:'#fffbeb',borderColor:'#fde68a'});
+                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but inactive'); $('#csc-sysstat-detail').text(d.sar_version+' at '+d.sar_path); $box.css({background:'#fff3e0',borderColor:'#ffcc80'});
                 } else if (!d.sar_has_data) {
-                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat active, no data yet'); $('#csc-sysstat-detail').text(d.sar_version+' — wait 10 mins'); $box.css({background:'#fffbeb',borderColor:'#fde68a'});
+                    $('#csc-sysstat-icon').text('🔵'); $('#csc-sysstat-label').text('sysstat active, no data yet'); $('#csc-sysstat-detail').text('sysstat version '+d.sar_version+' — wait 10 mins for first samples'); $box.css({background:'#e3f2fd',borderColor:'#90caf9'});
                 } else {
                     $('#csc-sysstat-icon').text('✅'); $('#csc-sysstat-label').text('sysstat working'); $('#csc-sysstat-detail').text(d.sar_version+' | '+d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%'); $box.css({background:'#f0fdf4',borderColor:'#bbf7d0'});
                 }
                 if (d.instructions) { $('#csc-sysstat-instructions').text(d.instructions).show(); }
-            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); $box.css({background:'#fef2f2',borderColor:'#fecaca'}); });
+            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); $box.css({background:'#fff3e0',borderColor:'#ffcc80'}); });
         });
     });
     </script>
