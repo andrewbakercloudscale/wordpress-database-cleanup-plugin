@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.3.4
+ * Version:     2.3.5
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.4' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.3.5' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4315,6 +4315,20 @@ function csc_render_page() {
             }
         });
         obs.observe(el, { childList: true, characterData: true, subtree: true });
+    })();
+    /* Guard: replace old single-span Max Resource row from cached admin.js */
+    (function() {
+        var target = document.getElementById('tab-site-health');
+        if (!target) return;
+        var obs = new MutationObserver(function() {
+            var bad = document.querySelectorAll('[style*="grid-column"]');
+            bad.forEach(function(el) {
+                if (el.textContent && el.textContent.indexOf('Max Resource') >= 0) {
+                    el.remove();
+                }
+            });
+        });
+        obs.observe(target, { childList: true, subtree: true });
     })();
     /* Inline: health render, auto load, and button handlers (cache proof) */
     jQuery(function($) {
