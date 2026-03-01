@@ -2829,6 +2829,39 @@ function csc_health_get_memory_total_bytes(): int {
 }
 
 /**
+ * Get CPU usage as a percentage across all CPUs.
+ * Converts 1 min load average to percentage: (load / num_cpus) * 100, capped at 100.
+ */
+function csc_health_get_cpu_pct(): float {
+    $load = csc_health_get_cpu_load();
+    if ( $load < 0 ) { return -1; }
+    $cpus = 1;
+    if ( is_readable( '/proc/cpuinfo' ) ) {
+        $raw = @file_get_contents( '/proc/cpuinfo' );
+        if ( $raw !== false ) {
+            $cpus = max( 1, substr_count( $raw, 'processor' ) );
+        }
+    } elseif ( function_exists( 'exec' ) ) {
+        $output = array();
+        @exec( 'nproc 2>/dev/null', $output );
+        if ( ! empty( $output[0] ) && is_numeric( $output[0] ) ) {
+            $cpus = max( 1, intval( $output[0] ) );
+        }
+    }
+    return round( min( 100, ( $load / $cpus ) * 100 ), 1 );
+}
+
+/**
+ * Get memory usage as a percentage.
+ */
+function csc_health_get_mem_pct(): float {
+    $used  = csc_health_get_memory_used_bytes();
+    $total = csc_health_get_memory_total_bytes();
+    if ( $used < 0 || $total <= 0 ) { return -1; }
+    return round( ( $used / $total ) * 100, 1 );
+}
+
+/**
  * Get database size in bytes.
  */
 function csc_health_get_db_size_bytes(): int {
@@ -2847,15 +2880,22 @@ add_action( 'csc_health_hourly_collect', 'csc_health_collect_hourly' );
 function csc_health_collect_hourly() {
     $metrics = get_option( CSC_HEALTH_HOURLY_KEY, array() );
 
+    $cpu_pct = csc_health_get_cpu_pct();
+    $mem_pct = csc_health_get_mem_pct();
+    $max_resource = max( $cpu_pct, $mem_pct );
+
     $entry = array(
-        'ts'         => current_time( 'mysql' ),
-        'ts_unix'    => time(),
-        'disk_used'  => csc_health_get_disk_usage_bytes(),
-        'disk_free'  => csc_health_get_disk_free_bytes(),
-        'cpu_load'   => csc_health_get_cpu_load(),
-        'mem_used'   => csc_health_get_memory_used_bytes(),
-        'mem_total'  => csc_health_get_memory_total_bytes(),
-        'db_size'    => csc_health_get_db_size_bytes(),
+        'ts'               => current_time( 'mysql' ),
+        'ts_unix'          => time(),
+        'disk_used'        => csc_health_get_disk_usage_bytes(),
+        'disk_free'        => csc_health_get_disk_free_bytes(),
+        'cpu_load'         => csc_health_get_cpu_load(),
+        'cpu_pct'          => $cpu_pct,
+        'mem_used'         => csc_health_get_memory_used_bytes(),
+        'mem_total'        => csc_health_get_memory_total_bytes(),
+        'mem_pct'          => $mem_pct,
+        'max_resource_pct' => $max_resource,
+        'db_size'          => csc_health_get_db_size_bytes(),
     );
 
     $metrics[] = $entry;
@@ -2999,55 +3039,81 @@ function csc_health_calculate(): array {
         $disk_rag = 'green';
     }
 
-    // CPU: hourly max over last 24h and 7d
-    $cpu_max_24h = -1;
-    $cpu_max_7d  = -1;
-    $cutoff_24h  = $now - DAY_IN_SECONDS;
-    $cutoff_7d   = $now - WEEK_IN_SECONDS;
-    foreach ( $hourly as $h ) {
-        if ( ! isset( $h['cpu_load'] ) || $h['cpu_load'] < 0 ) { continue; }
-        if ( $h['ts_unix'] >= $cutoff_24h && $h['cpu_load'] > $cpu_max_24h ) {
-            $cpu_max_24h = $h['cpu_load'];
-        }
-        if ( $h['ts_unix'] >= $cutoff_7d && $h['cpu_load'] > $cpu_max_7d ) {
-            $cpu_max_7d = $h['cpu_load'];
-        }
-    }
+    // CPU and Memory: max percentages over last 24h and 7d
+    $cpu_max_24h     = -1;
+    $cpu_max_7d      = -1;
+    $cpu_pct_max_24h = -1;
+    $cpu_pct_max_7d  = -1;
+    $mem_max_24h     = -1;
+    $mem_max_7d      = -1;
+    $mem_pct_max_24h = -1;
+    $mem_pct_max_7d  = -1;
+    $max_res_24h     = -1;
+    $max_res_7d      = -1;
+    $cutoff_24h      = $now - DAY_IN_SECONDS;
+    $cutoff_7d       = $now - WEEK_IN_SECONDS;
+    $mem_total       = csc_health_get_memory_total_bytes();
 
-    // Memory: max used over last 24h and 7d
-    $mem_max_24h = -1;
-    $mem_max_7d  = -1;
-    $mem_total   = csc_health_get_memory_total_bytes();
     foreach ( $hourly as $h ) {
-        if ( ! isset( $h['mem_used'] ) || $h['mem_used'] < 0 ) { continue; }
-        if ( $h['ts_unix'] >= $cutoff_24h && $h['mem_used'] > $mem_max_24h ) {
-            $mem_max_24h = $h['mem_used'];
+        $in_24h = isset( $h['ts_unix'] ) && $h['ts_unix'] >= $cutoff_24h;
+        $in_7d  = isset( $h['ts_unix'] ) && $h['ts_unix'] >= $cutoff_7d;
+
+        // CPU load average (raw)
+        if ( isset( $h['cpu_load'] ) && $h['cpu_load'] >= 0 ) {
+            if ( $in_24h && $h['cpu_load'] > $cpu_max_24h ) { $cpu_max_24h = $h['cpu_load']; }
+            if ( $in_7d  && $h['cpu_load'] > $cpu_max_7d )  { $cpu_max_7d  = $h['cpu_load']; }
         }
-        if ( $h['ts_unix'] >= $cutoff_7d && $h['mem_used'] > $mem_max_7d ) {
-            $mem_max_7d = $h['mem_used'];
+        // CPU percentage
+        if ( isset( $h['cpu_pct'] ) && $h['cpu_pct'] >= 0 ) {
+            if ( $in_24h && $h['cpu_pct'] > $cpu_pct_max_24h ) { $cpu_pct_max_24h = $h['cpu_pct']; }
+            if ( $in_7d  && $h['cpu_pct'] > $cpu_pct_max_7d )  { $cpu_pct_max_7d  = $h['cpu_pct']; }
+        }
+        // Memory bytes (raw)
+        if ( isset( $h['mem_used'] ) && $h['mem_used'] >= 0 ) {
+            if ( $in_24h && $h['mem_used'] > $mem_max_24h ) { $mem_max_24h = $h['mem_used']; }
+            if ( $in_7d  && $h['mem_used'] > $mem_max_7d )  { $mem_max_7d  = $h['mem_used']; }
+        }
+        // Memory percentage
+        if ( isset( $h['mem_pct'] ) && $h['mem_pct'] >= 0 ) {
+            if ( $in_24h && $h['mem_pct'] > $mem_pct_max_24h ) { $mem_pct_max_24h = $h['mem_pct']; }
+            if ( $in_7d  && $h['mem_pct'] > $mem_pct_max_7d )  { $mem_pct_max_7d  = $h['mem_pct']; }
+        }
+        // Max resource percentage (whichever is higher: cpu or memory)
+        if ( isset( $h['max_resource_pct'] ) && $h['max_resource_pct'] >= 0 ) {
+            if ( $in_24h && $h['max_resource_pct'] > $max_res_24h ) { $max_res_24h = $h['max_resource_pct']; }
+            if ( $in_7d  && $h['max_resource_pct'] > $max_res_7d )  { $max_res_7d  = $h['max_resource_pct']; }
         }
     }
 
     return array(
-        'disk_used'         => $disk_used,
-        'disk_free'         => $disk_free,
-        'disk_total'        => $disk_total,
-        'db_size'           => $db_size,
-        'growth_per_week'   => $growth_per_week,
-        'weeks_remaining'   => $weeks_remaining,
-        'weeks_of_data'     => $weeks_of_data,
-        'disk_rag'          => $disk_rag,
-        'cpu_load_now'      => csc_health_get_cpu_load(),
-        'cpu_max_24h'       => $cpu_max_24h,
-        'cpu_max_7d'        => $cpu_max_7d,
-        'mem_used_now'      => csc_health_get_memory_used_bytes(),
-        'mem_total'         => $mem_total,
-        'mem_max_24h'       => $mem_max_24h,
-        'mem_max_7d'        => $mem_max_7d,
-        'hourly_count'      => count( $hourly ),
-        'weekly_count'      => count( $weekly ),
-        'last_hourly'       => ! empty( $hourly ) ? end( $hourly )['ts'] : null,
-        'last_weekly'       => ! empty( $weekly ) ? end( $weekly )['ts'] : null,
+        'disk_used'          => $disk_used,
+        'disk_free'          => $disk_free,
+        'disk_total'         => $disk_total,
+        'db_size'            => $db_size,
+        'growth_per_week'    => $growth_per_week,
+        'weeks_remaining'    => $weeks_remaining,
+        'weeks_of_data'      => $weeks_of_data,
+        'disk_rag'           => $disk_rag,
+        'cpu_load_now'       => csc_health_get_cpu_load(),
+        'cpu_pct_now'        => csc_health_get_cpu_pct(),
+        'cpu_max_24h'        => $cpu_max_24h,
+        'cpu_max_7d'         => $cpu_max_7d,
+        'cpu_pct_max_24h'    => $cpu_pct_max_24h,
+        'cpu_pct_max_7d'     => $cpu_pct_max_7d,
+        'mem_used_now'       => csc_health_get_memory_used_bytes(),
+        'mem_pct_now'        => csc_health_get_mem_pct(),
+        'mem_total'          => $mem_total,
+        'mem_max_24h'        => $mem_max_24h,
+        'mem_max_7d'         => $mem_max_7d,
+        'mem_pct_max_24h'    => $mem_pct_max_24h,
+        'mem_pct_max_7d'     => $mem_pct_max_7d,
+        'max_resource_now'   => max( csc_health_get_cpu_pct(), csc_health_get_mem_pct() ),
+        'max_resource_24h'   => $max_res_24h,
+        'max_resource_7d'    => $max_res_7d,
+        'hourly_count'       => count( $hourly ),
+        'weekly_count'       => count( $weekly ),
+        'last_hourly'        => ! empty( $hourly ) ? end( $hourly )['ts'] : null,
+        'last_weekly'        => ! empty( $weekly ) ? end( $weekly )['ts'] : null,
     );
 }
 
