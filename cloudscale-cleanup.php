@@ -3423,16 +3423,16 @@ function csc_render_page() {
         </div>
 
         <div class="csc-tabs">
-            <button class="csc-tab active" data-tab="db-cleanup">Database Cleanup</button>
+            <button class="csc-tab active" data-tab="site-health">Site Health</button>
+            <button class="csc-tab" data-tab="db-cleanup">Database Cleanup</button>
             <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
-            <button class="csc-tab" data-tab="site-health">Site Health</button>
             <button class="csc-tab" data-tab="settings">Settings</button>
         </div>
 
         <!-- ═══ Database Cleanup ═══ -->
-        <div class="csc-tab-content active" id="tab-db-cleanup">
+        <div class="csc-tab-content" id="tab-db-cleanup">
             <div class="csc-cards-row">
                 <div class="csc-card">
                     <div class="csc-card-header csc-card-header-blue"><span>Database Cleanup</span> <?php csc_explain_btn(
@@ -4010,7 +4010,7 @@ function csc_render_page() {
         </div>
 
         <!-- ═══ Site Health ═══ -->
-        <div class="csc-tab-content" id="tab-site-health">
+        <div class="csc-tab-content active" id="tab-site-health">
             <div class="csc-card">
                 <div class="csc-card-header" style="background:linear-gradient(135deg,#1b5e20 0%,#43a047 100%)">
                     <span>📊 Site Health Overview</span>

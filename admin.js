@@ -1454,8 +1454,8 @@
         if (!healthLoaded) { healthLoad(); healthLoaded = true; }
     });
 
-    // Also load if URL has tab=site-health
-    if (window.location.search.indexOf('tab=site-health') !== -1) {
+    // Load on page load: site-health is now the default tab, or if URL specifies it
+    if (window.location.search.indexOf('tab=site-health') !== -1 || !window.location.search.match(/tab=/)) {
         healthLoad(); healthLoaded = true;
     }
 
