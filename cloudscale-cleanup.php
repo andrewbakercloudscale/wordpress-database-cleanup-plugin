@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.2.6
+ * Version:     2.2.7
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.6' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.7' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -3332,22 +3332,25 @@ function csc_ajax_health_sysstat_test() {
         $result['source']        = $data_lines > 0 ? 'sar' : 'snapshot';
         $result['sar_raw_output'] = implode( "\n", array_slice( $test, 0, 10 ) );
 
+        $enable_cmds = 'sudo systemctl enable sysstat && sudo systemctl start sysstat && sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer';
+        $kick_cmd    = 'sudo /usr/lib64/sa/sa1 1 1';
         if ( ! $result['sysstat_active'] ) {
-            $result['instructions'] = 'sysstat is installed but the service is not active. Run: sudo systemctl enable sysstat && sudo systemctl start sysstat';
+            $result['instructions'] = 'Run: ' . $enable_cmds . ' && ' . $kick_cmd;
         } elseif ( ! $result['sar_has_data'] ) {
-            $result['instructions'] = 'sysstat is active but no data yet. It collects every 10 minutes. Wait 10 minutes and try again.';
+            $result['instructions'] = 'Enable collection timer: sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer && ' . $kick_cmd;
         }
     } else {
         // Detect OS for install instructions
         $os_info = array();
         @exec( 'cat /etc/os-release 2>/dev/null | head -3', $os_info );
         $os_str = implode( ' ', $os_info );
+        $enable_cmds = 'sudo systemctl enable sysstat && sudo systemctl start sysstat && sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer && sudo /usr/lib64/sa/sa1 1 1';
         if ( stripos( $os_str, 'Amazon' ) !== false || stripos( $os_str, 'rhel' ) !== false || stripos( $os_str, 'centos' ) !== false ) {
-            $result['instructions'] = 'sysstat is not installed. Run: sudo yum install sysstat -y && sudo systemctl enable sysstat && sudo systemctl start sysstat';
+            $result['instructions'] = 'sudo yum install sysstat -y && ' . $enable_cmds;
         } elseif ( stripos( $os_str, 'ubuntu' ) !== false || stripos( $os_str, 'debian' ) !== false ) {
-            $result['instructions'] = 'sysstat is not installed. Run: sudo apt install sysstat -y && sudo systemctl enable sysstat && sudo systemctl start sysstat';
+            $result['instructions'] = 'sudo apt install sysstat -y && ' . $enable_cmds;
         } else {
-            $result['instructions'] = 'sysstat is not installed. Install it with your package manager, then enable the service: sudo systemctl enable sysstat && sudo systemctl start sysstat';
+            $result['instructions'] = 'Install sysstat with your package manager, then run: ' . $enable_cmds;
         }
     }
 
@@ -3392,7 +3395,7 @@ function csc_explain_btn( string $id, string $title, array $items, string $color
                         <strong style="font-size:13px"><?php echo esc_html( $item['name'] ); ?></strong>
                         <span style="background:<?php echo esc_attr( $bg ); ?>;color:<?php echo esc_attr( $col ); ?>;border:1px solid <?php echo esc_attr( $bdr ); ?>;border-radius:4px;font-size:11px;font-weight:600;padding:1px 8px;white-space:nowrap"><?php echo esc_html( $rec ); ?></span>
                     </div>
-                    <p style="margin:0;color:#50575e;font-size:12px;line-height:1.5"><?php echo esc_html( $item['desc'] ); ?></p>
+                    <p style="margin:0;color:#50575e;font-size:12px;line-height:1.5;white-space:pre-line"><?php echo esc_html( $item['desc'] ); ?></p>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -4052,7 +4055,7 @@ function csc_render_page() {
                         array(
                             'name' => 'sysstat (sar)',
                             'rec'  => 'Recommended',
-                            'desc' => 'sysstat continuously samples CPU and memory every few minutes in the background, giving accurate peak values rather than single point snapshots. Install: Amazon Linux / RHEL: sudo yum install sysstat -y. Ubuntu / Debian: sudo apt install sysstat -y. Then enable: sudo systemctl enable sysstat && sudo systemctl start sysstat. Use the Test Sysstat button below to verify.',
+                            'desc' => 'sysstat continuously samples CPU and memory every 10 minutes in the background, giving accurate peak values rather than single point snapshots. Without sysstat, the plugin falls back to instantaneous readings which may show 0% on lightly loaded servers.\n\nStep 1: Install sysstat.\nAmazon Linux / RHEL: sudo yum install sysstat -y\nUbuntu / Debian: sudo apt install sysstat -y\n\nStep 2: Enable the service and the collection timer.\nsudo systemctl enable sysstat && sudo systemctl start sysstat\nsudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer\n\nStep 3: Force an immediate first collection (optional, otherwise wait 10 minutes).\nsudo /usr/lib64/sa/sa1 1 1\n\nStep 4: Verify data is being collected.\nLC_ALL=C /usr/bin/sar -u 2>&1 | tail -5\n\nYou should see CPU usage lines with timestamps. If you only see a header with no data, the collection timer is not running. The sysstat-collect.timer is the part that actually triggers data collection every 10 minutes. On Amazon Linux 2023, enabling sysstat alone is not enough; you must also enable sysstat-collect.timer separately.\n\nUse the Test Sysstat button below to verify the plugin can read sar data.',
                         ),
                         array(
                             'name' => 'Data Retention',
