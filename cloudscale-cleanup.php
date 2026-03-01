@@ -4300,7 +4300,9 @@ function csc_render_page() {
     </div>
 
     <style>
-    /* Inline fallback: ensures 6th tab (Settings) always has brown background even if cached CSS lacks it */
+    /* Inline fallback: tab colours (cache proof) */
+    .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
+    .csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8 !important; }
     .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
     .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
     /* Force all metric cards inside coloured sections to be transparent with themed labels */
