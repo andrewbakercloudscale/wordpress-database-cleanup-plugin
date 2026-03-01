@@ -2829,32 +2829,110 @@ function csc_health_get_memory_total_bytes(): int {
 }
 
 /**
- * Get CPU usage as a percentage across all CPUs.
- * Converts 1 min load average to percentage: (load / num_cpus) * 100, capped at 100.
+ * Get the number of CPU cores.
  */
-function csc_health_get_cpu_pct(): float {
-    $load = csc_health_get_cpu_load();
-    if ( $load < 0 ) { return -1; }
-    $cpus = 1;
+function csc_health_get_cpu_count(): int {
     if ( is_readable( '/proc/cpuinfo' ) ) {
         $raw = @file_get_contents( '/proc/cpuinfo' );
         if ( $raw !== false ) {
-            $cpus = max( 1, substr_count( $raw, 'processor' ) );
+            return max( 1, substr_count( $raw, 'processor' ) );
         }
-    } elseif ( function_exists( 'exec' ) ) {
+    }
+    if ( function_exists( 'exec' ) ) {
         $output = array();
         @exec( 'nproc 2>/dev/null', $output );
         if ( ! empty( $output[0] ) && is_numeric( $output[0] ) ) {
-            $cpus = max( 1, intval( $output[0] ) );
+            return max( 1, intval( $output[0] ) );
         }
     }
+    return 1;
+}
+
+/**
+ * Get MAX CPU usage percentage over the last hour.
+ *
+ * Uses sar (sysstat) if available to read per minute samples from the last 60 minutes
+ * and returns the highest CPU% seen. This captures spikes that a single point in time
+ * snapshot would miss. Falls back to instantaneous load average conversion if sar
+ * is not installed.
+ *
+ * sar -u output lines look like:
+ *   14:01:01  all  0.50  0.00  0.25  0.00  0.00  99.25
+ * Columns: time, CPU, %user, %nice, %system, %iowait, %steal, %idle
+ * CPU% = 100 - %idle
+ */
+function csc_health_get_cpu_pct(): float {
+    if ( function_exists( 'exec' ) ) {
+        // Try sar first: get last 60 minutes of CPU data
+        $output = array();
+        $end   = gmdate( 'H:i:s' );
+        $start = gmdate( 'H:i:s', time() - 3600 );
+        @exec( 'LC_ALL=C sar -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
+
+        $max_cpu = -1;
+        foreach ( $output as $line ) {
+            $line = trim( $line );
+            // Skip headers, averages, and empty lines
+            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%idle' ) !== false || strpos( $line, 'Linux' ) !== false ) {
+                continue;
+            }
+            // Parse: HH:MM:SS  all  %user  %nice  %system  %iowait  %steal  %idle
+            $parts = preg_split( '/\s+/', $line );
+            if ( count( $parts ) >= 8 && is_numeric( $parts[7] ) ) {
+                $idle = floatval( $parts[7] );
+                $cpu  = round( 100 - $idle, 1 );
+                if ( $cpu > $max_cpu ) { $max_cpu = $cpu; }
+            }
+        }
+        if ( $max_cpu >= 0 ) {
+            return $max_cpu;
+        }
+    }
+
+    // Fallback: instantaneous load average to percentage
+    $load = csc_health_get_cpu_load();
+    if ( $load < 0 ) { return -1; }
+    $cpus = csc_health_get_cpu_count();
     return round( min( 100, ( $load / $cpus ) * 100 ), 1 );
 }
 
 /**
- * Get memory usage as a percentage.
+ * Get MAX memory usage percentage over the last hour.
+ *
+ * Uses sar -r (sysstat) if available to read per minute memory samples and returns
+ * the highest memory% seen. Falls back to instantaneous /proc/meminfo reading.
+ *
+ * sar -r output lines look like:
+ *   14:01:01  1024000  512000  50.00  128000  384000  ...
+ * Columns: time, kbmemfree, kbavail, %memused, kbbuffers, kbcached, ...
+ * We use the %memused column directly.
  */
 function csc_health_get_mem_pct(): float {
+    if ( function_exists( 'exec' ) ) {
+        $output = array();
+        $end   = gmdate( 'H:i:s' );
+        $start = gmdate( 'H:i:s', time() - 3600 );
+        @exec( 'LC_ALL=C sar -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
+
+        $max_mem = -1;
+        foreach ( $output as $line ) {
+            $line = trim( $line );
+            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%memused' ) !== false || strpos( $line, 'Linux' ) !== false ) {
+                continue;
+            }
+            // Parse: HH:MM:SS  kbmemfree  kbavail  %memused  kbbuffers  kbcached  ...
+            $parts = preg_split( '/\s+/', $line );
+            if ( count( $parts ) >= 5 && is_numeric( $parts[4] ) ) {
+                $mem_pct = floatval( $parts[4] );
+                if ( $mem_pct > $max_mem ) { $max_mem = $mem_pct; }
+            }
+        }
+        if ( $max_mem >= 0 ) {
+            return round( $max_mem, 1 );
+        }
+    }
+
+    // Fallback: instantaneous reading
     $used  = csc_health_get_memory_used_bytes();
     $total = csc_health_get_memory_total_bytes();
     if ( $used < 0 || $total <= 0 ) { return -1; }
@@ -2884,6 +2962,14 @@ function csc_health_collect_hourly() {
     $mem_pct = csc_health_get_mem_pct();
     $max_resource = max( $cpu_pct, $mem_pct );
 
+    // Record whether sar was used (true peak) or fallback (instantaneous)
+    $sar_available = false;
+    if ( function_exists( 'exec' ) ) {
+        $check = array();
+        @exec( 'which sar 2>/dev/null', $check );
+        $sar_available = ! empty( $check );
+    }
+
     $entry = array(
         'ts'               => current_time( 'mysql' ),
         'ts_unix'          => time(),
@@ -2895,6 +2981,7 @@ function csc_health_collect_hourly() {
         'mem_total'        => csc_health_get_memory_total_bytes(),
         'mem_pct'          => $mem_pct,
         'max_resource_pct' => $max_resource,
+        'source'           => $sar_available ? 'sar' : 'snapshot',
         'db_size'          => csc_health_get_db_size_bytes(),
     );
 
