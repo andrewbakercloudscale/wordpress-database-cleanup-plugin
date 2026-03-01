@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.4
+ * Version:     2.1.5
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.4' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.5' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -4210,6 +4210,61 @@ function csc_render_page() {
         <div id="csc-save-notice" class="csc-save-notice" style="display:none">Settings saved.</div>
 
     </div>
+
+    <style>
+    /* Inline fallback: ensures 6th tab (Settings) always has brown background even if cached CSS lacks it */
+    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
+    </style>
+
+    <script>
+    /* Inline: force health data load on page init regardless of cached admin.js version */
+    jQuery(function($) {
+        var $loading = $('#csc-health-loading');
+        var $content = $('#csc-health-content');
+        if ($loading.length && $loading.is(':visible') && $content.length && !$content.is(':visible')) {
+            $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+                if (resp.success && typeof healthRenderData === 'function') {
+                    healthRenderData(resp.data);
+                } else if (resp.success) {
+                    /* healthRenderData not global — do minimal render */
+                    var d = resp.data;
+                    var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
+                    var ragColors = {green:'#2e7d32',amber:'#e65100',red:'#c62828',grey:'#78909c'};
+                    var ragBgs = {green:'#e8f5e9',amber:'#fff3e0',red:'#ffebee',grey:'#f5f5f5'};
+                    var rag = d.disk_rag || 'grey';
+                    $('#csc-health-rag-bar').css('background', ragBgs[rag]);
+                    $('#csc-health-rag-dot').css('background', ragColors[rag]);
+                    $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase()+rag.slice(1)).css('color', ragColors[rag]);
+                    $('#hm-disk-used').text(fmt(d.disk_used));
+                    $('#hm-disk-free').text(fmt(d.disk_free));
+                    $('#hm-disk-total').text(fmt(d.disk_total));
+                    $('#hm-db-size').text(fmt(d.db_size));
+                    $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting…'));
+                    $('#hm-weeks-left').text(d.weeks_remaining > 0 ? Math.round(d.weeks_remaining) : '—');
+                    var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
+                    if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
+                    $('#hm-cpu-now').text(cpuNow);
+                    $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '—');
+                    $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '—');
+                    var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '—';
+                    if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
+                    $('#hm-mem-now').text(memNow);
+                    $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
+                    $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
+                    $('#hm-hourly-count').text(d.hourly_count);
+                    $('#hm-weekly-count').text(d.weekly_count);
+                    $('#hm-last-hourly').text(d.last_hourly || 'Never');
+                    $('#hm-last-weekly').text(d.last_weekly || 'Never');
+                    $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
+                    $loading.hide();
+                    $content.show();
+                }
+            });
+        }
+    });
+    </script>
+
     <?php
 }
 
