@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.9
+ * Version:     2.2.0
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.9' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.2.0' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -225,7 +225,7 @@ function csc_render_dashboard_widget() {
                 <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : '—'; ?></div>
             </div>
             <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
-                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Wks Left</div>
+                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Est. Storage Full</div>
                 <div style="font-weight:700;color:#263238"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) : '—' ); ?></div>
             </div>
         </div>
@@ -4103,7 +4103,7 @@ function csc_render_page() {
                                     <div class="csc-health-metric-value" id="hm-growth" style="color:#e65100">—</div>
                                 </div>
                                 <div class="csc-health-metric" style="background:rgba(255,255,255,0.85);border-color:#bbdefb">
-                                    <div class="csc-health-metric-label">Runway</div>
+                                    <div class="csc-health-metric-label">Est. Time to Storage Full</div>
                                     <div class="csc-health-metric-value" id="hm-weeks-left">—</div>
                                 </div>
                             </div>
