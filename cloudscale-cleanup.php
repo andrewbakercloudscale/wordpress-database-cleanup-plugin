@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.1.2
+ * Version:     2.1.3
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0+
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.2' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.1.3' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -166,11 +166,24 @@ function csc_render_dashboard_widget() {
             : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">Not yet run</span>';
     };
 
-    $db_url  = admin_url( 'tools.php?page=cloudscale-cleanup&tab=db-cleanup' );
-    $img_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-cleanup' );
-    $opt_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-optimise' );
-    $tile    = 'display:block;text-decoration:none;border-radius:8px;padding:10px 8px;text-align:center;transition:filter 0.15s,transform 0.15s;cursor:pointer';
-    $hover   = "onmouseover=\"this.style.filter='brightness(1.15)';this.style.transform='scale(1.03)'\" onmouseout=\"this.style.filter='';this.style.transform=''\"";
+    // Health data
+    $weekly = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
+    $health = ( count( $weekly ) >= 2 && function_exists( 'csc_health_calculate' ) ) ? csc_health_calculate() : null;
+    $rag       = $health ? $health['disk_rag'] : 'grey';
+    $rag_map   = array(
+        'green' => array( 'label' => 'Healthy',    'bg' => 'linear-gradient(135deg,#2e7d32 0%,#43a047 100%)', 'shadow' => 'rgba(46,125,50,0.35)' ),
+        'amber' => array( 'label' => 'Warning',    'bg' => 'linear-gradient(135deg,#e65100 0%,#f57c00 100%)', 'shadow' => 'rgba(230,81,0,0.35)' ),
+        'red'   => array( 'label' => 'Critical',   'bg' => 'linear-gradient(135deg,#b71c1c 0%,#e53935 100%)', 'shadow' => 'rgba(183,28,28,0.35)' ),
+        'grey'  => array( 'label' => 'Collecting',  'bg' => 'linear-gradient(135deg,#546e7a 0%,#78909c 100%)', 'shadow' => 'rgba(84,110,122,0.35)' ),
+    );
+    $rag_info  = isset( $rag_map[ $rag ] ) ? $rag_map[ $rag ] : $rag_map['grey'];
+
+    $db_url     = admin_url( 'tools.php?page=cloudscale-cleanup&tab=db-cleanup' );
+    $img_url    = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-cleanup' );
+    $opt_url    = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-optimise' );
+    $health_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=site-health' );
+    $tile       = 'display:block;text-decoration:none;border-radius:8px;padding:10px 8px;text-align:center;transition:filter 0.15s,transform 0.15s;cursor:pointer';
+    $hover      = "onmouseover=\"this.style.filter='brightness(1.15)';this.style.transform='scale(1.03)'\" onmouseout=\"this.style.filter='';this.style.transform=''\"";
     ?>
     <div style="padding:4px 0 8px">
         <p style="margin:0 0 14px;font-size:13px;color:#50575e;line-height:1.5">
@@ -178,7 +191,7 @@ function csc_render_dashboard_widget() {
             revisions, transients, unused media, and unregistered files all handled.
         </p>
 
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
             <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -191,7 +204,34 @@ function csc_render_dashboard_widget() {
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
+            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo $tile; ?>;background:<?php echo $rag_info['bg']; ?>;box-shadow:0 2px 6px <?php echo $rag_info['shadow']; ?>" <?php echo $hover; ?>>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">📊 Site Health</div>
+                <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
+            </a>
         </div>
+
+        <?php if ( $health ) : ?>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;font-size:11px;text-align:center">
+            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
+                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Disk Used</div>
+                <div style="font-weight:700;color:#263238"><?php echo esc_html( size_format( $health['disk_used'], 1 ) ); ?></div>
+            </div>
+            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
+                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Disk Free</div>
+                <div style="font-weight:700;color:#263238"><?php echo esc_html( size_format( $health['disk_free'], 1 ) ); ?></div>
+            </div>
+            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
+                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Growth/Wk</div>
+                <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : '—'; ?></div>
+            </div>
+            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
+                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Wks Left</div>
+                <div style="font-weight:700;color:#263238"><?php echo $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) : '—'; ?></div>
+            </div>
+        </div>
+        <?php else : ?>
+        <p style="margin:0 0 16px;font-size:11px;color:#90a4ae;text-align:center">📊 Health metrics collecting — summary available after first weekly snapshot.</p>
+        <?php endif; ?>
 
         <div style="display:flex;flex-direction:column;gap:10px">
             <a href="https://andrewbaker.ninja" target="_blank" rel="noopener"
@@ -249,6 +289,18 @@ class CSC_Front_Widget extends WP_Widget {
         $last_img = get_option( 'csc_last_img_cleanup',  null );
         $last_opt = get_option( 'csc_last_img_optimise', null );
 
+        // Site health RAG
+        $health_rag = 'grey';
+        $health_label = 'Collecting';
+        $weekly = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
+        if ( count( $weekly ) >= 2 && function_exists( 'csc_health_calculate' ) ) {
+            $h = csc_health_calculate();
+            $health_rag = $h['disk_rag'];
+            if ( $health_rag === 'green' ) { $health_label = 'Healthy'; }
+            elseif ( $health_rag === 'amber' ) { $health_label = 'Warning'; }
+            elseif ( $health_rag === 'red' ) { $health_label = 'Critical'; }
+        }
+
         echo $args['before_widget'];
         echo $args['before_title'] . esc_html( $title ) . $args['after_title'];
         ?>
@@ -265,6 +317,14 @@ class CSC_Front_Widget extends WP_Widget {
                 <li>
                     <span class="csc-fw-label">Img Optimise</span>
                     <span class="csc-fw-value"><?php echo $last_opt ? esc_html( human_time_diff( strtotime( $last_opt ), current_time( 'timestamp' ) ) . ' ago' ) : 'Never run'; ?></span>
+                </li>
+                <li>
+                    <span class="csc-fw-label">Site Health</span>
+                    <?php
+                    $rag_colors = array( 'green' => '#2e7d32', 'amber' => '#e65100', 'red' => '#c62828', 'grey' => '#78909c' );
+                    $rag_color  = isset( $rag_colors[ $health_rag ] ) ? $rag_colors[ $health_rag ] : '#78909c';
+                    ?>
+                    <span class="csc-fw-value" style="color:<?php echo esc_attr( $rag_color ); ?>">&#9679; <?php echo esc_html( $health_label ); ?></span>
                 </li>
             </ul>
             <div class="csc-fw-links">
@@ -2623,6 +2683,422 @@ register_activation_hook( __FILE__, function() {
 } );
 
 // ═════════════════════════════════════════════════════════════════════════════
+// SITE HEALTH METRICS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Option keys for stored metrics
+define( 'CSC_HEALTH_HOURLY_KEY',  'csc_health_hourly_metrics' );
+define( 'CSC_HEALTH_WEEKLY_KEY',  'csc_health_weekly_snapshots' );
+define( 'CSC_HEALTH_MAX_AGE',     180 ); // days — expire data older than 6 months
+
+// ─── Metric collection helpers ────────────────────────────────────────────────
+
+/**
+ * Get total disk usage of the WordPress installation in bytes.
+ * Falls back to du on the wp-content directory if available.
+ */
+function csc_health_get_disk_usage_bytes(): int {
+    $wp_root = rtrim( ABSPATH, '/' );
+
+    // Try df for the partition containing WP (total used on partition)
+    // But for site-specific tracking, wp-content is more useful
+    $content_dir = WP_CONTENT_DIR;
+
+    // Try shell du first (most accurate)
+    if ( function_exists( 'exec' ) ) {
+        $output = array();
+        @exec( 'du -sb ' . escapeshellarg( $content_dir ) . ' 2>/dev/null', $output );
+        if ( ! empty( $output[0] ) ) {
+            $parts = preg_split( '/\s+/', trim( $output[0] ) );
+            if ( isset( $parts[0] ) && is_numeric( $parts[0] ) ) {
+                return intval( $parts[0] );
+            }
+        }
+        // macOS fallback: du -sk (kilobytes)
+        $output = array();
+        @exec( 'du -sk ' . escapeshellarg( $content_dir ) . ' 2>/dev/null', $output );
+        if ( ! empty( $output[0] ) ) {
+            $parts = preg_split( '/\s+/', trim( $output[0] ) );
+            if ( isset( $parts[0] ) && is_numeric( $parts[0] ) ) {
+                return intval( $parts[0] ) * 1024;
+            }
+        }
+    }
+
+    // Fallback: PHP recursive directory size (slower but always works)
+    return csc_health_dir_size( $content_dir );
+}
+
+/**
+ * Recursive directory size in bytes (PHP fallback).
+ */
+function csc_health_dir_size( string $dir ): int {
+    $size = 0;
+    try {
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ( $iter as $file ) {
+            if ( $file->isFile() ) {
+                $size += $file->getSize();
+            }
+        }
+    } catch ( Exception $e ) {
+        error_log( '[CSC] health dir_size error: ' . $e->getMessage() );
+    }
+    return $size;
+}
+
+/**
+ * Get free disk space on the partition containing wp-content.
+ */
+function csc_health_get_disk_free_bytes(): int {
+    $free = @disk_free_space( WP_CONTENT_DIR );
+    return $free !== false ? intval( $free ) : 0;
+}
+
+/**
+ * Get total disk space on the partition containing wp-content.
+ */
+function csc_health_get_disk_total_bytes(): int {
+    $total = @disk_total_space( WP_CONTENT_DIR );
+    return $total !== false ? intval( $total ) : 0;
+}
+
+/**
+ * Get current CPU load average (1 min).
+ * Uses sys_getloadavg() on Linux, falls back to /proc/loadavg.
+ */
+function csc_health_get_cpu_load(): float {
+    if ( function_exists( 'sys_getloadavg' ) ) {
+        $load = @sys_getloadavg();
+        if ( is_array( $load ) && isset( $load[0] ) ) {
+            return round( floatval( $load[0] ), 2 );
+        }
+    }
+    // Fallback: read /proc/loadavg
+    if ( is_readable( '/proc/loadavg' ) ) {
+        $raw = @file_get_contents( '/proc/loadavg' );
+        if ( $raw !== false ) {
+            $parts = explode( ' ', trim( $raw ) );
+            return round( floatval( $parts[0] ), 2 );
+        }
+    }
+    return -1; // unavailable
+}
+
+/**
+ * Get current memory usage in bytes.
+ * Reads /proc/meminfo on Linux, falls back to shell free command.
+ */
+function csc_health_get_memory_used_bytes(): int {
+    // Linux: parse /proc/meminfo
+    if ( is_readable( '/proc/meminfo' ) ) {
+        $raw = @file_get_contents( '/proc/meminfo' );
+        if ( $raw !== false ) {
+            $mem_total    = 0;
+            $mem_free     = 0;
+            $mem_buffers  = 0;
+            $mem_cached   = 0;
+            foreach ( explode( "\n", $raw ) as $line ) {
+                if ( preg_match( '/^MemTotal:\s+(\d+)\s+kB/', $line, $m ) )  { $mem_total   = intval( $m[1] ) * 1024; }
+                if ( preg_match( '/^MemFree:\s+(\d+)\s+kB/', $line, $m ) )   { $mem_free    = intval( $m[1] ) * 1024; }
+                if ( preg_match( '/^Buffers:\s+(\d+)\s+kB/', $line, $m ) )   { $mem_buffers = intval( $m[1] ) * 1024; }
+                if ( preg_match( '/^Cached:\s+(\d+)\s+kB/', $line, $m ) )    { $mem_cached  = intval( $m[1] ) * 1024; }
+            }
+            if ( $mem_total > 0 ) {
+                return $mem_total - $mem_free - $mem_buffers - $mem_cached;
+            }
+        }
+    }
+    return -1; // unavailable
+}
+
+/**
+ * Get total system memory in bytes.
+ */
+function csc_health_get_memory_total_bytes(): int {
+    if ( is_readable( '/proc/meminfo' ) ) {
+        $raw = @file_get_contents( '/proc/meminfo' );
+        if ( $raw !== false && preg_match( '/^MemTotal:\s+(\d+)\s+kB/m', $raw, $m ) ) {
+            return intval( $m[1] ) * 1024;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Get database size in bytes.
+ */
+function csc_health_get_db_size_bytes(): int {
+    global $wpdb;
+    $db_name = DB_NAME;
+    $row = $wpdb->get_row( $wpdb->prepare(
+        "SELECT SUM(data_length + index_length) AS size FROM information_schema.tables WHERE table_schema = %s",
+        $db_name
+    ) );
+    return ( $row && $row->size ) ? intval( $row->size ) : 0;
+}
+
+// ─── Hourly metric collection cron ───────────────────────────────────────────
+
+add_action( 'csc_health_hourly_collect', 'csc_health_collect_hourly' );
+function csc_health_collect_hourly() {
+    $metrics = get_option( CSC_HEALTH_HOURLY_KEY, array() );
+
+    $entry = array(
+        'ts'         => current_time( 'mysql' ),
+        'ts_unix'    => time(),
+        'disk_used'  => csc_health_get_disk_usage_bytes(),
+        'disk_free'  => csc_health_get_disk_free_bytes(),
+        'cpu_load'   => csc_health_get_cpu_load(),
+        'mem_used'   => csc_health_get_memory_used_bytes(),
+        'mem_total'  => csc_health_get_memory_total_bytes(),
+        'db_size'    => csc_health_get_db_size_bytes(),
+    );
+
+    $metrics[] = $entry;
+
+    // Expire entries older than 6 months
+    $cutoff = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
+    $metrics = array_values( array_filter( $metrics, function( $m ) use ( $cutoff ) {
+        return isset( $m['ts_unix'] ) && $m['ts_unix'] >= $cutoff;
+    } ) );
+
+    update_option( CSC_HEALTH_HOURLY_KEY, $metrics, false ); // autoload=false (can be large)
+}
+
+// ─── Weekly disk snapshot cron ───────────────────────────────────────────────
+
+add_action( 'csc_health_weekly_snapshot', 'csc_health_collect_weekly' );
+function csc_health_collect_weekly() {
+    $snapshots = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
+
+    $snapshots[] = array(
+        'ts'         => current_time( 'mysql' ),
+        'ts_unix'    => time(),
+        'disk_used'  => csc_health_get_disk_usage_bytes(),
+        'disk_free'  => csc_health_get_disk_free_bytes(),
+        'disk_total' => csc_health_get_disk_total_bytes(),
+        'db_size'    => csc_health_get_db_size_bytes(),
+    );
+
+    // Expire entries older than 6 months
+    $cutoff = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
+    $snapshots = array_values( array_filter( $snapshots, function( $s ) use ( $cutoff ) {
+        return isset( $s['ts_unix'] ) && $s['ts_unix'] >= $cutoff;
+    } ) );
+
+    update_option( CSC_HEALTH_WEEKLY_KEY, $snapshots, false );
+}
+
+// ─── Schedule health crons on activation ─────────────────────────────────────
+
+register_activation_hook( __FILE__, 'csc_health_schedule_crons' );
+add_action( 'admin_init', 'csc_health_ensure_crons' );
+
+function csc_health_schedule_crons() {
+    if ( ! wp_next_scheduled( 'csc_health_hourly_collect' ) ) {
+        wp_schedule_event( time(), 'hourly', 'csc_health_hourly_collect' );
+    }
+    if ( ! wp_next_scheduled( 'csc_health_weekly_snapshot' ) ) {
+        wp_schedule_event( time(), 'weekly', 'csc_health_weekly_snapshot' );
+    }
+}
+
+function csc_health_ensure_crons() {
+    if ( ! wp_next_scheduled( 'csc_health_hourly_collect' ) ) {
+        wp_schedule_event( time(), 'hourly', 'csc_health_hourly_collect' );
+    }
+    if ( ! wp_next_scheduled( 'csc_health_weekly_snapshot' ) ) {
+        wp_schedule_event( time(), 'weekly', 'csc_health_weekly_snapshot' );
+    }
+}
+
+// Register 'weekly' interval (WordPress doesn't have one by default)
+add_filter( 'cron_schedules', 'csc_health_cron_schedules' );
+function csc_health_cron_schedules( $schedules ) {
+    if ( ! isset( $schedules['weekly'] ) ) {
+        $schedules['weekly'] = array(
+            'interval' => WEEK_IN_SECONDS,
+            'display'  => 'Once Weekly',
+        );
+    }
+    return $schedules;
+}
+
+// ─── Health score calculation ────────────────────────────────────────────────
+
+/**
+ * Calculate site health summary.
+ * Returns array with disk, cpu, memory stats and RAG status.
+ */
+function csc_health_calculate(): array {
+    $hourly    = get_option( CSC_HEALTH_HOURLY_KEY, array() );
+    $weekly    = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
+    $now       = time();
+
+    // Current disk state
+    $disk_used  = csc_health_get_disk_usage_bytes();
+    $disk_free  = csc_health_get_disk_free_bytes();
+    $disk_total = csc_health_get_disk_total_bytes();
+    $db_size    = csc_health_get_db_size_bytes();
+
+    // Weekly growth rate: max disk_used across any rolling 7 day window over last 3 months
+    // Then compare oldest vs newest weekly snapshot
+    $growth_per_week = 0;
+    $weeks_of_data   = 0;
+    if ( count( $weekly ) >= 2 ) {
+        // Use the 3 month window (13 weeks) for growth calculation
+        $three_months_ago = $now - ( 90 * DAY_IN_SECONDS );
+        $recent = array_filter( $weekly, function( $s ) use ( $three_months_ago ) {
+            return $s['ts_unix'] >= $three_months_ago;
+        } );
+        $recent = array_values( $recent );
+
+        if ( count( $recent ) >= 2 ) {
+            $oldest = $recent[0];
+            $newest = end( $recent );
+            $elapsed_weeks = max( 1, ( $newest['ts_unix'] - $oldest['ts_unix'] ) / WEEK_IN_SECONDS );
+            $weeks_of_data = round( $elapsed_weeks, 1 );
+
+            // Find the maximum disk_used in any weekly snapshot (worst case growth)
+            $max_used = 0;
+            foreach ( $recent as $s ) {
+                if ( $s['disk_used'] > $max_used ) { $max_used = $s['disk_used']; }
+            }
+
+            // Growth = (max_used - oldest) / elapsed weeks
+            // This captures worst case peak, not just current
+            $total_growth = $max_used - $oldest['disk_used'];
+            if ( $total_growth > 0 ) {
+                $growth_per_week = $total_growth / $elapsed_weeks;
+            }
+        }
+    }
+
+    // Weeks remaining until disk full
+    $weeks_remaining = -1; // -1 = insufficient data
+    if ( $growth_per_week > 0 && $disk_free > 0 ) {
+        $weeks_remaining = $disk_free / $growth_per_week;
+    }
+
+    // RAG status for disk
+    $disk_rag = 'grey'; // insufficient data
+    if ( $weeks_remaining > 0 ) {
+        if ( $weeks_remaining < 13 ) {       // < 3 months
+            $disk_rag = 'red';
+        } elseif ( $weeks_remaining < 26 ) { // < 6 months
+            $disk_rag = 'amber';
+        } else {
+            $disk_rag = 'green';
+        }
+    } elseif ( count( $weekly ) >= 2 && $growth_per_week <= 0 ) {
+        // Disk is shrinking or stable — green
+        $disk_rag = 'green';
+    }
+
+    // CPU: hourly max over last 24h and 7d
+    $cpu_max_24h = -1;
+    $cpu_max_7d  = -1;
+    $cutoff_24h  = $now - DAY_IN_SECONDS;
+    $cutoff_7d   = $now - WEEK_IN_SECONDS;
+    foreach ( $hourly as $h ) {
+        if ( ! isset( $h['cpu_load'] ) || $h['cpu_load'] < 0 ) { continue; }
+        if ( $h['ts_unix'] >= $cutoff_24h && $h['cpu_load'] > $cpu_max_24h ) {
+            $cpu_max_24h = $h['cpu_load'];
+        }
+        if ( $h['ts_unix'] >= $cutoff_7d && $h['cpu_load'] > $cpu_max_7d ) {
+            $cpu_max_7d = $h['cpu_load'];
+        }
+    }
+
+    // Memory: max used over last 24h and 7d
+    $mem_max_24h = -1;
+    $mem_max_7d  = -1;
+    $mem_total   = csc_health_get_memory_total_bytes();
+    foreach ( $hourly as $h ) {
+        if ( ! isset( $h['mem_used'] ) || $h['mem_used'] < 0 ) { continue; }
+        if ( $h['ts_unix'] >= $cutoff_24h && $h['mem_used'] > $mem_max_24h ) {
+            $mem_max_24h = $h['mem_used'];
+        }
+        if ( $h['ts_unix'] >= $cutoff_7d && $h['mem_used'] > $mem_max_7d ) {
+            $mem_max_7d = $h['mem_used'];
+        }
+    }
+
+    return array(
+        'disk_used'         => $disk_used,
+        'disk_free'         => $disk_free,
+        'disk_total'        => $disk_total,
+        'db_size'           => $db_size,
+        'growth_per_week'   => $growth_per_week,
+        'weeks_remaining'   => $weeks_remaining,
+        'weeks_of_data'     => $weeks_of_data,
+        'disk_rag'          => $disk_rag,
+        'cpu_load_now'      => csc_health_get_cpu_load(),
+        'cpu_max_24h'       => $cpu_max_24h,
+        'cpu_max_7d'        => $cpu_max_7d,
+        'mem_used_now'      => csc_health_get_memory_used_bytes(),
+        'mem_total'         => $mem_total,
+        'mem_max_24h'       => $mem_max_24h,
+        'mem_max_7d'        => $mem_max_7d,
+        'hourly_count'      => count( $hourly ),
+        'weekly_count'      => count( $weekly ),
+        'last_hourly'       => ! empty( $hourly ) ? end( $hourly )['ts'] : null,
+        'last_weekly'       => ! empty( $weekly ) ? end( $weekly )['ts'] : null,
+    );
+}
+
+// ─── AJAX: Force collect now (for first run / testing) ───────────────────────
+
+add_action( 'wp_ajax_csc_health_collect_now', 'csc_ajax_health_collect_now' );
+function csc_ajax_health_collect_now() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    csc_health_collect_hourly();
+    csc_health_collect_weekly();
+    wp_send_json_success( array( 'message' => 'Metrics collected.', 'health' => csc_health_calculate() ) );
+}
+
+// ─── AJAX: Get health data ───────────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_health_get', 'csc_ajax_health_get' );
+function csc_ajax_health_get() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    wp_send_json_success( csc_health_calculate() );
+}
+
+// ─── AJAX: Get raw hourly data for charts ────────────────────────────────────
+
+add_action( 'wp_ajax_csc_health_hourly_data', 'csc_ajax_health_hourly_data' );
+function csc_ajax_health_hourly_data() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $days    = intval( $_POST['days'] ?? 7 );
+    $days    = max( 1, min( 180, $days ) );
+    $cutoff  = time() - ( $days * DAY_IN_SECONDS );
+    $hourly  = get_option( CSC_HEALTH_HOURLY_KEY, array() );
+    $filtered = array_values( array_filter( $hourly, function( $h ) use ( $cutoff ) {
+        return isset( $h['ts_unix'] ) && $h['ts_unix'] >= $cutoff;
+    } ) );
+
+    wp_send_json_success( array( 'data' => $filtered, 'total' => count( $filtered ) ) );
+}
+
+// ─── AJAX: Get weekly snapshots for charts ───────────────────────────────────
+
+add_action( 'wp_ajax_csc_health_weekly_data', 'csc_ajax_health_weekly_data' );
+function csc_ajax_health_weekly_data() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    wp_send_json_success( array( 'data' => get_option( CSC_HEALTH_WEEKLY_KEY, array() ) ) );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ADMIN PAGE
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -2714,6 +3190,7 @@ function csc_render_page() {
             <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
+            <button class="csc-tab" data-tab="site-health">Site Health</button>
             <button class="csc-tab" data-tab="settings">Settings</button>
         </div>
 
@@ -3289,6 +3766,96 @@ function csc_render_page() {
                         <div style="display:flex;gap:10px;margin-top:14px">
                             <button id="cspj-rename-confirm" class="csc-btn csc-btn-primary">💾 Add to Library</button>
                             <button id="cspj-rename-cancel-2" class="csc-btn" style="background:#f1f5f9;color:var(--csc-muted);border:1px solid var(--csc-border)">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ Site Health ═══ -->
+        <div class="csc-tab-content" id="tab-site-health">
+            <div class="csc-card">
+                <div class="csc-card-header" style="background:linear-gradient(135deg,#1b5e20 0%,#43a047 100%)"><span>📊 Site Health Overview</span></div>
+                <div class="csc-card-body" id="csc-health-overview">
+                    <div id="csc-health-loading" style="text-align:center;padding:30px;color:#888">Loading health metrics…</div>
+                    <div id="csc-health-content" style="display:none">
+                        <!-- RAG indicator -->
+                        <div id="csc-health-rag-bar" style="display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:8px;margin-bottom:20px">
+                            <div id="csc-health-rag-dot" style="width:24px;height:24px;border-radius:50%;flex-shrink:0"></div>
+                            <div>
+                                <div id="csc-health-rag-label" style="font-size:16px;font-weight:800"></div>
+                                <div id="csc-health-rag-detail" style="font-size:13px;margin-top:2px;opacity:0.8"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric cards grid -->
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px">
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">wp-content Size</div>
+                                <div class="csc-health-metric-value" id="hm-disk-used">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Disk Free</div>
+                                <div class="csc-health-metric-value" id="hm-disk-free">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Disk Total</div>
+                                <div class="csc-health-metric-value" id="hm-disk-total">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Database Size</div>
+                                <div class="csc-health-metric-value" id="hm-db-size">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Growth / Week</div>
+                                <div class="csc-health-metric-value" id="hm-growth">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Weeks Remaining</div>
+                                <div class="csc-health-metric-value" id="hm-weeks-left">—</div>
+                            </div>
+                        </div>
+
+                        <!-- CPU and Memory -->
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px">
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">CPU Load (now)</div>
+                                <div class="csc-health-metric-value" id="hm-cpu-now">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">CPU Max (24h)</div>
+                                <div class="csc-health-metric-value" id="hm-cpu-24h">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">CPU Max (7d)</div>
+                                <div class="csc-health-metric-value" id="hm-cpu-7d">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Memory Used (now)</div>
+                                <div class="csc-health-metric-value" id="hm-mem-now">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Memory Max (24h)</div>
+                                <div class="csc-health-metric-value" id="hm-mem-24h">—</div>
+                            </div>
+                            <div class="csc-health-metric">
+                                <div class="csc-health-metric-label">Memory Max (7d)</div>
+                                <div class="csc-health-metric-value" id="hm-mem-7d">—</div>
+                            </div>
+                        </div>
+
+                        <!-- Data collection status -->
+                        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;background:#f8f9fc;border-radius:6px;border:1px solid #e0e0e0;margin-bottom:16px">
+                            <span style="font-size:12px;color:#50575e">📈 Hourly samples: <strong id="hm-hourly-count">0</strong></span>
+                            <span style="font-size:12px;color:#50575e">📅 Weekly snapshots: <strong id="hm-weekly-count">0</strong></span>
+                            <span style="font-size:12px;color:#50575e">🕐 Last hourly: <strong id="hm-last-hourly">—</strong></span>
+                            <span style="font-size:12px;color:#50575e">📅 Last weekly: <strong id="hm-last-weekly">—</strong></span>
+                            <span style="font-size:12px;color:#50575e">📊 Data span: <strong id="hm-data-span">—</strong> weeks</span>
+                        </div>
+
+                        <div class="csc-button-row" style="gap:10px">
+                            <button class="csc-btn csc-btn-secondary" id="btn-health-refresh">🔄 Refresh</button>
+                            <button class="csc-btn csc-btn-primary" id="btn-health-collect">📊 Collect Now</button>
                         </div>
                     </div>
                 </div>

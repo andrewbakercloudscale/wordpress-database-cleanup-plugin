@@ -1363,6 +1363,106 @@
         return (b / 1048576).toFixed(1) + ' MB';
     }
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // SITE HEALTH
+    // ═════════════════════════════════════════════════════════════════════════
+
+    function healthFormatBytes(b) {
+        if (b < 0) return '—';
+        if (b === 0) return '0 B';
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+        if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+        return (b / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function healthRenderData(d) {
+        // RAG bar
+        var ragColors = { red: '#c62828', amber: '#e65100', green: '#2e7d32', grey: '#78909c' };
+        var ragBgs    = { red: '#ffebee', amber: '#fff3e0', green: '#e8f5e9', grey: '#eceff1' };
+        var ragLabels = {
+            red:   'Critical — Less than 3 months of storage remaining',
+            amber: 'Warning — Less than 6 months of storage remaining',
+            green: 'Healthy — More than 6 months of storage remaining',
+            grey:  'Collecting data — need at least 2 weekly snapshots'
+        };
+
+        var rag = d.disk_rag || 'grey';
+        $('#csc-health-rag-bar').css('background', ragBgs[rag]);
+        $('#csc-health-rag-dot').css('background', ragColors[rag]);
+        $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase() + rag.slice(1)).css('color', ragColors[rag]);
+        $('#csc-health-rag-detail').text(ragLabels[rag]).css('color', ragColors[rag]);
+
+        // Disk metrics
+        $('#hm-disk-used').text(healthFormatBytes(d.disk_used));
+        $('#hm-disk-free').text(healthFormatBytes(d.disk_free));
+        $('#hm-disk-total').text(healthFormatBytes(d.disk_total));
+        $('#hm-db-size').text(healthFormatBytes(d.db_size));
+        $('#hm-growth').text(d.growth_per_week > 0 ? healthFormatBytes(d.growth_per_week) + '/wk' : (d.weekly_count >= 2 ? 'Stable / shrinking' : 'Collecting…'));
+        if (d.weeks_remaining > 0) {
+            var wk = Math.round(d.weeks_remaining);
+            $('#hm-weeks-left').text(wk + ' wk' + (wk !== 1 ? 's' : '') + ' (~' + Math.round(wk / 4.3) + ' mo)').css('color', ragColors[rag]);
+        } else if (d.weekly_count >= 2) {
+            $('#hm-weeks-left').text('∞ (stable)').css('color', '#2e7d32');
+        } else {
+            $('#hm-weeks-left').text('Collecting…').css('color', '#78909c');
+        }
+
+        // CPU
+        $('#hm-cpu-now').text(d.cpu_load_now >= 0 ? d.cpu_load_now.toFixed(2) : '—');
+        $('#hm-cpu-24h').text(d.cpu_max_24h >= 0 ? d.cpu_max_24h.toFixed(2) : '—');
+        $('#hm-cpu-7d').text(d.cpu_max_7d >= 0 ? d.cpu_max_7d.toFixed(2) : '—');
+
+        // Memory
+        $('#hm-mem-now').text(d.mem_used_now >= 0 ? healthFormatBytes(d.mem_used_now) + (d.mem_total > 0 ? ' / ' + healthFormatBytes(d.mem_total) : '') : '—');
+        $('#hm-mem-24h').text(d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '—');
+        $('#hm-mem-7d').text(d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '—');
+
+        // Data status
+        $('#hm-hourly-count').text(d.hourly_count);
+        $('#hm-weekly-count').text(d.weekly_count);
+        $('#hm-last-hourly').text(d.last_hourly || 'Never');
+        $('#hm-last-weekly').text(d.last_weekly || 'Never');
+        $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
+
+        $('#csc-health-loading').hide();
+        $('#csc-health-content').show();
+    }
+
+    function healthLoad() {
+        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+            if (resp.success) { healthRenderData(resp.data); }
+            else { $('#csc-health-loading').text('Failed to load health data.'); }
+        }).fail(function() { $('#csc-health-loading').text('Network error loading health data.'); });
+    }
+
+    // Load health data when tab is shown
+    var healthLoaded = false;
+    $(document).on('click', '.csc-tab[data-tab="site-health"]', function() {
+        if (!healthLoaded) { healthLoad(); healthLoaded = true; }
+    });
+
+    // Also load if URL has tab=site-health
+    if (window.location.search.indexOf('tab=site-health') !== -1) {
+        healthLoad(); healthLoaded = true;
+    }
+
+    $('#btn-health-refresh').on('click', function() {
+        $(this).prop('disabled', true).html('⏳ Loading…');
+        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+            $('#btn-health-refresh').prop('disabled', false).html('🔄 Refresh');
+            if (resp.success) { healthRenderData(resp.data); }
+        }).fail(function() { $('#btn-health-refresh').prop('disabled', false).html('🔄 Refresh'); });
+    });
+
+    $('#btn-health-collect').on('click', function() {
+        $(this).prop('disabled', true).html('⏳ Collecting…');
+        $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
+            $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now');
+            if (resp.success && resp.data.health) { healthRenderData(resp.data.health); }
+        }).fail(function() { $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now'); });
+    });
+
     }); // document.ready
 
 }(jQuery));
