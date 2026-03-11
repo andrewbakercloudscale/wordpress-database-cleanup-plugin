@@ -9,3 +9,12 @@ node_modules/
 vendor/
 wp-config.php
 wp-content/uploads/
+# Local deploy tooling
+build.sh
+deploy-wordpress.sh
+backup-s3.sh
+purge-cloudflare.sh
+rollback-wordpress.sh
+repo/
+.claude/
+.claude-flow/
