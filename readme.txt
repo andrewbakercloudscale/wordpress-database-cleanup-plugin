@@ -1,11 +1,11 @@
 === CloudScale Cleanup ===
-Contributors: cloudscale
+Contributors: andrewbaker
 Tags: cleanup, database, media, revisions, transients, optimize, images
-Requires at least: 5.8
-Tested up to: 6.7
+Requires at least: 6.0
+Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 2.4.2
-License: GPLv2 or later
+License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Database and media library cleanup with dry-run preview, chunked processing, image optimisation, and scheduled automation. Free, no subscriptions.

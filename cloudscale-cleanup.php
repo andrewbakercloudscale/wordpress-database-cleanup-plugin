@@ -6,9 +6,10 @@
  * Version:     2.4.2
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
- * License:     GPL-2.0+
+ * License:     GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: cloudscale-cleanup
- * Requires at least: 5.8
+ * Requires at least: 6.0
  * Requires PHP:      7.4
  */
 
@@ -25,12 +26,12 @@ define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
 register_deactivation_hook( __FILE__, function() {
     $dir = CLOUDSCALE_CLEANUP_DIR;
     // Clean root-level assets
-    foreach ( glob( $dir . 'admin.{js,css}', GLOB_BRACE ) as $f ) { @unlink( $f ); }
+    foreach ( glob( $dir . 'admin.{js,css}', GLOB_BRACE ) as $f ) { wp_delete_file( $f ); }
     // Clean old assets/ subdirectory
     $assets = $dir . 'assets/';
     if ( is_dir( $assets ) ) {
-        foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { @unlink( $f ); } }
-        @rmdir( $assets );
+        foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { wp_delete_file( $f ); } }
+        rmdir( $assets );
     }
 } );
 
@@ -65,8 +66,8 @@ function csc_cleanup_stale_assets() {
     // Clean old assets/ subdirectory from previous versions
     $assets = $dir . 'assets/';
     if ( is_dir( $assets ) ) {
-        foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { @unlink( $f ); } }
-        @rmdir( $assets );
+        foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { wp_delete_file( $f ); } }
+        rmdir( $assets );
     }
 }
 
@@ -1011,7 +1012,7 @@ function csc_media_recycle_read_manifest(): array {
         if ( is_array( $data ) ) {
             error_log( '[CSC] Recovered media recycle manifest from backup.' );
             // Restore the primary from backup
-            @copy( $backup, $path );
+            copy( $backup, $path );
             return $data;
         }
         error_log( '[CSC] Media recycle backup manifest also corrupted.' );
@@ -1036,7 +1037,7 @@ function csc_media_recycle_write_manifest( array $manifest ): bool {
 
     // Backup current manifest before overwriting
     if ( file_exists( $path ) ) {
-        @copy( $path, $backup );
+        copy( $path, $backup );
     }
 
     // Write atomically: write to temp file then rename
@@ -1050,7 +1051,7 @@ function csc_media_recycle_write_manifest( array $manifest ): bool {
     if ( ! @rename( $tmp, $path ) ) {
         // Fallback: direct write if rename fails (cross device)
         $written = file_put_contents( $path, $json );
-        @unlink( $tmp );
+        wp_delete_file( $tmp );
         if ( $written === false ) {
             error_log( '[CSC] Failed to write media recycle manifest (direct write also failed).' );
             return false;
@@ -1124,7 +1125,7 @@ function csc_media_recycle_save_attachment( int $id ): array {
             $files_moved[] = $rel;
         } else {
             // Try copy+delete as fallback (cross-device move)
-            if ( @copy( $src_path, $dest ) && @unlink( $src_path ) ) {
+            if ( copy( $src_path, $dest ) && unlink( $src_path ) ) {
                 $files_moved[] = $rel;
             } else {
                 $errors[] = 'Failed to move: ' . $rel;
@@ -1334,7 +1335,7 @@ function csc_ajax_media_restore() {
                     continue;
                 }
                 if ( ! @rename( $src, $dest ) ) {
-                    if ( ! ( @copy( $src, $dest ) && @unlink( $src ) ) ) {
+                    if ( ! ( copy( $src, $dest ) && unlink( $src ) ) ) {
                         $file_errors[] = 'Move failed: ' . $rel;
                     }
                 }
@@ -1383,7 +1384,7 @@ function csc_ajax_media_restore() {
 
     // Update or remove manifest
     if ( empty( $manifest ) ) {
-        @unlink( csc_media_recycle_manifest() );
+        wp_delete_file( csc_media_recycle_manifest() );
         csc_rmdir_recursive( csc_media_recycle_dir() );
     } else {
         csc_media_recycle_write_manifest( $manifest );
@@ -1419,7 +1420,7 @@ function csc_ajax_media_restore_single() {
             if ( file_exists( $src ) ) {
                 wp_mkdir_p( dirname( $dest ) );
                 if ( ! @rename( $src, $dest ) ) {
-                    @copy( $src, $dest ) && @unlink( $src );
+                    copy( $src, $dest ) && unlink( $src );
                 }
             }
         }
@@ -1447,7 +1448,7 @@ function csc_ajax_media_restore_single() {
 
         unset( $manifest[ $att_id ] );
         if ( empty( $manifest ) ) {
-            @unlink( csc_media_recycle_manifest() );
+            wp_delete_file( csc_media_recycle_manifest() );
             csc_rmdir_recursive( csc_media_recycle_dir() );
         } else {
             csc_media_recycle_write_manifest( $manifest );
@@ -1492,7 +1493,7 @@ function csc_ajax_media_purge() {
                 $path = $recycle . $rel;
                 if ( file_exists( $path ) ) {
                     $freed += filesize( $path );
-                    if ( @unlink( $path ) ) {
+                    if ( unlink( $path ) ) {
                         $file_deleted++;
                     } else {
                         $errors++;
@@ -1836,7 +1837,7 @@ function csc_ajax_restore_orphan_files() {
 
     // Update or remove manifest
     if ( empty( $manifest ) ) {
-        @unlink( $manifest_path );
+        wp_delete_file( $manifest_path );
         // Clean up empty recycle dirs
         csc_rmdir_recursive( $recycle );
     } else {
@@ -1875,7 +1876,7 @@ function csc_ajax_purge_orphan_files() {
         $recycle_path = $recycle . $rel;
         if ( file_exists( $recycle_path ) ) {
             $freed += filesize( $recycle_path );
-            if ( @unlink( $recycle_path ) ) {
+            if ( unlink( $recycle_path ) ) {
                 $lines[] = array( 'type' => 'deleted', 'text' => '  [DELETED] ' . $rel );
                 $deleted++;
             } else {
@@ -1966,7 +1967,7 @@ function csc_ajax_recycle_restore_single() {
 
     unset( $manifest[ $rel ] );
     if ( empty( $manifest ) ) {
-        @unlink( $manifest_path );
+        wp_delete_file( $manifest_path );
         csc_rmdir_recursive( csc_recycle_dir() );
     } else {
         file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
@@ -1993,10 +1994,10 @@ function csc_rmdir_recursive( string $dir ): void {
             RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ( $iter as $f ) {
-            $f->isDir() ? @rmdir( $f->getRealPath() ) : @unlink( $f->getRealPath() );
+            $f->isDir() ? rmdir( $f->getRealPath() ) : wp_delete_file( $f->getRealPath() );
         }
     } catch ( Exception $e ) {}
-    @rmdir( $dir );
+    rmdir( $dir );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2172,7 +2173,7 @@ function csc_ajax_optimise_chunk() {
             if ( $actual_path !== $new_file ) {
                 @rename( $actual_path, $new_file );
             }
-            @unlink( $file );
+            wp_delete_file( $file );
             update_attached_file( $id, $new_file );
             $meta = wp_generate_attachment_metadata( $id, $new_file );
             wp_update_attachment_metadata( $id, $meta );
@@ -2190,7 +2191,7 @@ function csc_ajax_optimise_chunk() {
             // This breaks all existing image URLs in posts. Rename back to the original.
             $actual_path = $result['path'];
             if ( $actual_path !== $file ) {
-                @unlink( $file );
+                wp_delete_file( $file );
                 @rename( $actual_path, $file );
             }
             $meta = wp_generate_attachment_metadata( $id, $file );
@@ -2288,9 +2289,9 @@ function csc_cspj_delete_dir( $dir ) {
     $it    = new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS );
     $files = new RecursiveIteratorIterator( $it, RecursiveIteratorIterator::CHILD_FIRST );
     foreach ( $files as $file ) {
-        $file->isDir() ? @rmdir( $file->getRealPath() ) : @unlink( $file->getRealPath() );
+        $file->isDir() ? rmdir( $file->getRealPath() ) : wp_delete_file( $file->getRealPath() );
     }
-    @rmdir( $dir );
+    rmdir( $dir );
 }
 
 function csc_cspj_resolve_dimensions( $size, $ow, $oh, $cw, $ch, $constrain ) {
@@ -2669,7 +2670,7 @@ function csc_ajax_cspj_delete_converted() {
     }
 
     if ( file_exists( $path ) ) {
-        @unlink( $path );
+        wp_delete_file( $path );
         wp_send_json_success( 'File deleted.' );
     } else {
         wp_send_json_error( 'File not found.' );
