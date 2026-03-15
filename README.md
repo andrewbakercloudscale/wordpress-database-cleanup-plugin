@@ -1,6 +1,6 @@
 # WordPress Database Cleanup Plugin
 
-![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.0.1-orange)
+![WordPress](https://img.shields.io/badge/WordPress-6.0%2B-blue) ![PHP](https://img.shields.io/badge/PHP-8.0%2B-purple) ![License](https://img.shields.io/badge/License-GPLv2-green) ![Version](https://img.shields.io/badge/Version-2.4.2-orange)
 
 WordPress database and media library cleanup plugin. Removes accumulated junk (revisions, drafts, transients, orphaned metadata, spam), finds unused images and orphaned filesystem files, and optimises oversized images. Full dry run preview before anything is touched. Completely free.
 
