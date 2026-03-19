@@ -6,7 +6,7 @@
  * is deleted via Plugins > Delete.
  */
 
-defined( 'ABSPATH' )             || exit;
+defined( 'ABSPATH' ) || exit;
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 // Settings.

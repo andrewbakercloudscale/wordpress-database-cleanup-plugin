@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>CloudScale Cleanup — Help</title></head><body>
+<!-- wp:html -->
+<style>
+.cs-help-docs{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1a202c;line-height:1.7;max-width:900px;}
+.cs-help-docs a{color:#2563eb;}
+.cs-help-docs code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;font-size:.88em;}
+.cs-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0e6b8f 100%);color:#fff;border-radius:12px;padding:48px 40px;margin-bottom:40px;}
+.cs-hero h1{font-size:2.2em;font-weight:800;margin:0 0 12px;letter-spacing:-.02em;color:#fff;}
+.cs-hero p{font-size:1.1em;margin:0;opacity:.85;max-width:680px;}
+.cs-hero .cs-badge{display:inline-block;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 14px;font-size:.8em;font-weight:600;margin-bottom:16px;letter-spacing:.05em;text-transform:uppercase;}
+.cs-toc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:28px 36px;margin:32px 0;}
+.cs-toc-title{font-size:1em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 16px;}
+.cs-toc ol{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px;margin:0;padding-left:24px;}
+.cs-toc li a{color:#2563eb;text-decoration:none;font-weight:500;font-size:.97em;}
+.cs-tab-section{margin:56px 0 0;}
+.cs-tab-heading{font-size:2em;font-weight:800;color:#0f172a;padding:0 0 16px;border-bottom:3px solid #0e6b8f;margin:0 0 8px;}
+.cs-tab-intro{color:#475569;font-size:1.05em;margin:10px 0 32px;}
+.cs-panel-section{margin:36px 0 0;}
+.cs-panel-heading{font-size:1.45em;font-weight:700;color:#1e293b;margin:0 0 16px;padding:0 0 10px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
+.cs-panel-heading::before{content:"";display:inline-block;width:4px;height:1.2em;background:#0e6b8f;border-radius:2px;flex-shrink:0;}
+.cs-screenshot{margin:20px 0 24px;}
+.cs-screenshot img{max-width:100%;border-radius:8px;border:1px solid #d1d5db;box-shadow:0 4px 20px rgba(0,0,0,.10);display:block;}
+.cs-panel-body{color:#334155;}
+.cs-panel-body p{margin:0 0 12px;}
+.cs-panel-body ul,.cs-panel-body ol{padding-left:22px;margin:8px 0 16px;}
+.cs-panel-body li{margin:6px 0;}
+.cs-panel-body strong{color:#1e293b;}
+.cs-divider{border:none;border-top:1px solid #e2e8f0;margin:40px 0;}
+</style>
+<div class="cs-help-docs" style="max-width:900px;margin:0 auto;">
+<div class="cs-hero">
+<div class="cs-badge">Free &amp; Open Source</div>
+<h1>CloudScale Cleanup</h1>
+<p>Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.</p>
+</div>
+
+<div class="cs-toc">
+<div class="cs-toc-title">Contents</div>
+<ol><li><a href="#db-cleanup">Database Cleanup</a></li>
+<li><a href="#img-cleanup">Media Library Cleanup</a></li>
+<li><a href="#img-optimise">Image Optimisation</a></li></ol>
+</div>
+
+<hr class="cs-divider"/>
+
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="db-cleanup">Database Cleanup</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-db-cleanup-1.jpg" alt="Database Cleanup" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Database Cleanup</strong> tab removes accumulated junk from your WordPress database that slows down queries and inflates backup sizes.</p>
+<p>Items that can be cleaned:</p>
+<ul>
+<li><strong>Post revisions</strong> — WordPress saves a revision every time you update a post. These accumulate rapidly on busy sites.</li>
+<li><strong>Auto-drafts</strong> — temporary draft posts created by the Gutenberg autosave that were never published.</li>
+<li><strong>Trashed posts / pages / comments</strong> — items moved to the Trash but not yet permanently deleted.</li>
+<li><strong>Spam and unapproved comments</strong> — comment queue items that were marked as spam.</li>
+<li><strong>Orphaned post meta</strong> — post metadata rows whose parent post no longer exists.</li>
+<li><strong>Transients</strong> — expired WordPress transient cache entries stored in the options table.</li>
+</ul>
+<p>Always use <strong>Dry Run</strong> first to preview what will be deleted before committing. Processing is done in chunks to avoid PHP timeout on large databases.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="img-cleanup">Media Library Cleanup</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-cleanup-1.jpg" alt="Media Library Cleanup" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Media Library Cleanup</strong> tab finds and removes media files that are no longer referenced by any post, page, or widget — freeing up disk space and reducing backup sizes.</p>
+<ul>
+<li><strong>Scan</strong> — analyses your media library against post content, post meta, widget data, and theme options to identify truly unused files.</li>
+<li><strong>Preview</strong> — lists all files that would be deleted, with thumbnails so you can verify before committing.</li>
+<li><strong>Delete</strong> — permanently removes the selected files and their WordPress attachment records.</li>
+</ul>
+<p><strong>Caution:</strong> some plugins store media references in custom database tables that the scanner may not check. Always download a backup before running a media cleanup.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="img-optimise">Image Optimisation</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-optimise-1.jpg" alt="Image Optimisation" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Image Optimisation</strong> tab reduces the file size of images in your media library, improving page load speed and reducing storage usage.</p>
+<ul>
+<li><strong>PNG to JPEG conversion</strong> — converts PNG images that do not require transparency to JPEG format, which is typically 3–5× smaller at equivalent visual quality. Transparency is preserved for PNGs that need it.</li>
+<li><strong>JPEG recompression</strong> — re-encodes existing JPEG files at a configurable quality level (default 82%). Images already at or below the target quality are skipped.</li>
+<li><strong>Quality setting</strong> — balance between file size reduction and image quality. 80–85 is recommended for blog photography; 70–75 for screenshots and diagrams.</li>
+<li><strong>Chunked processing</strong> — large libraries are processed in batches to prevent PHP timeouts. You can stop and resume at any time.</li>
+</ul></div>
+</div>
+<hr class="cs-divider"/>
+</div>
+<!-- /wp:html -->
+</body></html>
