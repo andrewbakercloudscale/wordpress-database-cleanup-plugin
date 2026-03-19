@@ -12,6 +12,7 @@ helpLib.run({
     pluginDesc: 'WP-Optimize and Advanced Database Cleaner charge $39–$99/year for features that are straightforward to implement. CloudScale Cleanup gives you full database cleanup, media library orphan removal, image optimisation, and PNG-to-JPEG conversion — with a dry-run preview so you never delete anything by accident. Completely free, open source, no subscriptions, no premium tier.',
     pageTitle:  'CloudScale Cleanup: Online Help',
     pageSlug:   'cleanup-help',
+    downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip',
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-cleanup`,
 
     sections: [
