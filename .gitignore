@@ -15,6 +15,10 @@ deploy-wordpress.sh
 backup-s3.sh
 purge-cloudflare.sh
 rollback-wordpress.sh
-repo/
 .claude/
 .claude-flow/
+
+# Help docs generator
+generate-help-docs.sh
+docs/screenshots/
+repo/

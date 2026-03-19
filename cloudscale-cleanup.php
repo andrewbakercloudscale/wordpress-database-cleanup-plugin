@@ -13,9 +13,7 @@
  * Requires PHP:      7.4
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
-    exit;
-}
+if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.2' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
@@ -152,14 +150,191 @@ function csc_enqueue_assets( $hook ) {
     );
     $cspj_chunk_mb    = csc_get_cspj_chunk_mb();
     $cspj_server_max  = csc_get_cspj_server_max_mb();
+    $csc_nonce = wp_create_nonce( 'csc_nonce' );
     wp_localize_script( 'cloudscale-cleanup-js', 'CSC', array(
         'ajax_url'       => admin_url( 'admin-ajax.php' ),
-        'nonce'          => wp_create_nonce( 'csc_nonce' ),
+        'nonce'          => $csc_nonce,
         'cspj_chunk_mb'  => $cspj_chunk_mb,
         'cspj_server_max_mb' => $cspj_server_max,
         'cspj_max_total_mb'  => CSPJ_MAX_TOTAL_MB,
         'version'        => CLOUDSCALE_CLEANUP_VERSION,
     ) );
+
+    // Fallback: ensure CSC is always available even if wp_localize_script fails.
+    $csc_fallback_js = 'if(typeof CSC==="undefined"||!CSC.ajax_url){'
+        . 'window.CSC=window.CSC||{};'
+        . 'CSC.ajax_url=CSC.ajax_url||' . wp_json_encode( admin_url( 'admin-ajax.php' ) ) . ';'
+        . 'CSC.nonce=CSC.nonce||' . wp_json_encode( $csc_nonce ) . ';'
+        . 'CSC.cspj_chunk_mb=CSC.cspj_chunk_mb||' . wp_json_encode( $cspj_chunk_mb ) . ';'
+        . 'CSC.cspj_server_max_mb=CSC.cspj_server_max_mb||' . wp_json_encode( $cspj_server_max ) . ';'
+        . 'CSC.cspj_max_total_mb=CSC.cspj_max_total_mb||' . intval( CSPJ_MAX_TOTAL_MB ) . ';'
+        . 'CSC.version=CSC.version||' . wp_json_encode( CLOUDSCALE_CLEANUP_VERSION ) . ';'
+        . 'console.log("[CSC] Fallback CSC injected inline. wp_localize_script may not have fired.");'
+        . '}';
+    wp_add_inline_script( 'cloudscale-cleanup-js', $csc_fallback_js );
+
+    // Tab colours and health metric styles — inline fallback (cache proof).
+    $csc_inline_css = '
+    .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
+    .csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8 !important; }
+    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
+    div[style*="#fff3e0"] .csc-health-metric,
+    div[style*="#e3f2fd"] .csc-health-metric,
+    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
+    div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
+    div[style*="#fff3e0"] .csc-health-metric-value { color: #e65100 !important; }
+    div[style*="#efebe9"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
+    div[style*="#efebe9"] .csc-health-metric-label { color: #4e342e !important; }
+    div[style*="#efebe9"] .csc-health-metric-value:not(#hm-weeks-left) { color: #4e342e !important; }
+    div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
+    div[style*="#f3e5f5"] .csc-health-metric-value { color: #7b1fa2 !important; }
+    .csc-health-metric { border: none !important; }';
+    wp_add_inline_style( 'cloudscale-cleanup-css', $csc_inline_css );
+
+    // Health render, guard, and button handlers — inline (cache proof).
+    $csc_health_js = <<<'ENDJS'
+(function() {
+    var el = document.getElementById('hm-weeks-left');
+    if (!el) return;
+    var obs = new MutationObserver(function() {
+        var t = el.textContent || '';
+        if (t.match(/\d{4,}.*wk/i) || t.match(/~\d+.*mo/i)) {
+            el.textContent = '>> 2 Years';
+            el.style.color = '#2e7d32';
+        }
+    });
+    obs.observe(el, { childList: true, characterData: true, subtree: true });
+})();
+(function() {
+    var target = document.getElementById('tab-site-health');
+    if (!target) return;
+    var obs = new MutationObserver(function() {
+        var bad = document.querySelectorAll('[style*="grid-column"]');
+        bad.forEach(function(el) {
+            if (el.textContent && el.textContent.indexOf('Max Resource') >= 0) {
+                el.remove();
+            }
+        });
+    });
+    obs.observe(target, { childList: true, subtree: true });
+})();
+jQuery(function($) {
+    var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
+    var ragColors = {green:'#2e7d32',amber:'#e65100',red:'#c62828',grey:'#78909c'};
+    var ragBgs = {green:'#e8f5e9',amber:'#fff3e0',red:'#ffebee',grey:'#f5f5f5'};
+    var ragLabels = {green:'6+ months of disk space remaining',amber:'3 to 6 months of disk space remaining',red:'Less than 3 months of disk space remaining',grey:'Collecting weekly data to calculate trend'};
+
+    function cscHealthRender(d) {
+        var rag = d.disk_rag || 'grey';
+        $('#csc-health-rag-bar').css('background', ragBgs[rag]);
+        $('#csc-health-rag-dot').css('background', ragColors[rag]);
+        $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase()+rag.slice(1)).css('color', ragColors[rag]);
+        $('#csc-health-rag-detail').text(ragLabels[rag] || '').css('color', ragColors[rag]);
+        $('#hm-disk-used').text(fmt(d.disk_used));
+        $('#hm-disk-free').text(fmt(d.disk_free));
+        $('#hm-disk-total').text(fmt(d.disk_total));
+        $('#hm-db-size').text(fmt(d.db_size));
+        $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting\u2026'));
+        if (d.weeks_remaining > 104) {
+            $('#hm-weeks-left').text('>> 2 Years').css('color', '#2e7d32');
+        } else if (d.weeks_remaining > 0) {
+            var wl = Math.round(d.weeks_remaining);
+            var wlColor = d.disk_rag === 'red' ? '#c62828' : (d.disk_rag === 'amber' ? '#e65100' : '#2e7d32');
+            $('#hm-weeks-left').text(wl + ' weeks').css('color', wlColor);
+        } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
+            $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
+        } else { $('#hm-weeks-left').text('\u2014').css('color',''); }
+        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '\u2014';
+        if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
+        $('#hm-cpu-now').text(cpuNow);
+        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '\u2014');
+        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '\u2014');
+        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '\u2014';
+        if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
+        $('#hm-mem-now').text(memNow);
+        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '\u2014');
+        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '\u2014');
+
+        if (d.max_resource_now !== undefined) {
+            $('[style*="grid-column:1/-1"]').filter(function(){ return $(this).text().indexOf('Max Resource') >= 0; }).remove();
+            var $memGrid = $('#hm-mem-7d').closest('[style*="grid"]');
+            if ($memGrid.length && !$('#hm-maxres-now').length) {
+                $memGrid.after('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&mdash;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&mdash;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&mdash;</div></div>' +
+                '</div>');
+            }
+            if (d.max_resource_now >= 0) $('#hm-maxres-now').text(d.max_resource_now + '%');
+            if (d.max_resource_24h >= 0) $('#hm-maxres-24h').text(d.max_resource_24h + '%');
+            if (d.max_resource_7d >= 0) $('#hm-maxres-7d').text(d.max_resource_7d + '%');
+        }
+
+        $('#hm-hourly-count').text(d.hourly_count);
+        $('#hm-weekly-count').text(d.weekly_count);
+        $('#hm-last-hourly').text(d.last_hourly || 'Never');
+        $('#hm-last-weekly').text(d.last_weekly || 'Never');
+        $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
+        $('#csc-health-loading').hide();
+        $('#csc-health-content').show();
+    }
+
+    if ($('#csc-health-loading').is(':visible')) {
+        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+            if (resp.success) cscHealthRender(resp.data);
+        });
+    }
+
+    $(document).on('click', '#btn-health-refresh', function() {
+        var $b = $(this).prop('disabled',true).html('\u23f3 Loading\u2026');
+        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+            $b.prop('disabled',false).html('\ud83d\udd04 Refresh');
+            if (resp.success) cscHealthRender(resp.data);
+        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udd04 Refresh'); });
+    });
+
+    $(document).on('click', '#btn-health-collect', function() {
+        var $b = $(this).prop('disabled',true).html('\u23f3 Collecting\u2026');
+        $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
+            $b.prop('disabled',false).html('\ud83d\udcca Collect Now');
+            if (resp.success && resp.data.health) cscHealthRender(resp.data.health);
+        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udcca Collect Now'); });
+    });
+
+    $(document).on('click', '#btn-sysstat-test', function() {
+        var $b = $(this).prop('disabled',true).html('\u23f3 Testing...');
+        var blue = {background:'#e3f2fd',borderColor:'#90caf9'};
+        var $box = $('#csc-sysstat-status').show().css(blue);
+        $('#csc-sysstat-label').text('Testing sysstat...').css('color','#1565c0');
+        $('#csc-sysstat-icon').text('\u23f3');
+        $('#csc-sysstat-detail').text('').css('color','#1565c0');
+        $('#csc-sysstat-instructions').hide();
+        $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
+            $b.prop('disabled',false).html('\ud83d\udd27 Test Sysstat');
+            $box.css(blue);
+            if (!resp.success) { $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('Test failed'); return; }
+            var d = resp.data;
+            if (!d.exec_available) {
+                $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('exec() disabled in php.ini');
+            } else if (!d.sar_installed) {
+                $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('sysstat not installed');
+                if (d.instructions) $('#csc-sysstat-detail').html('<code style="font-size:11px">'+d.instructions.replace(/Run: /, '')+'</code>');
+            } else if (!d.sysstat_active) {
+                $('#csc-sysstat-icon').text('\u26a0\ufe0f'); $('#csc-sysstat-label').text('sysstat installed but service inactive');
+                $('#csc-sysstat-detail').html(d.sar_version+' at '+d.sar_path+' &mdash; <code style="font-size:11px">sudo systemctl enable sysstat && sudo systemctl start sysstat</code>');
+            } else if (!d.sar_has_data) {
+                $('#csc-sysstat-icon').text('\ud83d\udd35'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' active, waiting for first samples');
+                $('#csc-sysstat-detail').text('Collects every 10 minutes. Refresh after 10 mins.');
+            } else {
+                $('#csc-sysstat-icon').text('\u2705'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' working');
+                $('#csc-sysstat-detail').text(d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%');
+            }
+        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udd27 Test Sysstat'); $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('Network error'); });
+    });
+});
+ENDJS;
+    wp_add_inline_script( 'cloudscale-cleanup-js', $csc_health_js, 'after' );
 }
 
 // ─── Admin dashboard widget ───────────────────────────────────────────────────
@@ -599,19 +774,21 @@ function csc_delete_expired_transients() {
 
 function csc_delete_orphaned_postmeta() {
     global $wpdb;
-    return (int) $wpdb->query( "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" );
+    return (int) $wpdb->query( "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- No user input; table names are trusted $wpdb properties.
 }
 
 function csc_delete_orphaned_usermeta() {
     global $wpdb;
-    return (int) $wpdb->query( "DELETE um FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" );
+    return (int) $wpdb->query( "DELETE um FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- No user input; table names are trusted $wpdb properties.
 }
 
 // Dry run
 add_action( 'wp_ajax_csc_scan_db', 'csc_ajax_scan_db' );
 function csc_ajax_scan_db() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     // Read toggle state from POST if provided (live UI state), otherwise fall back to DB.
     // If ANY toggle key is present in POST, we treat this as a full UI submission —
@@ -729,7 +906,9 @@ function csc_ajax_scan_db() {
 add_action( 'wp_ajax_csc_db_start', 'csc_ajax_db_start' );
 function csc_ajax_db_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     // Collect any toggle overrides sent from the live UI
     $toggle_keys = array(
@@ -780,7 +959,9 @@ function csc_ajax_db_start() {
 add_action( 'wp_ajax_csc_db_chunk', 'csc_ajax_db_chunk' );
 function csc_ajax_db_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $queue = get_transient( 'csc_db_queue' );
     if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
@@ -821,7 +1002,9 @@ function csc_ajax_db_chunk() {
 add_action( 'wp_ajax_csc_db_finish', 'csc_ajax_db_finish' );
 function csc_ajax_db_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     delete_transient( 'csc_db_queue' );
     update_option( 'csc_last_db_cleanup', current_time( 'mysql' ) );
     wp_send_json_success( array( 'lines' => array( array( 'type' => 'success', 'text' => 'Database cleanup complete.' ) ) ) );
@@ -919,7 +1102,9 @@ function csc_get_used_attachment_ids() {
 add_action( 'wp_ajax_csc_scan_images', 'csc_ajax_scan_images' );
 function csc_ajax_scan_images() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $used = csc_get_used_attachment_ids();
     $all  = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -1147,7 +1332,9 @@ function csc_media_recycle_save_attachment( int $id ): array {
 add_action( 'wp_ajax_csc_img_start', 'csc_ajax_img_start' );
 function csc_ajax_img_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $used  = csc_get_used_attachment_ids();
     $all   = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -1168,7 +1355,9 @@ function csc_ajax_img_start() {
 add_action( 'wp_ajax_csc_img_chunk', 'csc_ajax_img_chunk' );
 function csc_ajax_img_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $queue = get_transient( 'csc_img_queue' );
     if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
@@ -1230,7 +1419,9 @@ function csc_ajax_img_chunk() {
 add_action( 'wp_ajax_csc_img_finish', 'csc_ajax_img_finish' );
 function csc_ajax_img_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     delete_transient( 'csc_img_queue' );
     update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
     $recycle_count = csc_media_recycle_count();
@@ -1249,7 +1440,9 @@ function csc_ajax_img_finish() {
 add_action( 'wp_ajax_csc_media_recycle_status', 'csc_ajax_media_recycle_status' );
 function csc_ajax_media_recycle_status() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     wp_send_json_success( array( 'recycle' => csc_media_recycle_count() ) );
 }
 
@@ -1258,7 +1451,9 @@ function csc_ajax_media_recycle_status() {
 add_action( 'wp_ajax_csc_media_recycle_browse', 'csc_ajax_media_recycle_browse' );
 function csc_ajax_media_recycle_browse() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $manifest = csc_media_recycle_read_manifest();
     if ( empty( $manifest ) ) {
@@ -1300,7 +1495,9 @@ function csc_ajax_media_recycle_browse() {
 add_action( 'wp_ajax_csc_media_restore', 'csc_ajax_media_restore' );
 function csc_ajax_media_restore() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $lines = array();
     $lines[] = array( 'type' => 'section', 'text' => '=== RESTORING MEDIA FROM RECYCLE BIN ===' );
@@ -1399,7 +1596,9 @@ function csc_ajax_media_restore() {
 add_action( 'wp_ajax_csc_media_restore_single', 'csc_ajax_media_restore_single' );
 function csc_ajax_media_restore_single() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $att_id = sanitize_text_field( $_POST['att_id'] ?? '' );
     if ( empty( $att_id ) ) { wp_send_json_error( 'No attachment ID specified.' ); }
@@ -1469,7 +1668,9 @@ function csc_ajax_media_restore_single() {
 add_action( 'wp_ajax_csc_media_purge', 'csc_ajax_media_purge' );
 function csc_ajax_media_purge() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $lines = array();
     $lines[] = array( 'type' => 'section', 'text' => '=== PERMANENTLY DELETING MEDIA RECYCLE BIN ===' );
@@ -1647,7 +1848,9 @@ function csc_recycle_count(): int {
 add_action( 'wp_ajax_csc_scan_orphan_files', 'csc_ajax_scan_orphan_files' );
 function csc_ajax_scan_orphan_files() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $raw_types  = sanitize_text_field( $_POST['file_type'] ?? '' );
     $ext_sets   = csc_orphan_ext_sets();
@@ -1715,7 +1918,9 @@ function csc_ajax_scan_orphan_files() {
 add_action( 'wp_ajax_csc_recycle_orphan_files', 'csc_ajax_recycle_orphan_files' );
 function csc_ajax_recycle_orphan_files() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $raw_types = sanitize_text_field( $_POST['file_type'] ?? '' );
     $ext_sets  = csc_orphan_ext_sets();
@@ -1787,7 +1992,9 @@ function csc_ajax_recycle_orphan_files() {
 add_action( 'wp_ajax_csc_restore_orphan_files', 'csc_ajax_restore_orphan_files' );
 function csc_ajax_restore_orphan_files() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $manifest_path = csc_recycle_manifest();
     $lines         = array();
@@ -1854,7 +2061,9 @@ function csc_ajax_restore_orphan_files() {
 add_action( 'wp_ajax_csc_purge_orphan_files', 'csc_ajax_purge_orphan_files' );
 function csc_ajax_purge_orphan_files() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $manifest_path = csc_recycle_manifest();
     $lines         = array();
@@ -1905,7 +2114,9 @@ add_action( 'wp_ajax_csc_recycle_status', 'csc_ajax_recycle_status' );
 add_action( 'wp_ajax_csc_recycle_browse', 'csc_ajax_recycle_browse' );
 function csc_ajax_recycle_browse() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $manifest_path = csc_recycle_manifest();
     if ( ! file_exists( $manifest_path ) ) {
@@ -1944,7 +2155,9 @@ function csc_ajax_recycle_browse() {
 add_action( 'wp_ajax_csc_recycle_restore_single', 'csc_ajax_recycle_restore_single' );
 function csc_ajax_recycle_restore_single() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $rel = sanitize_text_field( $_POST['rel'] ?? '' );
     if ( empty( $rel ) ) { wp_send_json_error( 'No file specified.' ); }
@@ -1980,7 +2193,9 @@ function csc_ajax_recycle_restore_single() {
 }
 function csc_ajax_recycle_status() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     wp_send_json_success( array( 'recycle' => csc_recycle_count() ) );
 }
 
@@ -2008,7 +2223,9 @@ function csc_rmdir_recursive( string $dir ): void {
 add_action( 'wp_ajax_csc_scan_optimise', 'csc_ajax_scan_optimise' );
 function csc_ajax_scan_optimise() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $max_w       = intval( get_option( 'csc_img_max_width',  1920 ) );
     $max_h       = intval( get_option( 'csc_img_max_height', 1080 ) );
@@ -2072,7 +2289,9 @@ function csc_ajax_scan_optimise() {
 add_action( 'wp_ajax_csc_optimise_start', 'csc_ajax_optimise_start' );
 function csc_ajax_optimise_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $max_w       = intval( get_option( 'csc_img_max_width',  1920 ) );
     $max_h       = intval( get_option( 'csc_img_max_height', 1080 ) );
@@ -2112,7 +2331,9 @@ function csc_ajax_optimise_start() {
 add_action( 'wp_ajax_csc_optimise_chunk', 'csc_ajax_optimise_chunk' );
 function csc_ajax_optimise_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $queue = get_transient( 'csc_optimise_queue' );
     if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
@@ -2216,7 +2437,9 @@ function csc_ajax_optimise_chunk() {
 add_action( 'wp_ajax_csc_optimise_finish', 'csc_ajax_optimise_finish' );
 function csc_ajax_optimise_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $total_saved = (int) get_transient( 'csc_optimise_saved' );
     $total_count = (int) get_transient( 'csc_optimise_count' );
@@ -2363,7 +2586,9 @@ function csc_cspj_convert_png_to_jpeg( $png_path, $quality, $size, $custom_w, $c
 add_action( 'wp_ajax_csc_pj_save_settings', 'csc_ajax_cspj_save_settings' );
 function csc_ajax_cspj_save_settings() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     $chunk_mb = floatval( $_POST['chunk_mb'] ?? CSPJ_DEFAULT_CHUNK_MB );
     if ( $chunk_mb <= 0 ) { $chunk_mb = CSPJ_DEFAULT_CHUNK_MB; }
     $chunk_mb = max( 0.25, min( 1.95, $chunk_mb ) );
@@ -2375,7 +2600,9 @@ function csc_ajax_cspj_save_settings() {
 add_action( 'wp_ajax_csc_pj_chunk_start', 'csc_ajax_cspj_chunk_start' );
 function csc_ajax_cspj_chunk_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $filename   = sanitize_file_name( $_POST['filename'] ?? '' );
     $total_size = intval( $_POST['total_size'] ?? 0 );
@@ -2407,7 +2634,9 @@ function csc_ajax_cspj_chunk_start() {
 add_action( 'wp_ajax_csc_pj_chunk_upload', 'csc_ajax_cspj_chunk_upload' );
 function csc_ajax_cspj_chunk_upload() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $upload_id = sanitize_text_field( $_POST['upload_id'] ?? '' );
     $index     = intval( $_POST['chunk_index'] ?? -1 );
@@ -2442,7 +2671,9 @@ function csc_ajax_cspj_chunk_upload() {
 add_action( 'wp_ajax_csc_pj_chunk_finish', 'csc_ajax_cspj_chunk_finish' );
 function csc_ajax_cspj_chunk_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $upload_id  = sanitize_text_field( $_POST['upload_id'] ?? '' );
     $quality    = max( 1, min( 100, intval( $_POST['quality'] ?? 90 ) ) );
@@ -2512,7 +2743,9 @@ function csc_ajax_cspj_chunk_finish() {
 add_action( 'wp_ajax_csc_pj_add_to_library', 'csc_ajax_cspj_add_to_library' );
 function csc_ajax_cspj_add_to_library() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $path     = sanitize_text_field( $_POST['path']     ?? '' );
     $url      = esc_url_raw(         $_POST['url']      ?? '' );
@@ -2576,7 +2809,9 @@ function csc_ajax_cspj_add_to_library() {
 add_action( 'wp_ajax_csc_scan_broken_images', 'csc_ajax_scan_broken_images' );
 function csc_ajax_scan_broken_images() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $offset = intval( $_POST['offset'] ?? 0 );
     $batch  = 50;
@@ -2655,7 +2890,9 @@ function csc_ajax_scan_broken_images() {
 add_action( 'wp_ajax_csc_pj_delete_converted', 'csc_ajax_cspj_delete_converted' );
 function csc_ajax_cspj_delete_converted() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Permission denied.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $path = sanitize_text_field( $_POST['path'] ?? '' );
     if ( empty( $path ) ) { wp_send_json_error( 'No path provided.' ); }
@@ -3277,7 +3514,9 @@ function csc_health_calculate(): array {
 add_action( 'wp_ajax_csc_health_collect_now', 'csc_ajax_health_collect_now' );
 function csc_ajax_health_collect_now() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     csc_health_collect_hourly();
     csc_health_collect_weekly();
     wp_send_json_success( array( 'message' => 'Metrics collected.', 'health' => csc_health_calculate() ) );
@@ -3288,7 +3527,9 @@ function csc_ajax_health_collect_now() {
 add_action( 'wp_ajax_csc_health_get', 'csc_ajax_health_get' );
 function csc_ajax_health_get() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     wp_send_json_success( csc_health_calculate() );
 }
 
@@ -3297,7 +3538,9 @@ function csc_ajax_health_get() {
 add_action( 'wp_ajax_csc_health_hourly_data', 'csc_ajax_health_hourly_data' );
 function csc_ajax_health_hourly_data() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $days    = intval( $_POST['days'] ?? 7 );
     $days    = max( 1, min( 180, $days ) );
@@ -3315,7 +3558,9 @@ function csc_ajax_health_hourly_data() {
 add_action( 'wp_ajax_csc_health_weekly_data', 'csc_ajax_health_weekly_data' );
 function csc_ajax_health_weekly_data() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
     wp_send_json_success( array( 'data' => get_option( CSC_HEALTH_WEEKLY_KEY, array() ) ) );
 }
 
@@ -3324,7 +3569,9 @@ function csc_ajax_health_weekly_data() {
 add_action( 'wp_ajax_csc_health_sysstat_test', 'csc_ajax_health_sysstat_test' );
 function csc_ajax_health_sysstat_test() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( 'Insufficient permissions.' );
+    }
 
     $result = array(
         'exec_available' => function_exists( 'exec' ),
@@ -3470,20 +3717,6 @@ function csc_render_page() {
     $img_sched_days = (array) get_option( 'csc_schedule_img_days', array( 'mon', 'wed', 'fri' ) );
     ?>
     <div class="csc-wrap">
-
-        <script>
-        /* Fallback: ensure CSC is always available even if wp_localize_script fails */
-        if (typeof CSC === 'undefined' || !CSC.ajax_url) {
-            window.CSC = window.CSC || {};
-            CSC.ajax_url        = CSC.ajax_url        || '<?php echo esc_js( admin_url( "admin-ajax.php" ) ); ?>';
-            CSC.nonce            = CSC.nonce            || '<?php echo esc_js( wp_create_nonce( "csc_nonce" ) ); ?>';
-            CSC.cspj_chunk_mb    = CSC.cspj_chunk_mb    || '<?php echo esc_js( csc_get_cspj_chunk_mb() ); ?>';
-            CSC.cspj_server_max_mb = CSC.cspj_server_max_mb || '<?php echo esc_js( csc_get_cspj_server_max_mb() ); ?>';
-            CSC.cspj_max_total_mb  = CSC.cspj_max_total_mb  || '<?php echo esc_js( CSPJ_MAX_TOTAL_MB ); ?>';
-            CSC.version          = CSC.version          || '<?php echo esc_js( CLOUDSCALE_CLEANUP_VERSION ); ?>';
-            console.log('[CSC] Fallback CSC injected inline. wp_localize_script may not have fired.');
-        }
-        </script>
 
         <div class="csc-header">
             <div class="csc-header-inner">
@@ -4299,179 +4532,6 @@ function csc_render_page() {
         <div id="csc-save-notice" class="csc-save-notice" style="display:none">Settings saved.</div>
 
     </div>
-
-    <style>
-    /* Inline fallback: tab colours (cache proof) */
-    .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
-    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
-    /* Force all metric cards inside coloured sections to be transparent with themed labels */
-    div[style*="#fff3e0"] .csc-health-metric,
-    div[style*="#e3f2fd"] .csc-health-metric,
-    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
-    div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
-    div[style*="#fff3e0"] .csc-health-metric-value { color: #e65100 !important; }
-    div[style*="#efebe9"] .csc-health-metric,
-    div[style*="#efebe9"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
-    div[style*="#efebe9"] .csc-health-metric-label { color: #4e342e !important; }
-    div[style*="#efebe9"] .csc-health-metric-value:not(#hm-weeks-left) { color: #4e342e !important; }
-    div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
-    div[style*="#f3e5f5"] .csc-health-metric-value { color: #7b1fa2 !important; }
-    /* Remove all borders from metric cards globally */
-    .csc-health-metric { border: none !important; }
-    </style>
-
-    <script>
-    /* Guard: prevent cached admin.js from overwriting weeks-remaining with uncapped values */
-    (function() {
-        var el = document.getElementById('hm-weeks-left');
-        if (!el) return;
-        var obs = new MutationObserver(function() {
-            var t = el.textContent || '';
-            if (t.match(/\d{4,}.*wk/i) || t.match(/~\d+.*mo/i)) {
-                el.textContent = '>> 2 Years';
-                el.style.color = '#2e7d32';
-            }
-        });
-        obs.observe(el, { childList: true, characterData: true, subtree: true });
-    })();
-    /* Guard: replace old single-span Max Resource row from cached admin.js */
-    (function() {
-        var target = document.getElementById('tab-site-health');
-        if (!target) return;
-        var obs = new MutationObserver(function() {
-            var bad = document.querySelectorAll('[style*="grid-column"]');
-            bad.forEach(function(el) {
-                if (el.textContent && el.textContent.indexOf('Max Resource') >= 0) {
-                    el.remove();
-                }
-            });
-        });
-        obs.observe(target, { childList: true, subtree: true });
-    })();
-    /* Inline: health render, auto load, and button handlers (cache proof) */
-    jQuery(function($) {
-        var fmt = function(b) { if (b >= 1073741824) return (b/1073741824).toFixed(2)+' GB'; if (b >= 1048576) return (b/1048576).toFixed(1)+' MB'; return (b/1024).toFixed(0)+' KB'; };
-        var ragColors = {green:'#2e7d32',amber:'#e65100',red:'#c62828',grey:'#78909c'};
-        var ragBgs = {green:'#e8f5e9',amber:'#fff3e0',red:'#ffebee',grey:'#f5f5f5'};
-        var ragLabels = {green:'6+ months of disk space remaining',amber:'3 to 6 months of disk space remaining',red:'Less than 3 months of disk space remaining',grey:'Collecting weekly data to calculate trend'};
-
-        function cscHealthRender(d) {
-            var rag = d.disk_rag || 'grey';
-            $('#csc-health-rag-bar').css('background', ragBgs[rag]);
-            $('#csc-health-rag-dot').css('background', ragColors[rag]);
-            $('#csc-health-rag-label').text(rag === 'grey' ? 'Collecting Data' : rag.charAt(0).toUpperCase()+rag.slice(1)).css('color', ragColors[rag]);
-            $('#csc-health-rag-detail').text(ragLabels[rag] || '').css('color', ragColors[rag]);
-            $('#hm-disk-used').text(fmt(d.disk_used));
-            $('#hm-disk-free').text(fmt(d.disk_free));
-            $('#hm-disk-total').text(fmt(d.disk_total));
-            $('#hm-db-size').text(fmt(d.db_size));
-            $('#hm-growth').text(d.growth_per_week > 0 ? fmt(d.growth_per_week)+'/wk' : (d.weekly_count >= 2 ? 'Stable' : 'Collecting…'));
-            if (d.weeks_remaining > 104) {
-                $('#hm-weeks-left').text('>> 2 Years').css('color', '#2e7d32');
-            } else if (d.weeks_remaining > 0) {
-                var wl = Math.round(d.weeks_remaining);
-                var wlColor = d.disk_rag === 'red' ? '#c62828' : (d.disk_rag === 'amber' ? '#e65100' : '#2e7d32');
-                $('#hm-weeks-left').text(wl + ' weeks').css('color', wlColor);
-            } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
-                $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
-            } else { $('#hm-weeks-left').text('—').css('color',''); }
-            var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
-            if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
-            $('#hm-cpu-now').text(cpuNow);
-            $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '—');
-            $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '—');
-            var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '—';
-            if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
-            $('#hm-mem-now').text(memNow);
-            $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
-            $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
-
-            /* Max Resource — 3 equal cards inside memory section */
-            if (d.max_resource_now !== undefined) {
-                /* Remove any old single-span max resource row from cached JS */
-                $('[style*="grid-column:1/-1"]').filter(function(){ return $(this).text().indexOf('Max Resource') >= 0; }).remove();
-                var $memGrid = $('#hm-mem-7d').closest('[style*="grid"]');
-                if ($memGrid.length && !$('#hm-maxres-now').length) {
-                    $memGrid.after('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">' +
-                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&mdash;</div></div>' +
-                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&mdash;</div></div>' +
-                        '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&mdash;</div></div>' +
-                    '</div>');
-                }
-                if (d.max_resource_now >= 0) $('#hm-maxres-now').text(d.max_resource_now + '%');
-                if (d.max_resource_24h >= 0) $('#hm-maxres-24h').text(d.max_resource_24h + '%');
-                if (d.max_resource_7d >= 0) $('#hm-maxres-7d').text(d.max_resource_7d + '%');
-            }
-
-            $('#hm-hourly-count').text(d.hourly_count);
-            $('#hm-weekly-count').text(d.weekly_count);
-            $('#hm-last-hourly').text(d.last_hourly || 'Never');
-            $('#hm-last-weekly').text(d.last_weekly || 'Never');
-            $('#hm-data-span').text(d.weeks_of_data > 0 ? d.weeks_of_data : '0');
-            $('#csc-health-loading').hide();
-            $('#csc-health-content').show();
-        }
-
-        /* Auto load health data */
-        if ($('#csc-health-loading').is(':visible')) {
-            $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
-                if (resp.success) cscHealthRender(resp.data);
-            });
-        }
-
-        /* Refresh button */
-        $(document).on('click', '#btn-health-refresh', function() {
-            var $b = $(this).prop('disabled',true).html('⏳ Loading…');
-            $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
-                $b.prop('disabled',false).html('🔄 Refresh');
-                if (resp.success) cscHealthRender(resp.data);
-            }).fail(function(){ $b.prop('disabled',false).html('🔄 Refresh'); });
-        });
-
-        /* Collect Now button */
-        $(document).on('click', '#btn-health-collect', function() {
-            var $b = $(this).prop('disabled',true).html('⏳ Collecting…');
-            $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
-                $b.prop('disabled',false).html('📊 Collect Now');
-                if (resp.success && resp.data.health) cscHealthRender(resp.data.health);
-            }).fail(function(){ $b.prop('disabled',false).html('📊 Collect Now'); });
-        });
-
-        /* Test Sysstat button */
-        $(document).on('click', '#btn-sysstat-test', function() {
-            var $b = $(this).prop('disabled',true).html('⏳ Testing...');
-            var blue = {background:'#e3f2fd',borderColor:'#90caf9'};
-            var $box = $('#csc-sysstat-status').show().css(blue);
-            $('#csc-sysstat-label').text('Testing sysstat...').css('color','#1565c0');
-            $('#csc-sysstat-icon').text('⏳');
-            $('#csc-sysstat-detail').text('').css('color','#1565c0');
-            $('#csc-sysstat-instructions').hide();
-            $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
-                $b.prop('disabled',false).html('🔧 Test Sysstat');
-                $box.css(blue);
-                if (!resp.success) { $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Test failed'); return; }
-                var d = resp.data;
-                if (!d.exec_available) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('exec() disabled in php.ini');
-                } else if (!d.sar_installed) {
-                    $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('sysstat not installed');
-                    if (d.instructions) $('#csc-sysstat-detail').html('<code style="font-size:11px">'+d.instructions.replace(/Run: /, '')+'</code>');
-                } else if (!d.sysstat_active) {
-                    $('#csc-sysstat-icon').text('⚠️'); $('#csc-sysstat-label').text('sysstat installed but service inactive');
-                    $('#csc-sysstat-detail').html(d.sar_version+' at '+d.sar_path+' &mdash; <code style="font-size:11px">sudo systemctl enable sysstat && sudo systemctl start sysstat</code>');
-                } else if (!d.sar_has_data) {
-                    $('#csc-sysstat-icon').text('🔵'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' active, waiting for first samples');
-                    $('#csc-sysstat-detail').text('Collects every 10 minutes. Refresh after 10 mins.');
-                } else {
-                    $('#csc-sysstat-icon').text('✅'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' working');
-                    $('#csc-sysstat-detail').text(d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%');
-                }
-            }).fail(function(){ $b.prop('disabled',false).html('🔧 Test Sysstat'); $('#csc-sysstat-icon').text('❌'); $('#csc-sysstat-label').text('Network error'); });
-        });
-    });
-    </script>
 
     <?php
 }
