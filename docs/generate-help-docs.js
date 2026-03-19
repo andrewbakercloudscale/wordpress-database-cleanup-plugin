@@ -9,7 +9,7 @@ helpLib.run({
     docsDir:    process.env.WP_DOCS_DIR,
 
     pluginName: 'CloudScale Cleanup',
-    pluginDesc: 'Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.',
+    pluginDesc: 'WP-Optimize and Advanced Database Cleaner charge $39–$99/year for features that are straightforward to implement. CloudScale Cleanup gives you full database cleanup, media library orphan removal, image optimisation, and PNG-to-JPEG conversion — with a dry-run preview so you never delete anything by accident. Completely free, open source, no subscriptions, no premium tier.',
     pageTitle:  'CloudScale Cleanup: Online Help',
     pageSlug:   'cleanup-help',
     adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-cleanup`,
@@ -22,6 +22,13 @@ helpLib.run({
 
     docs: {
         'db-cleanup': `
+<div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
+<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Cleanup?</h2>
+<p style="margin:0 0 10px;">WordPress databases grow silently. Post revisions, expired transients, spam comments, orphaned metadata, and unused term relationships accumulate over months and years. On a busy site the database can balloon to 10x the size it needs to be, slowing down every query.</p>
+<p style="margin:0 0 10px;">WP-Optimize locks most of its cleanup options behind a $39/year paywall. Advanced Database Cleaner charges $49/year. CloudScale Cleanup does everything they do — and adds media library orphan detection and image optimisation — at zero cost.</p>
+<p style="margin:0 0 10px;">Every operation has a <strong>dry-run preview mode</strong>: you see exactly what will be deleted before anything is removed. Cleanup runs in chunks to avoid timeouts on shared hosting. Your data is never sent anywhere.</p>
+<p style="margin:0;"><strong>Completely free.</strong> No premium tier, no upgrade prompts, source code on GitHub.</p>
+</div>
 <p>The <strong>Database Cleanup</strong> tab removes accumulated junk from your WordPress database that slows down queries and inflates backup sizes. On a WordPress site with 3–5 years of content and active editing, these items routinely account for 30–70% of total database size.</p>
 <p><strong>Always run Dry Run first</strong> — it shows exactly what will be deleted and how many rows are affected, without making any changes. Processing is done in configurable chunks (default: 500 rows per batch) using a timed loop that checks elapsed time before each chunk to avoid PHP <code>max_execution_time</code> errors.</p>
 <p><strong>Items cleaned and the tables affected:</strong></p>
