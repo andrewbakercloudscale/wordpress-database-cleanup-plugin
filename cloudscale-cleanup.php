@@ -104,7 +104,7 @@ add_action( 'admin_menu', 'csc_add_menu' );
 function csc_add_menu() {
     add_management_page(
         'CloudScale Cleanup',
-        'CloudScale Cleanup',
+        '🌩️ CloudScale Cleanup',
         'manage_options',
         CLOUDSCALE_CLEANUP_SLUG,
         'csc_render_page'
