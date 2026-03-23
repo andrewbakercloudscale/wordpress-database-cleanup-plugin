@@ -352,6 +352,45 @@
     });
 
     // ═════════════════════════════════════════════════════════════════════════
+    // AUTOLOADED OPTIONS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    $('#btn-scan-autoload').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Scanning…');
+        clearTerminal('autoload-terminal');
+        appendLine('autoload-terminal', { type: 'section', text: '=== DRY RUN — Autoloaded Options ===' });
+        $.post(CSC.ajax_url, { action: 'csc_autoload_scan', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            if (resp.success) {
+                appendLines('autoload-terminal', resp.data);
+                appendLine('autoload-terminal', { type: 'info', text: '\nDry run complete. No changes made. Press Clean Autoload Now to optimise.' });
+            } else {
+                appendLine('autoload-terminal', { type: 'error', text: 'Scan failed: ' + (resp.data || 'unknown error') });
+            }
+        }).fail(function (jqXHR) {
+            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            appendLine('autoload-terminal', { type: 'error', text: 'Request failed: ' + jqXHR.status });
+        });
+    });
+
+    $('#btn-run-autoload').on('click', function () {
+        runChunked({
+            startAction:   'csc_autoload_start',
+            chunkAction:   'csc_autoload_chunk',
+            finishAction:  'csc_autoload_finish',
+            startLabel:    'AUTOLOAD CLEANUP RUNNING',
+            termId:        'autoload-terminal',
+            progressOuter: 'autoload-progress-outer',
+            progressFill:  'autoload-progress-fill',
+            progressLabel: 'autoload-progress-label',
+            confirmMsg:    'This will delete expired transients and disable autoloading for transient rows. Proceed?',
+            $btn:          $(this),
+            restoreLabel:  '⚡ Clean Autoload Now',
+        });
+    });
+
+    // ═════════════════════════════════════════════════════════════════════════
     // IMAGE CLEANUP
     // ═════════════════════════════════════════════════════════════════════════
 

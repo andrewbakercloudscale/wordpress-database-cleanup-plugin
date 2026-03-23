@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.20
+ * Version:     2.4.21
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.20' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.21' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -396,7 +396,7 @@ function csc_render_dashboard_widget() {
         </div>
 
         <?php if ( $health ) : ?>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;font-size:11px;text-align:center">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;font-size:11px;text-align:center">
             <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
                 <div style="color:#78909c;font-weight:600;margin-bottom:2px">Disk Used</div>
                 <div style="font-weight:700;color:#263238"><?php echo esc_html( size_format( $health['disk_used'], 1 ) ); ?></div>
@@ -417,6 +417,17 @@ function csc_render_dashboard_widget() {
             <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
                 <div style="font-weight:700;color:<?php echo esc_attr( $wks_color ); ?>"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) . ' wks' : '—' ); ?></div>
+            </div>
+            <?php
+            $al_bytes = csc_get_autoload_size();
+            $al_rag   = csc_autoload_rag( $al_bytes );
+            $al_bg    = $al_rag === 'red' ? '#c62828' : ( $al_rag === 'amber' ? '#e65100' : '#f0f2f5' );
+            $al_color = ( $al_rag === 'red' || $al_rag === 'amber' ) ? '#fff' : '#263238';
+            $al_label = ( $al_rag === 'red' || $al_rag === 'amber' ) ? 'rgba(255,255,255,0.8)' : '#78909c';
+            ?>
+            <div style="background:<?php echo esc_attr( $al_bg ); ?>;border-radius:6px;padding:6px 4px">
+                <div style="color:<?php echo esc_attr( $al_label ); ?>;font-weight:600;margin-bottom:2px">Autoload Size</div>
+                <div style="font-weight:700;color:<?php echo esc_attr( $al_color ); ?>"><?php echo esc_html( size_format( $al_bytes, 1 ) ); ?></div>
             </div>
         </div>
         <?php else : ?>
@@ -1005,6 +1016,125 @@ function csc_ajax_db_finish() {
     delete_transient( 'csc_db_queue' );
     update_option( 'csc_last_db_cleanup', current_time( 'mysql' ) );
     wp_send_json_success( array( 'lines' => array( array( 'type' => 'success', 'text' => 'Database cleanup complete.' ) ) ) );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTOLOADED OPTIONS CLEANUP
+// ═════════════════════════════════════════════════════════════════════════════
+
+add_action( 'wp_ajax_csc_autoload_scan', 'csc_ajax_autoload_scan' );
+function csc_ajax_autoload_scan() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $total_size  = (int) $wpdb->get_var( "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $total_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
+
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows = $wpdb->get_results( "SELECT option_name, LENGTH(option_value) AS size FROM {$wpdb->options} WHERE autoload NOT IN ('no','off') ORDER BY size DESC LIMIT 20" );
+
+    $expired_count = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d",
+        '_transient_timeout_%', time()
+    ) );
+
+    $transient_count = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND autoload NOT IN ('no','off')",
+        '\_transient\_%'
+    ) );
+    $transient_size  = (int) $wpdb->get_var( $wpdb->prepare(
+        "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE option_name LIKE %s AND autoload NOT IN ('no','off')",
+        '\_transient\_%'
+    ) );
+
+    $rag       = csc_autoload_rag( $total_size );
+    $rag_label = array( 'green' => '✅ Healthy', 'amber' => '⚠️  Warning', 'red' => '🔴 Critical' );
+
+    $lines   = array();
+    $lines[] = array( 'type' => 'section', 'text' => 'Autoloaded wp_options Summary' );
+    $lines[] = array( 'type' => 'info',    'text' => '  Total autoload size : ' . size_format( $total_size ) . '  (' . $total_count . ' rows)  —  ' . $rag_label[ $rag ] );
+    $lines[] = array( 'type' => 'info',    'text' => '  Expired transients  : ' . $expired_count . ' (will be deleted)' );
+    $lines[] = array( 'type' => 'info',    'text' => '  Autoloaded transient rows : ' . $transient_count . ' (' . size_format( $transient_size ) . ') — autoload will be disabled' );
+    $lines[] = array( 'type' => 'section', 'text' => 'Top 20 Autoloaded Rows by Size' );
+
+    foreach ( $rows as $row ) {
+        $flag = '';
+        if ( strpos( $row->option_name, '_transient_' ) === 0 )      { $flag = ' [transient]'; }
+        elseif ( strpos( $row->option_name, '_site_transient_' ) === 0 ) { $flag = ' [site transient]'; }
+        $lines[] = array( 'type' => 'item', 'text' => sprintf( '  %-52s  %s%s', $row->option_name, size_format( (int) $row->size ), $flag ) );
+    }
+
+    $lines[] = array( 'type' => 'section', 'text' => 'What Cleanup Will Do' );
+    $lines[] = array( 'type' => 'info', 'text' => '  1. Delete all expired transients from the options table.' );
+    $lines[] = array( 'type' => 'info', 'text' => '  2. Set autoload=no on all transient rows (cached data — not needed at startup).' );
+    $lines[] = array( 'type' => 'info', 'text' => '  Note: no options are deleted except expired transients. All data remains usable.' );
+
+    wp_send_json_success( $lines );
+}
+
+add_action( 'wp_ajax_csc_autoload_start', 'csc_ajax_autoload_start' );
+function csc_ajax_autoload_start() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $queue = array(
+        array( 'type' => 'delete_expired_transients',  'id' => 0, 'label' => 'delete expired transients' ),
+        array( 'type' => 'disable_transient_autoload', 'id' => 0, 'label' => 'disable autoload on transient rows' ),
+    );
+    set_transient( 'csc_autoload_queue', $queue, HOUR_IN_SECONDS );
+
+    wp_send_json_success( array(
+        'total'     => count( $queue ),
+        'remaining' => count( $queue ),
+        'lines'     => array( array( 'type' => 'info', 'text' => '  Work queue: ' . count( $queue ) . ' tasks.' ) ),
+    ) );
+}
+
+add_action( 'wp_ajax_csc_autoload_chunk', 'csc_ajax_autoload_chunk' );
+function csc_ajax_autoload_chunk() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $queue = get_transient( 'csc_autoload_queue' );
+    if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
+
+    global $wpdb;
+    $chunk = array_splice( $queue, 0, 1 );
+    set_transient( 'csc_autoload_queue', $queue, HOUR_IN_SECONDS );
+
+    $lines = array();
+    foreach ( $chunk as $item ) {
+        switch ( $item['type'] ) {
+            case 'delete_expired_transients':
+                $n       = csc_delete_expired_transients();
+                $lines[] = array( 'type' => 'count', 'text' => '  Deleted ' . $n . ' expired transients.' );
+                break;
+            case 'disable_transient_autoload':
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+                $n       = (int) $wpdb->query( "UPDATE {$wpdb->options} SET autoload='no' WHERE (option_name LIKE '\_transient\_%' OR option_name LIKE '\_site\_transient\_%') AND autoload NOT IN ('no','off')" );
+                $lines[] = array( 'type' => 'count', 'text' => '  Disabled autoload on ' . $n . ' transient rows.' );
+                break;
+        }
+    }
+
+    wp_send_json_success( array( 'remaining' => count( $queue ), 'lines' => $lines ) );
+}
+
+add_action( 'wp_ajax_csc_autoload_finish', 'csc_ajax_autoload_finish' );
+function csc_ajax_autoload_finish() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    delete_transient( 'csc_autoload_queue' );
+    $new_size = csc_get_autoload_size();
+    wp_send_json_success( array(
+        'lines'       => array( array( 'type' => 'success', 'text' => 'Autoload cleanup complete. New total: ' . size_format( $new_size ) . '.' ) ),
+        'new_size'    => $new_size,
+        'new_size_fmt' => size_format( $new_size ),
+        'new_rag'     => csc_autoload_rag( $new_size ),
+    ) );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3047,6 +3177,24 @@ function csc_health_dir_size( string $dir ): int {
 }
 
 /**
+ * Return total size (bytes) of all autoloaded wp_options rows.
+ */
+function csc_get_autoload_size(): int {
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    return (int) $wpdb->get_var( "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
+}
+
+/**
+ * RAG status for autoload size.
+ */
+function csc_autoload_rag( int $bytes ): string {
+    if ( $bytes > 2 * MB_IN_BYTES )   return 'red';
+    if ( $bytes > 800 * KB_IN_BYTES ) return 'amber';
+    return 'green';
+}
+
+/**
  * Get free disk space on the partition containing wp-content.
  */
 function csc_health_get_disk_free_bytes(): int {
@@ -3928,6 +4076,30 @@ function csc_render_page() {
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
+                </div>
+            </div>
+
+            <div class="csc-card">
+                <?php
+                $al_bytes2 = csc_get_autoload_size();
+                $al_rag2   = csc_autoload_rag( $al_bytes2 );
+                $al_hdr_bg = $al_rag2 === 'red' ? 'linear-gradient(135deg,#b71c1c 0%,#c62828 100%)' : ( $al_rag2 === 'amber' ? 'linear-gradient(135deg,#bf360c 0%,#e64a19 100%)' : 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)' );
+                ?>
+                <div class="csc-card-header" style="background:<?php echo esc_attr( $al_hdr_bg ); ?>;color:#fff;font-weight:700">
+                    <span>⚡ Autoloaded Options</span>
+                    <span style="font-size:11px;font-weight:400;opacity:0.85;margin-left:8px"><?php echo esc_html( size_format( $al_bytes2, 1 ) ); ?> loaded on every request</span>
+                </div>
+                <div class="csc-card-body">
+                    <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">WordPress loads autoloaded options on <strong>every page request</strong>. Expired transients and plugin caches often accumulate here, bloating memory usage. This cleanup deletes expired transients and disables autoloading for any remaining transient rows — no plugin data is removed.</p>
+                    <div class="csc-button-row">
+                        <button class="csc-btn csc-btn-secondary" id="btn-scan-autoload">🔍 Dry Run — Preview</button>
+                        <button class="csc-btn csc-btn-danger"    id="btn-run-autoload">⚡ Clean Autoload Now</button>
+                    </div>
+                    <div class="csc-progress-outer" id="autoload-progress-outer" style="display:none">
+                        <div class="csc-progress-bar"><div class="csc-progress-fill" id="autoload-progress-fill"></div></div>
+                        <div class="csc-progress-label" id="autoload-progress-label">Preparing…</div>
+                    </div>
+                    <pre class="csc-terminal" id="autoload-terminal" style="margin-top:10px;min-height:60px">Ready. Press Dry Run to preview autoloaded options, then Clean Autoload Now to optimise.</pre>
                 </div>
             </div>
 
