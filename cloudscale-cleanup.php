@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.6
+ * Version:     2.4.20
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.6' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.20' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -90,7 +90,7 @@ function csc_cleanup_stale_assets() {
  */
 
 define( 'CSC_CHUNK_DB',       50 );
-define( 'CSC_CHUNK_IMAGES',   25 );
+define( 'CSC_CHUNK_IMAGES',   10 );
 define( 'CSC_CHUNK_OPTIMISE',  5 );
 
 // PNG to JPEG converter constants
@@ -294,14 +294,6 @@ jQuery(function($) {
         }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udd04 Refresh'); });
     });
 
-    $(document).on('click', '#btn-health-collect', function() {
-        var $b = $(this).prop('disabled',true).html('\u23f3 Collecting\u2026');
-        $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
-            $b.prop('disabled',false).html('\ud83d\udcca Collect Now');
-            if (resp.success && resp.data.health) cscHealthRender(resp.data.health);
-        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udcca Collect Now'); });
-    });
-
     $(document).on('click', '#btn-sysstat-test', function() {
         var $b = $(this).prop('disabled',true).html('\u23f3 Testing...');
         var blue = {background:'#e3f2fd',borderColor:'#90caf9'};
@@ -438,17 +430,17 @@ function csc_render_dashboard_widget() {
                onmouseout="this.style.filter='';this.style.transform=''">
                 <span style="font-size:15px">🥷</span> Visit AndrewBaker.Ninja
             </a>
-            <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>"
-               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0ea5e9 0%,#0369a1 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(14,165,233,0.35);transition:filter 0.15s,transform 0.15s"
-               onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
-               onmouseout="this.style.filter='';this.style.transform=''">
-                <span style="font-size:15px">⚡</span> Open CloudScale Cleanup
-            </a>
             <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup&tab=png-to-jpeg' ) ); ?>"
                style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#689f38 0%,#8bc34a 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(104,159,56,0.35);transition:filter 0.15s,transform 0.15s"
                onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
                onmouseout="this.style.filter='';this.style.transform=''">
                 <span style="font-size:15px">🖼</span> PNG to JPEG
+            </a>
+            <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>"
+               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0ea5e9 0%,#0369a1 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(14,165,233,0.35);transition:filter 0.15s,transform 0.15s"
+               onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
+               onmouseout="this.style.filter='';this.style.transform=''">
+                <span style="font-size:15px">⚡</span> Open CloudScale Cleanup
             </a>
         </div>
     </div>
@@ -1028,8 +1020,16 @@ function csc_get_used_attachment_ids() {
         $used[ intval( $id ) ] = true;
     }
 
-    // Gutenberg block IDs and legacy class-based image references
-    $contents = $wpdb->get_col( "SELECT post_content FROM {$wpdb->posts} WHERE post_status='publish' AND post_type NOT IN ('attachment','revision')" );
+    // Gutenberg block IDs and legacy class-based image references — batch to avoid loading all content at once
+    $post_ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status='publish' AND post_type NOT IN ('attachment','revision')" );
+    $contents = array();
+    foreach ( array_chunk( $post_ids, 50 ) as $batch ) {
+        $placeholders = implode( ',', array_fill( 0, count( $batch ), '%d' ) );
+        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+        $rows = $wpdb->get_col( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID IN ($placeholders)", $batch ) );
+        $contents = array_merge( $contents, $rows );
+        unset( $rows );
+    }
 
     // Build a lookup of upload filenames to attachment IDs for URL matching
     $upload_dir  = wp_upload_dir();
@@ -1110,6 +1110,7 @@ function csc_ajax_scan_images() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
+    @set_time_limit( 120 );
 
     $used = csc_get_used_attachment_ids();
     $all  = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -1121,18 +1122,49 @@ function csc_ajax_scan_images() {
     foreach ( $all as $id ) {
         if ( ! isset( $used[ $id ] ) ) { $unused[] = $id; }
     }
+
+    // Collect metadata for each unused attachment
     $total_unused_size = 0;
+    $items = array();
     foreach ( $unused as $id ) {
         $file      = get_attached_file( $id );
         $file_size = ( $file && file_exists( $file ) ) ? filesize( $file ) : 0;
         $total_unused_size += $file_size;
-        $ext     = $file ? strtoupper( pathinfo( $file, PATHINFO_EXTENSION ) ) : '';
-        $size_str = $file_size > 0 ? size_format( $file_size ) : 'file missing';
-        $label   = esc_html( get_the_title( $id ) );
-        if ( $ext ) { $label .= '.' . strtolower( $ext ); }
-        $lines[] = array( 'type' => 'item', 'text' => '  [UNUSED] ID ' . $id . ' — ' . $label . ' (' . $size_str . ')' );
+        $ext      = $file ? strtolower( pathinfo( $file, PATHINFO_EXTENSION ) ) : '';
+        $basename = $file ? ( pathinfo( $file, PATHINFO_FILENAME ) . ( $ext ? '.' . $ext : '' ) ) : get_the_title( $id );
+        $items[]  = array(
+            'id'       => $id,
+            'basename' => $basename,
+            'size'     => $file_size,
+            'size_str' => $file_size > 0 ? size_format( $file_size ) : 'file missing',
+        );
     }
-    $lines[] = array( 'type' => 'count', 'text' => '  Total unused: ' . count( $unused ) );
+
+    // Group by basename — show duplicates section first, then unique files
+    $groups = array();
+    foreach ( $items as $item ) {
+        $groups[ $item['basename'] ][] = $item;
+    }
+
+    $duplicate_groups = array_filter( $groups, function( $g ) { return count( $g ) > 1; } );
+    $unique_items     = array_filter( $groups, function( $g ) { return count( $g ) === 1; } );
+
+    if ( ! empty( $duplicate_groups ) ) {
+        $lines[] = array( 'type' => 'section', 'text' => 'Duplicate Filenames (' . count( $duplicate_groups ) . ' groups)' );
+        foreach ( $duplicate_groups as $basename => $copies ) {
+            $group_size = array_sum( array_column( $copies, 'size' ) );
+            $ids        = implode( ', ', array_column( $copies, 'id' ) );
+            $lines[]    = array( 'type' => 'item', 'text' => '  ' . $basename . ' — ' . count( $copies ) . ' copies  IDs: ' . $ids . '  (' . size_format( $group_size ) . ' total)' );
+        }
+    }
+
+    $lines[] = array( 'type' => 'section', 'text' => 'Unique Unused Files (' . count( $unique_items ) . ')' );
+    foreach ( $unique_items as $basename => $copies ) {
+        $item    = $copies[0];
+        $lines[] = array( 'type' => 'item', 'text' => '  ID ' . $item['id'] . ' — ' . $basename . ' (' . $item['size_str'] . ')' );
+    }
+
+    $lines[] = array( 'type' => 'count', 'text' => '  Total unused: ' . count( $unused ) . ' (' . count( $duplicate_groups ) . ' duplicate groups, ' . count( $unique_items ) . ' unique)' );
     $lines[] = array( 'type' => 'count', 'text' => '  Total size on disk: ' . size_format( $total_unused_size ) );
 
     wp_send_json_success( $lines );
@@ -1340,6 +1372,7 @@ function csc_ajax_img_start() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
+    @set_time_limit( 120 );
 
     $used  = csc_get_used_attachment_ids();
     $all   = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -1363,6 +1396,7 @@ function csc_ajax_img_chunk() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
+    @set_time_limit( 120 );
 
     $queue = get_transient( 'csc_img_queue' );
     if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
@@ -1396,9 +1430,11 @@ function csc_ajax_img_chunk() {
                 'recycled_at' => current_time( 'mysql' ),
             );
 
-            // Now remove the attachment record from the database
-            // (force=true skips trash and deletes immediately, but we already moved files)
-            wp_delete_attachment( $id, true );
+            // Remove DB records directly — files are already moved, so skip wp_delete_attachment()
+            // which is very slow due to hook firing (thumbnail deletion, cache clearing, etc.)
+            $wpdb->delete( $wpdb->posts,    array( 'ID'      => $id ), array( '%d' ) );
+            $wpdb->delete( $wpdb->postmeta, array( 'post_id' => $id ), array( '%d' ) );
+            clean_post_cache( $id );
 
             $msg = '  [RECYCLED] ID ' . $id . ' — ' . esc_html( $title ) . ' (' . $file_count . ' file(s))';
             if ( $err_count > 0 ) {
@@ -3734,7 +3770,7 @@ function csc_render_page() {
                 </div>
                 <div style="display:flex;align-items:center;gap:10px">
                     <div class="csc-header-version">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
-                    <a href="https://andrewbaker.ninja/wordpress-plugin-help/cleanup-help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#1d2327;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s" onmouseover="this.style.background='#3c434a'" onmouseout="this.style.background='#1d2327'">&#128218; Help &amp; Documentation</a>
+                    <a href="https://andrewbaker.ninja/wordpress-plugin-help/cleanup-help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5)" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
                 </div>
             </div>
         </div>
@@ -3896,7 +3932,10 @@ function csc_render_page() {
             </div>
 
             <div class="csc-card">
-                <div class="csc-card-header csc-card-header-dark">Output Log</div>
+                <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
+                    <span>Output Log</span>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
                     <pre class="csc-terminal" id="db-terminal">Ready. Press Dry Run to preview what will be removed, then review the output log before running cleanup.</pre>
@@ -4117,7 +4156,10 @@ function csc_render_page() {
             </div>
 
             <div class="csc-card">
-                <div class="csc-card-header csc-card-header-dark">Output Log</div>
+                <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
+                    <span>Output Log</span>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
                     <pre class="csc-terminal" id="img-terminal">Ready. Press Dry Run to preview which media will be flagged as unused, then review the output log before moving to recycle.</pre>
@@ -4180,7 +4222,10 @@ function csc_render_page() {
             </div>
 
             <div class="csc-card">
-                <div class="csc-card-header csc-card-header-dark">Output Log</div>
+                <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
+                    <span>Output Log</span>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
                     <pre class="csc-terminal" id="optimise-terminal">Ready. Press Dry Run to preview savings, then review the output log before optimising.</pre>
@@ -4450,7 +4495,7 @@ function csc_render_page() {
                             <span style="font-size:12px;color:#50575e">📈 Hourly samples: <strong id="hm-hourly-count">0</strong></span>
                             <span style="font-size:12px;color:#50575e">📅 Weekly snapshots: <strong id="hm-weekly-count">0</strong></span>
                             <span style="font-size:12px;color:#50575e">🕐 Last hourly: <strong id="hm-last-hourly">—</strong></span>
-                            <span style="font-size:12px;color:#50575e">📅 Last weekly: <strong id="hm-last-weekly">—</strong></span>
+                            <span style="font-size:12px;color:#50575e">Last Collected: <strong id="hm-last-weekly">—</strong></span>
                             <span style="font-size:12px;color:#50575e">📊 Data span: <strong id="hm-data-span">—</strong> weeks</span>
                         </div>
 
@@ -4466,9 +4511,10 @@ function csc_render_page() {
 
                         <div class="csc-button-row" style="gap:10px">
                             <button class="csc-btn csc-btn-secondary" id="btn-health-refresh">🔄 Refresh</button>
-                            <button class="csc-btn csc-btn-primary" id="btn-health-collect">📊 Collect Now</button>
+                            <button class="csc-btn csc-btn-primary" id="btn-health-collect">📊 Collect Metrics Now</button>
                             <button class="csc-btn csc-btn-secondary" id="btn-sysstat-test">🔧 Test Sysstat</button>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -4538,6 +4584,37 @@ function csc_render_page() {
         </div>
 
         <div id="csc-save-notice" class="csc-save-notice" style="display:none">Settings saved.</div>
+
+        <!-- Collect Now confirmation modal — outside all cards to avoid overflow:hidden clipping -->
+        <div id="csc-collect-modal" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center">
+            <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+                <div style="font-size:18px;font-weight:700;color:#1d2327;margin-bottom:10px">📊 Collect Metrics Now</div>
+                <p style="margin:0 0 12px;font-size:14px;color:#3c434a;line-height:1.6">This will immediately run both collection jobs:</p>
+                <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#3c434a;line-height:1.8">
+                    <li><strong>Hourly sample</strong> — records current CPU % and memory % into the rolling store</li>
+                    <li><strong>Weekly disk snapshot</strong> — records current disk used/free/total (needed to calculate storage growth rate and Est. Wks to Full)</li>
+                </ul>
+                <p style="margin:0 0 20px;font-size:12px;color:#646970">Normally these run automatically on cron. Use this to seed data on a fresh install or force an immediate reading.</p>
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                    <button id="btn-collect-cancel" class="csc-btn csc-btn-secondary">Cancel</button>
+                    <button id="btn-collect-confirm" class="csc-btn csc-btn-primary">Yes, Collect Now</button>
+                </div>
+            </div>
+        </div>
+        <!-- Move to Recycle confirmation modal -->
+        <div id="csc-img-move-modal" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center">
+            <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
+                <div style="font-size:18px;font-weight:700;color:#1d2327;margin-bottom:6px">♻️ Move to Recycle</div>
+                <p id="csc-img-move-msg" style="margin:0 0 16px;font-size:14px;color:#00897b;font-weight:600;line-height:1.5"></p>
+                <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">Files are <strong>moved, not deleted</strong> — originals and all thumbnails are copied to a protected recycle folder on disk.</p>
+                <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">WordPress database records are removed so the items no longer appear in the Media Library.</p>
+                <p style="margin:0 0 20px;font-size:13px;color:#3c434a;line-height:1.6">This is <strong>fully reversible</strong> — use <em>Restore All</em> or the Recycle Bin browser to bring any item back. Nothing is permanently deleted unless you choose <em>Permanently Delete</em>.</p>
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                    <button id="btn-recycle-cancel" class="csc-btn csc-btn-secondary">Cancel</button>
+                    <button id="btn-recycle-confirm" class="csc-btn csc-btn-primary">OK</button>
+                </div>
+            </div>
+        </div>
 
     </div>
 
