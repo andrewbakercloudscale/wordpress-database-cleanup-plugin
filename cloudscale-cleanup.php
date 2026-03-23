@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.2
+ * Version:     2.4.6
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.2' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.6' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -397,7 +397,7 @@ function csc_render_dashboard_widget() {
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
-            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo $tile; ?>;background:<?php echo $rag_info['bg']; ?>;box-shadow:0 2px 6px <?php echo $rag_info['shadow']; ?>" <?php echo $hover; ?>>
+            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#546e7a 0%,#78909c 100%);box-shadow:0 2px 6px rgba(84,110,122,0.35)" <?php echo $hover; ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">📊 Site Health</div>
                 <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
             </a>
@@ -417,9 +417,14 @@ function csc_render_dashboard_widget() {
                 <div style="color:#78909c;font-weight:600;margin-bottom:2px">Growth/Wk</div>
                 <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : '—'; ?></div>
             </div>
-            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
-                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Est. Storage Full</div>
-                <div style="font-weight:700;color:#263238"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) : '—' ); ?></div>
+            <?php
+            $wks_bg    = $health['disk_rag'] === 'red' ? '#c62828' : ( $health['disk_rag'] === 'amber' ? '#e65100' : '#f0f2f5' );
+            $wks_color = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? '#fff' : '#263238';
+            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(255,255,255,0.8)' : '#78909c';
+            ?>
+            <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
+                <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
+                <div style="font-weight:700;color:<?php echo esc_attr( $wks_color ); ?>"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) . ' wks' : '—' ); ?></div>
             </div>
         </div>
         <?php else : ?>
@@ -3727,7 +3732,10 @@ function csc_render_page() {
                         <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://andrewbaker.ninja" target="_blank">andrewbaker.ninja</a></p>
                     </div>
                 </div>
-                <div class="csc-header-version">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
+                <div style="display:flex;align-items:center;gap:10px">
+                    <div class="csc-header-version">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
+                    <a href="https://andrewbaker.ninja/wordpress-plugin-help/cleanup-help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#1d2327;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s" onmouseover="this.style.background='#3c434a'" onmouseout="this.style.background='#1d2327'">&#128218; Help &amp; Documentation</a>
+                </div>
             </div>
         </div>
 
