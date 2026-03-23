@@ -365,6 +365,8 @@
         mediaUpdateRecycleBin( resp.success ? resp.data.recycle : 0 );
     });
 
+    var imgUnusedCount = 0;
+
     $('#btn-scan-img').on('click', function () {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
@@ -376,6 +378,14 @@
             if (resp.success) {
                 appendLines('img-terminal', resp.data);
                 appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files moved or deleted. Review the output log above before moving to recycle.' });
+                // Extract unused count from the count line
+                imgUnusedCount = 0;
+                $.each(resp.data, function (_, line) {
+                    if (line.type === 'count') {
+                        var m = line.text.match(/Total unused:\s*(\d+)/);
+                        if (m) { imgUnusedCount = parseInt(m[1], 10); }
+                    }
+                });
             } else {
                 appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
@@ -386,6 +396,20 @@
     });
 
     $('#btn-run-img').on('click', function () {
+        var msg = imgUnusedCount > 0
+            ? imgUnusedCount + ' unused attachment' + (imgUnusedCount === 1 ? '' : 's') + ' will be moved to the recycle bin. You can restore or permanently delete them afterwards.'
+            : 'Unused attachments found in the dry run will be moved to the recycle bin. You can restore or permanently delete them afterwards.';
+        $('#csc-img-move-msg').text(msg);
+        $('#csc-img-move-modal').css('display', 'flex');
+    });
+    $('#btn-recycle-cancel').on('click', function () {
+        $('#csc-img-move-modal').hide();
+    });
+    $('#csc-img-move-modal').on('click', function (e) {
+        if (e.target === this) $(this).hide();
+    });
+    $('#btn-recycle-confirm').on('click', function () {
+        $('#csc-img-move-modal').hide();
         runChunked({
             startAction:   'csc_img_start',
             chunkAction:   'csc_img_chunk',
@@ -395,8 +419,7 @@
             progressOuter: 'img-progress-outer',
             progressFill:  'img-progress-fill',
             progressLabel: 'img-progress-label',
-            confirmMsg:    'This will move unused media attachments to the recycle bin. You can restore them afterwards. Proceed?',
-            $btn:          $(this),
+            $btn:          $('#btn-run-img'),
             restoreLabel:  '♻️ Move to Recycle',
             onFinish:      function( resp ) {
                 if ( resp && resp.data && typeof resp.data.recycle !== 'undefined' ) {
@@ -1478,11 +1501,21 @@
     });
 
     $('#btn-health-collect').on('click', function() {
-        $(this).prop('disabled', true).html('⏳ Collecting…');
+        $('#csc-collect-modal').css('display', 'flex');
+    });
+    $('#btn-collect-cancel').on('click', function() {
+        $('#csc-collect-modal').hide();
+    });
+    $('#csc-collect-modal').on('click', function(e) {
+        if (e.target === this) $(this).hide();
+    });
+    $('#btn-collect-confirm').on('click', function() {
+        $('#csc-collect-modal').hide();
+        var $b = $('#btn-health-collect').prop('disabled', true).html('⏳ Collecting…');
         $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
-            $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now');
+            $b.prop('disabled', false).html('📊 Collect Metrics Now');
             if (resp.success && resp.data.health) { healthRenderData(resp.data.health); }
-        }).fail(function() { $('#btn-health-collect').prop('disabled', false).html('📊 Collect Now'); });
+        }).fail(function() { $b.prop('disabled', false).html('📊 Collect Metrics Now'); });
     });
 
 
@@ -1538,6 +1571,19 @@
             $('#csc-sysstat-icon').text('❌');
             $('#csc-sysstat-label').text('Network error');
             $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
+        });
+    });
+
+    // Copy log to clipboard
+    $(document).on('click', '.btn-copy-log', function() {
+        var $btn = $(this);
+        var text = $btn.closest('.csc-card').find('.csc-terminal').text();
+        navigator.clipboard.writeText(text).then(function() {
+            $btn.html('✅ Copied!');
+            setTimeout(function() { $btn.html('&#128203; Copy'); }, 2000);
+        }).catch(function() {
+            $btn.html('❌ Failed');
+            setTimeout(function() { $btn.html('&#128203; Copy'); }, 2000);
         });
     });
 
