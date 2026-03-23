@@ -387,6 +387,263 @@
             confirmMsg:    'This will delete expired transients and disable autoloading for transient rows. Proceed?',
             $btn:          $(this),
             restoreLabel:  '⚡ Clean Autoload Now',
+            onFinish: function (resp) {
+                if (!resp.success) { return; }
+                var rag  = resp.data.new_rag;
+                var size = resp.data.new_size_fmt;
+                var bgs    = { green: '#2e7d32', amber: '#e65100', red: '#c62828' };
+                var labels = { green: '✅ Healthy', amber: '⚠️ Warning', red: '🔴 Critical' };
+                $('#autoload-rag-badge')
+                    .text((labels[rag] || rag) + ' — ' + size)
+                    .css('background', bgs[rag] || '#555');
+            },
+        });
+    });
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ORPHANED PLUGIN OPTIONS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    function orphanUpdateBinBar(count, batch) {
+        count = parseInt(count, 10) || 0;
+        var hasItems = count > 0;
+        $('#orphan-bin-label').html('♻️ Recycle Bin: <strong>' + count + '</strong> item' + (count === 1 ? '' : 's'));
+        $('#orphan-bin-bar')
+            .css('background', hasItems ? '#fff3e0' : '#f5f5f5')
+            .css('border-color', hasItems ? '#ffb74d' : '#ddd');
+        $('#btn-orphan-view-bin, #btn-orphan-undo, #btn-orphan-empty').prop('disabled', !hasItems);
+        if (!hasItems) { $('#orphan-bin-list').hide().html(''); }
+    }
+
+    $('#btn-scan-orphans').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Scanning…');
+        $('#orphan-results').html('');
+        $('#btn-run-orphans').hide();
+
+        $.post(CSC.ajax_url, { action: 'csc_orphan_scan', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🔍 Scan for Orphans');
+            if (!resp.success) {
+                $('#orphan-results').html('<p style="color:#c62828">Scan failed: ' + (resp.data || 'unknown error') + '</p>');
+                return;
+            }
+            var rows = resp.data;
+            if (!rows.length) {
+                $('#orphan-results').html('<p style="color:#2e7d32;font-weight:600">✅ No orphaned options detected.</p>');
+                return;
+            }
+
+            var totalSize = rows.reduce(function(s, r) { return s + r.size; }, 0);
+            var knownCount = rows.filter(function(r) { return r.plugin !== 'Unknown plugin'; }).length;
+            var html = '<p style="margin:0 0 8px;font-size:13px;color:#3c434a">'
+                     + '<strong>' + rows.length + ' candidate' + (rows.length === 1 ? '' : 's') + '</strong>'
+                     + ' — <strong>' + formatBytes(totalSize) + '</strong> total.'
+                     + ' Known plugins pre-selected (' + knownCount + '); unknowns unchecked. Review before moving to bin.</p>';
+
+            html += '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
+                  + '<button id="orphan-select-all"    class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select All</button>'
+                  + '<button id="orphan-deselect-all"  class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Deselect All</button>'
+                  + '<button id="orphan-select-known"  class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select Known Plugins</button>'
+                  + '</div>';
+
+            html += '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden">'
+                  + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+                  + '<thead><tr style="background:#f5f5f5">'
+                  + '<th style="width:28px;padding:6px 8px"></th>'
+                  + '<th style="text-align:left;padding:6px 8px;color:#555">Option Name</th>'
+                  + '<th style="text-align:left;padding:6px 8px;color:#555">Likely Plugin</th>'
+                  + '<th style="text-align:right;padding:6px 8px;color:#555">Size</th>'
+                  + '</tr></thead><tbody>';
+
+            $.each(rows, function (i, row) {
+                var isKnown  = row.plugin !== 'Unknown plugin';
+                var bg       = i % 2 === 0 ? '#fff' : '#fafafa';
+                var pluginHtml = isKnown
+                    ? $('<div>').text(row.plugin).html()
+                    : '<span style="color:#999;font-style:italic">Unknown plugin</span>';
+                html += '<tr style="background:' + bg + ';border-top:1px solid #eee">'
+                      + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" class="orphan-chk" data-name="' + $('<div>').text(row.name).html() + '"' + (isKnown ? ' checked' : '') + '></td>'
+                      + '<td style="padding:5px 8px;font-family:monospace;color:#1a1a2e;word-break:break-all">' + $('<div>').text(row.name).html() + '</td>'
+                      + '<td style="padding:5px 8px;color:#555">' + pluginHtml + '</td>'
+                      + '<td style="padding:5px 8px;text-align:right;color:#666">' + formatBytes(row.size) + '</td>'
+                      + '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            $('#orphan-results').html(html);
+            $('#btn-run-orphans').show();
+
+            $(document).on('click', '#orphan-select-all',   function () { $('.orphan-chk').prop('checked', true); });
+            $(document).on('click', '#orphan-deselect-all', function () { $('.orphan-chk').prop('checked', false); });
+            $(document).on('click', '#orphan-select-known', function () {
+                $('.orphan-chk').each(function () {
+                    var $row = $(this).closest('tr');
+                    var plugin = $row.find('td:nth-child(3)').text().trim();
+                    $(this).prop('checked', plugin !== 'Unknown plugin');
+                });
+            });
+        }).fail(function (jqXHR) {
+            $btn.prop('disabled', false).html('🔍 Scan for Orphans');
+            $('#orphan-results').html('<p style="color:#c62828">Request failed: ' + jqXHR.status + '</p>');
+        });
+    });
+
+    $('#btn-run-orphans').on('click', function () {
+        var selected = [];
+        $('.orphan-chk:checked').each(function () { selected.push($(this).data('name')); });
+        if (!selected.length) { alert('No options selected.'); return; }
+
+        var $btn = $(this).prop('disabled', true).html('⏳ Moving…');
+        $.post(CSC.ajax_url, { action: 'csc_orphan_delete', nonce: CSC.nonce, options: selected }, function (resp) {
+            $btn.prop('disabled', false).html('♻️ Move to Recycle Bin');
+            if (resp.success) {
+                var n = resp.data.moved;
+                $('#orphan-results').prepend('<p style="color:#e65100;font-weight:600;margin-bottom:8px">♻️ ' + n + ' option' + (n === 1 ? '' : 's') + ' moved to recycle bin.</p>');
+                $('.orphan-chk:checked').closest('tr').remove();
+                if (!$('.orphan-chk').length) { $btn.hide(); }
+                orphanUpdateBinBar(resp.data.bin_count, resp.data.batch);
+            } else {
+                alert('Failed: ' + (resp.data || 'unknown error'));
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html('♻️ Move to Recycle Bin');
+            alert('Request failed.');
+        });
+    });
+
+    // Restore All
+    $(document).on('click', '#btn-orphan-undo', function () {
+        var count = parseInt($('#orphan-bin-count').text(), 10) || 0;
+        if (!confirm('Restore all ' + count + ' item' + (count === 1 ? '' : 's') + ' back to wp_options?')) { return; }
+        var $btn = $(this).prop('disabled', true).html('⏳ Restoring…');
+        $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('↩ Restore All');
+            if (resp.success) {
+                orphanUpdateBinBar(resp.data.bin_count, null);
+                $('#orphan-bin-list').hide().html('');
+                $('#orphan-results').prepend('<p style="color:#2e7d32;font-weight:600;margin-bottom:8px">✅ Restored ' + resp.data.restored + ' option' + (resp.data.restored === 1 ? '' : 's') + '.</p>');
+            } else {
+                alert('Restore failed: ' + (resp.data || 'unknown error'));
+            }
+        });
+    });
+
+    // View bin — with per-row restore buttons
+    $(document).on('click', '#btn-orphan-view-bin', function () {
+        var $list = $('#orphan-bin-list');
+        if ($list.is(':visible')) { $list.hide(); return; }
+        $list.html('<p style="font-size:12px;color:#666">Loading…</p>').show();
+        $.post(CSC.ajax_url, { action: 'csc_orphan_bin_list', nonce: CSC.nonce }, function (resp) {
+            if (!resp.success || !resp.data.items.length) {
+                $list.html('<p style="font-size:12px;color:#999">Bin is empty.</p>');
+                return;
+            }
+            var html = '<div style="border:1px solid #ffb74d;border-radius:6px;overflow:hidden;font-size:12px">'
+                     + '<table style="width:100%;border-collapse:collapse">'
+                     + '<thead><tr style="background:#fff3e0">'
+                     + '<th style="text-align:left;padding:5px 8px;color:#555">Option</th>'
+                     + '<th style="text-align:right;padding:5px 8px;color:#555">Size</th>'
+                     + '<th style="text-align:right;padding:5px 8px;color:#555">Deleted</th>'
+                     + '<th style="padding:5px 8px"></th>'
+                     + '</tr></thead><tbody>';
+            $.each(resp.data.items, function (i, item) {
+                var bg = i % 2 === 0 ? '#fffde7' : '#fff8e1';
+                html += '<tr style="background:' + bg + ';border-top:1px solid #ffe082" data-name="' + $('<div>').text(item.name).html() + '">'
+                      + '<td style="padding:4px 8px;font-family:monospace;word-break:break-all">' + $('<div>').text(item.name).html() + '</td>'
+                      + '<td style="padding:4px 8px;text-align:right;color:#666">' + formatBytes(item.size) + '</td>'
+                      + '<td style="padding:4px 8px;text-align:right;color:#999">' + $('<div>').text(item.deleted_at).html() + '</td>'
+                      + '<td style="padding:4px 8px;text-align:right"><button class="csc-btn csc-btn-secondary orphan-restore-one" style="font-size:10px;padding:2px 8px">↩ Restore</button></td>'
+                      + '</tr>';
+            });
+            html += '</tbody></table></div>';
+            $list.html(html);
+        });
+    });
+
+    // Per-row restore
+    $(document).on('click', '.orphan-restore-one', function () {
+        var $row  = $(this).closest('tr');
+        var name  = $row.data('name');
+        var $btn  = $(this).prop('disabled', true).html('⏳');
+        $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce, name: name }, function (resp) {
+            if (resp.success && resp.data.restored > 0) {
+                $row.fadeOut(300, function () { $(this).remove(); });
+                orphanUpdateBinBar(resp.data.bin_count, null);
+            } else {
+                $btn.prop('disabled', false).html('↩ Restore');
+                alert('Restore failed.');
+            }
+        });
+    });
+
+    // Empty bin permanently
+    $(document).on('click', '#btn-orphan-empty', function () {
+        var count = parseInt($('#orphan-bin-count').text(), 10) || 0;
+        if (!confirm('Permanently delete all ' + count + ' item' + (count === 1 ? '' : 's') + ' in the recycle bin? This cannot be undone.')) { return; }
+        var $btn = $(this).prop('disabled', true).html('⏳ Emptying…');
+        $.post(CSC.ajax_url, { action: 'csc_orphan_empty', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🗑 Empty Bin');
+            if (resp.success) {
+                orphanUpdateBinBar(0, null);
+                $('#orphan-bin-list').hide().html('');
+            } else {
+                alert('Failed: ' + (resp.data || 'unknown error'));
+            }
+        });
+    });
+
+    function formatBytes(bytes) {
+        if (bytes >= 1048576) { return (bytes / 1048576).toFixed(1) + ' MB'; }
+        if (bytes >= 1024)    { return (bytes / 1024).toFixed(1) + ' KB'; }
+        return bytes + ' B';
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // TABLE OVERHEAD REPAIR
+    // ═════════════════════════════════════════════════════════════════════════
+
+    $('#btn-scan-tables').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Scanning…');
+        clearTerminal('table-terminal');
+        appendLine('table-terminal', { type: 'section', text: '=== DRY RUN — Table Overhead ===' });
+        $.post(CSC.ajax_url, { action: 'csc_table_scan', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            if (resp.success) {
+                appendLines('table-terminal', resp.data);
+                appendLine('table-terminal', { type: 'info', text: '\nDry run complete. Press Repair Tables to optimise.' });
+            } else {
+                appendLine('table-terminal', { type: 'error', text: 'Scan failed: ' + (resp.data || 'unknown error') });
+            }
+        }).fail(function (jqXHR) {
+            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            appendLine('table-terminal', { type: 'error', text: 'Request failed: ' + jqXHR.status });
+        });
+    });
+
+    $('#btn-run-tables').on('click', function () {
+        runChunked({
+            startAction:   'csc_table_start',
+            chunkAction:   'csc_table_chunk',
+            finishAction:  'csc_table_finish',
+            startLabel:    'TABLE OPTIMISATION RUNNING',
+            termId:        'table-terminal',
+            progressOuter: 'table-progress-outer',
+            progressFill:  'table-progress-fill',
+            progressLabel: 'table-progress-label',
+            confirmMsg:    'Run OPTIMIZE TABLE on all tables with significant overhead? Safe on InnoDB — no table locks on MySQL 5.6+.',
+            $btn:          $(this),
+            restoreLabel:  '🔧 Repair Tables',
+            onFinish: function (resp) {
+                if (!resp.success) { return; }
+                var rag    = resp.data.new_rag;
+                var size   = formatBytes(resp.data.new_overhead);
+                var bgs    = { green: '#2e7d32', amber: '#e65100', red: '#c62828' };
+                var labels = { green: '✅ Healthy', amber: '⚠️ Warning', red: '🔴 Critical' };
+                $('#table-rag-badge')
+                    .text((labels[rag] || rag) + ' — ' + size + ' overhead')
+                    .css('background', bgs[rag] || '#555');
+            },
         });
     });
 

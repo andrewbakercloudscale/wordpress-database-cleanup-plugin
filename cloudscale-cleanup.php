@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.21
+ * Version:     2.4.31
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.21' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.31' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -1134,6 +1134,422 @@ function csc_ajax_autoload_finish() {
         'new_size'    => $new_size,
         'new_size_fmt' => size_format( $new_size ),
         'new_rag'     => csc_autoload_rag( $new_size ),
+    ) );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ORPHANED PLUGIN OPTIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+function csc_orphan_core_prefixes(): array {
+    return array(
+        '_transient_', '_site_transient_', 'widget_', 'wp_', '_wp_', 'theme_mods_',
+    );
+}
+
+function csc_orphan_core_names(): array {
+    return array(
+        'siteurl', 'blogname', 'blogdescription', 'blogpublic', 'admin_email',
+        'wp_user_roles', 'rewrite_rules', 'cron', 'active_plugins',
+        'active_sitewide_plugins', 'sidebars_widgets', 'db_version',
+        'initial_db_version', 'template', 'stylesheet', 'current_theme',
+        'theme_switched', 'upload_path', 'upload_url_path',
+        'uploads_use_yearmonth_folders', 'permalink_structure',
+        'category_base', 'tag_base', 'date_format', 'time_format',
+        'start_of_week', 'timezone_string', 'gmt_offset',
+        'users_can_register', 'default_role', 'blog_charset', 'blog_public',
+        'use_smilies', 'show_avatars', 'avatar_rating', 'avatar_default',
+        'posts_per_page', 'posts_per_rss', 'rss_use_excerpt',
+        'default_category', 'default_comment_status', 'default_ping_status',
+        'comment_moderation', 'require_name_email', 'comment_max_links',
+        'disallowed_keys', 'blacklist_keys', 'moderation_keys',
+        'html_type', 'home', 'page_on_front', 'page_for_posts', 'show_on_front',
+        'auth_key', 'secure_auth_key', 'logged_in_key', 'nonce_key',
+        'auth_salt', 'secure_auth_salt', 'logged_in_salt', 'nonce_salt',
+        'can_compress_scripts', 'recently_activated', 'uninstall_plugins',
+        'ms_files_rewriting',
+    );
+}
+
+function csc_orphan_is_core( string $name ): bool {
+    if ( in_array( $name, csc_orphan_core_names(), true ) ) { return true; }
+    foreach ( csc_orphan_core_prefixes() as $prefix ) {
+        if ( strpos( $name, $prefix ) === 0 ) { return true; }
+    }
+    return false;
+}
+
+function csc_orphan_known_prefix_map(): array {
+    return array(
+        'wpseo'           => 'Yoast SEO',
+        'jetpack'         => 'Jetpack',
+        'jp_'             => 'Jetpack',
+        'stats_cache'     => 'Jetpack Stats',
+        'fs_'             => 'Freemius SDK',
+        'googlesitekit'   => 'Google Site Kit',
+        'rank_math'       => 'Rank Math SEO',
+        'rank-math'       => 'Rank Math SEO',
+        'aioseo'          => 'All in One SEO',
+        'monsterinsights' => 'MonsterInsights',
+        'spio_'           => 'ShortPixel Image Optimizer',
+        'shortpixel'      => 'ShortPixel',
+        'elementor'       => 'Elementor',
+        'wpforms'         => 'WPForms',
+        'gform_'          => 'Gravity Forms',
+        'gravityforms'    => 'Gravity Forms',
+        'wordfence'       => 'Wordfence',
+        'wfwaf_'          => 'Wordfence',
+        'itsec_'          => 'iThemes Security',
+        'updraftplus'     => 'UpdraftPlus',
+        'mc4wp'           => 'Mailchimp for WP',
+        'wpcf7'           => 'Contact Form 7',
+        'woocommerce'     => 'WooCommerce',
+        'wc_'             => 'WooCommerce',
+        'bbpress'         => 'bbPress',
+        'buddypress'      => 'BuddyPress',
+        'bp_'             => 'BuddyPress',
+        'ninja_forms'     => 'Ninja Forms',
+        'searchwp'        => 'SearchWP',
+        'generatepress'   => 'GeneratePress',
+        'astra_'          => 'Astra Theme',
+        'neve_'           => 'Neve Theme',
+        'oceanwp'         => 'OceanWP Theme',
+        'et_'             => 'Divi / Extra',
+        'vc_'             => 'WPBakery',
+        'brizy'           => 'Brizy Builder',
+        'acf_'            => 'Advanced Custom Fields',
+        'acf-'            => 'Advanced Custom Fields',
+        'newsletter'      => 'Newsletter',
+        'popup_maker'     => 'Popup Maker',
+        'cs_'             => 'CloudScale Consulting',
+        'csc_'            => 'CloudScale Consulting',
+        'ab_seo_'         => 'SEO Plugin',
+    );
+}
+
+function csc_find_orphaned_options(): array {
+    global $wpdb;
+
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows = $wpdb->get_results(
+        "SELECT option_name, LENGTH(option_value) AS size FROM {$wpdb->options} ORDER BY size DESC"
+    );
+
+    if ( ! function_exists( 'get_plugins' ) ) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
+    $installed_slugs = array();
+    foreach ( get_plugins() as $file => $data ) {
+        $dir  = dirname( $file );
+        $slug = $dir === '.' ? basename( $file, '.php' ) : $dir;
+        $installed_slugs[] = strtolower( $slug );
+        $installed_slugs[] = strtolower( str_replace( '-', '_', $slug ) );
+        if ( ! empty( $data['TextDomain'] ) ) {
+            $installed_slugs[] = strtolower( $data['TextDomain'] );
+            $installed_slugs[] = strtolower( str_replace( '-', '_', $data['TextDomain'] ) );
+        }
+    }
+    // Always protect this plugin's own csc_ namespace
+    $installed_slugs[] = 'csc';
+    $installed_slugs = array_unique( array_filter( $installed_slugs ) );
+
+    $known_map  = csc_orphan_known_prefix_map();
+    $candidates = array();
+
+    foreach ( $rows as $row ) {
+        $name = $row->option_name;
+        if ( csc_orphan_is_core( $name ) ) { continue; }
+
+        $norm = strtolower( $name );
+
+        // Skip if any installed plugin slug is a prefix of this option name
+        $claimed = false;
+        foreach ( $installed_slugs as $slug ) {
+            if ( strlen( $slug ) < 3 ) { continue; }
+            if ( strpos( $norm, $slug ) === 0 ) { $claimed = true; break; }
+        }
+        if ( $claimed ) { continue; }
+
+        // Identify the likely plugin via known prefix map
+        $guessed = 'Unknown plugin';
+        foreach ( $known_map as $prefix => $plugin_name ) {
+            if ( strpos( $norm, strtolower( $prefix ) ) === 0 ) {
+                $guessed = $plugin_name;
+                break;
+            }
+        }
+
+        $candidates[] = array(
+            'name'   => $name,
+            'size'   => (int) $row->size,
+            'plugin' => $guessed,
+        );
+    }
+
+    return $candidates;
+}
+
+add_action( 'wp_ajax_csc_orphan_scan', 'csc_ajax_orphan_scan' );
+function csc_ajax_orphan_scan() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    wp_send_json_success( csc_find_orphaned_options() );
+}
+
+// ── Orphaned options recycle bin ─────────────────────────────────────────────
+
+define( 'CSC_ORPHAN_BIN_KEY', 'csc_orphan_recycle_bin' );
+
+function csc_orphan_bin_get(): array {
+    $bin = get_option( CSC_ORPHAN_BIN_KEY, array() );
+    return is_array( $bin ) ? $bin : array();
+}
+
+function csc_orphan_bin_save( array $bin ): void {
+    update_option( CSC_ORPHAN_BIN_KEY, $bin, 'no' );
+}
+
+add_action( 'wp_ajax_csc_orphan_delete', 'csc_ajax_orphan_delete' );
+function csc_ajax_orphan_delete() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    global $wpdb;
+    $names  = isset( $_POST['options'] ) ? (array) $_POST['options'] : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $batch  = time();
+    $bin    = csc_orphan_bin_get();
+    $moved  = 0;
+
+    foreach ( $names as $name ) {
+        $name = sanitize_text_field( wp_unslash( $name ) );
+        if ( empty( $name ) || csc_orphan_is_core( $name ) ) { continue; }
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT option_value, autoload FROM {$wpdb->options} WHERE option_name = %s",
+            $name
+        ) );
+        if ( ! $row ) { continue; }
+
+        $bin[] = array(
+            'name'       => $name,
+            'raw_value'  => $row->option_value,
+            'autoload'   => $row->autoload,
+            'deleted_at' => current_time( 'mysql' ),
+            'batch'      => $batch,
+        );
+
+        delete_option( $name );
+        $moved++;
+    }
+
+    csc_orphan_bin_save( $bin );
+    wp_send_json_success( array( 'moved' => $moved, 'bin_count' => count( $bin ), 'batch' => $batch ) );
+}
+
+add_action( 'wp_ajax_csc_orphan_restore', 'csc_ajax_orphan_restore' );
+function csc_ajax_orphan_restore() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    global $wpdb;
+    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $batch     = isset( $_POST['batch'] ) ? (int) $_POST['batch'] : 0;
+    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $single    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+    $bin       = csc_orphan_bin_get();
+    $restored  = 0;
+    $new_bin   = array();
+
+    foreach ( $bin as $entry ) {
+        // Restore if: single name matches, or batch matches, or restore-all (batch=0, no single)
+        $should_restore = ( $single && $entry['name'] === $single )
+                       || ( ! $single && $batch && (int) $entry['batch'] === $batch )
+                       || ( ! $single && ! $batch );
+
+        if ( $should_restore ) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+            $wpdb->insert( $wpdb->options, array(
+                'option_name'  => $entry['name'],
+                'option_value' => $entry['raw_value'],
+                'autoload'     => $entry['autoload'],
+            ) );
+            wp_cache_delete( $entry['name'], 'options' );
+            $restored++;
+        } else {
+            $new_bin[] = $entry;
+        }
+    }
+
+    csc_orphan_bin_save( $new_bin );
+    wp_send_json_success( array( 'restored' => $restored, 'bin_count' => count( $new_bin ) ) );
+}
+
+add_action( 'wp_ajax_csc_orphan_empty', 'csc_ajax_orphan_empty' );
+function csc_ajax_orphan_empty() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $bin   = csc_orphan_bin_get();
+    $count = count( $bin );
+    csc_orphan_bin_save( array() );
+    wp_send_json_success( array( 'emptied' => $count ) );
+}
+
+add_action( 'wp_ajax_csc_orphan_bin_list', 'csc_ajax_orphan_bin_list' );
+function csc_ajax_orphan_bin_list() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+    $bin = csc_orphan_bin_get();
+    // Strip raw_value from list response (can be large)
+    $safe = array_map( function( $e ) {
+        return array(
+            'name'       => $e['name'],
+            'size'       => strlen( $e['raw_value'] ),
+            'deleted_at' => $e['deleted_at'],
+            'batch'      => $e['batch'],
+        );
+    }, $bin );
+    wp_send_json_success( array( 'items' => $safe, 'count' => count( $bin ) ) );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TABLE OVERHEAD REPAIR
+// ═════════════════════════════════════════════════════════════════════════════
+
+function csc_table_overhead_rag( int $bytes ): string {
+    if ( $bytes > 20 * MB_IN_BYTES ) { return 'red'; }
+    if ( $bytes >  5 * MB_IN_BYTES ) { return 'amber'; }
+    return 'green';
+}
+
+function csc_table_overhead_total(): int {
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
+    $total = 0;
+    foreach ( $rows as $row ) { $total += (int) $row->Data_free; }
+    return $total;
+}
+
+add_action( 'wp_ajax_csc_table_scan', 'csc_ajax_table_scan' );
+function csc_ajax_table_scan() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows   = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
+    $tables = array();
+    $total  = 0;
+
+    foreach ( $rows as $row ) {
+        $free = (int) $row->Data_free;
+        if ( $free < 100 * KB_IN_BYTES ) { continue; }
+        $tables[] = array(
+            'name'     => $row->Name,
+            'data'     => (int) $row->Data_length,
+            'index'    => (int) $row->Index_length,
+            'overhead' => $free,
+            'engine'   => $row->Engine,
+        );
+        $total += $free;
+    }
+    usort( $tables, fn( $a, $b ) => $b['overhead'] - $a['overhead'] );
+
+    $rag       = csc_table_overhead_rag( $total );
+    $rag_label = array( 'green' => '✅ Healthy', 'amber' => '⚠️ Warning', 'red' => '🔴 Critical' );
+
+    $lines   = array();
+    $lines[] = array( 'type' => 'section', 'text' => 'Table Overhead Summary' );
+    $lines[] = array( 'type' => 'info',    'text' => '  Total reclaimable overhead : ' . size_format( $total ) . '  —  ' . $rag_label[ $rag ] );
+    $lines[] = array( 'type' => 'info',    'text' => '  Tables with > 100 KB overhead : ' . count( $tables ) );
+    $lines[] = array( 'type' => 'info',    'text' => '  Note: InnoDB Data_free is an estimate — actual savings may vary slightly.' );
+
+    if ( ! empty( $tables ) ) {
+        $lines[] = array( 'type' => 'section', 'text' => 'Tables to Optimise (sorted by overhead)' );
+        foreach ( $tables as $t ) {
+            $lines[] = array( 'type' => 'item', 'text' => sprintf(
+                '  %-45s  overhead: %-8s  data: %-8s  idx: %-8s  engine: %s',
+                $t['name'], size_format( $t['overhead'] ), size_format( $t['data'] ), size_format( $t['index'] ), $t['engine']
+            ) );
+        }
+        $lines[] = array( 'type' => 'section', 'text' => 'What OPTIMIZE TABLE does' );
+        $lines[] = array( 'type' => 'info',    'text' => '  Rewrites the table compactly, reclaiming gaps left by DELETE operations.' );
+        $lines[] = array( 'type' => 'info',    'text' => '  InnoDB uses online DDL (no table lock on MySQL 5.6+) — safe on live sites.' );
+        $lines[] = array( 'type' => 'info',    'text' => '  MyISAM tables are briefly locked during optimisation.' );
+    } else {
+        $lines[] = array( 'type' => 'success', 'text' => '  No tables with significant overhead. Nothing to optimise.' );
+    }
+
+    wp_send_json_success( $lines );
+}
+
+add_action( 'wp_ajax_csc_table_start', 'csc_ajax_table_start' );
+function csc_ajax_table_start() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
+    $queue = array();
+    foreach ( $rows as $row ) {
+        if ( (int) $row->Data_free >= 100 * KB_IN_BYTES ) {
+            $queue[] = array( 'type' => 'optimize', 'table' => $row->Name, 'label' => $row->Name );
+        }
+    }
+
+    set_transient( 'csc_table_queue', $queue, HOUR_IN_SECONDS );
+    wp_send_json_success( array(
+        'total'     => count( $queue ),
+        'remaining' => count( $queue ),
+        'lines'     => array( array( 'type' => 'info', 'text' => '  ' . count( $queue ) . ' table(s) queued for optimisation.' ) ),
+    ) );
+}
+
+add_action( 'wp_ajax_csc_table_chunk', 'csc_ajax_table_chunk' );
+function csc_ajax_table_chunk() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $queue = get_transient( 'csc_table_queue' );
+    if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
+
+    global $wpdb;
+    $item = array_shift( $queue );
+    set_transient( 'csc_table_queue', $queue, HOUR_IN_SECONDS );
+
+    $lines = array();
+    if ( $item ) {
+        $table = $item['table'];
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $before = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        $wpdb->query( 'OPTIMIZE TABLE `' . esc_sql( $table ) . '`' );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $after   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
+        $saved   = max( 0, $before - $after );
+        $lines[] = array( 'type' => 'count', 'text' => sprintf( '  %-45s  saved: %s', $table, size_format( $saved ) ) );
+    }
+
+    wp_send_json_success( array( 'remaining' => count( $queue ), 'lines' => $lines ) );
+}
+
+add_action( 'wp_ajax_csc_table_finish', 'csc_ajax_table_finish' );
+function csc_ajax_table_finish() {
+    check_ajax_referer( 'csc_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    delete_transient( 'csc_table_queue' );
+    $new_overhead = csc_table_overhead_total();
+    $new_rag      = csc_table_overhead_rag( $new_overhead );
+
+    wp_send_json_success( array(
+        'lines'        => array( array( 'type' => 'success', 'text' => 'Optimisation complete. Remaining overhead: ' . size_format( $new_overhead ) . '.' ) ),
+        'new_overhead' => $new_overhead,
+        'new_rag'      => $new_rag,
     ) );
 }
 
@@ -4085,11 +4501,29 @@ function csc_render_page() {
                 $al_rag2   = csc_autoload_rag( $al_bytes2 );
                 $al_hdr_bg = $al_rag2 === 'red' ? 'linear-gradient(135deg,#b71c1c 0%,#c62828 100%)' : ( $al_rag2 === 'amber' ? 'linear-gradient(135deg,#bf360c 0%,#e64a19 100%)' : 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)' );
                 ?>
-                <div class="csc-card-header" style="background:<?php echo esc_attr( $al_hdr_bg ); ?>;color:#fff;font-weight:700">
-                    <span>⚡ Autoloaded Options</span>
+                <div class="csc-card-header" style="background:<?php echo esc_attr( $al_hdr_bg ); ?>;color:#fff;font-weight:700"><span>⚡ Autoloaded Options</span>
                     <span style="font-size:11px;font-weight:400;opacity:0.85;margin-left:8px"><?php echo esc_html( size_format( $al_bytes2, 1 ) ); ?> loaded on every request</span>
+                    <?php csc_explain_btn(
+                        'autoload',
+                        'Autoloaded Options — What it does',
+                        [
+                            [ 'rec' => 'ℹ️ Info',         'name' => 'What are autoloaded options?', 'desc' => 'WordPress loads rows marked autoload=yes from wp_options on every single page request, regardless of whether they are needed. Plugins and themes add rows here for caching and configuration — but many forget to clean up expired or redundant entries.' ],
+                            [ 'rec' => '✅ Recommended',  'name' => 'Delete expired transients',   'desc' => 'Transients are temporary cache values with an expiry time. WordPress should delete them automatically on expiry, but many accumulate when cron is unreliable or plugins exit early. Deleting them is completely safe.' ],
+                            [ 'rec' => '✅ Recommended',  'name' => 'Disable transient autoload',  'desc' => 'Any remaining transient rows (not yet expired) do not need to be autoloaded — WordPress fetches them on demand when a plugin requests them. Disabling autoload reduces the amount of data loaded on every request without removing any data.' ],
+                            [ 'rec' => 'ℹ️ Info',         'name' => 'Non-destructive',             'desc' => 'This cleanup never deletes valid plugin data. Only expired transients are deleted. All other options are left in place — only their autoload flag is changed.' ],
+                            [ 'rec' => '💡 Tip',          'name' => 'Always dry run first',        'desc' => 'Press Dry Run to preview current autoload size, the top rows consuming the most space, and what the cleanup will do. No changes are made until you press Clean Autoload Now.' ],
+                        ]
+                    ); ?>
                 </div>
                 <div class="csc-card-body">
+                    <?php
+                    $al_rag_labels = array( 'green' => '✅ Healthy', 'amber' => '⚠️ Warning', 'red' => '🔴 Critical' );
+                    $al_rag_bg     = array( 'green' => '#2e7d32',    'amber' => '#e65100',    'red' => '#c62828' );
+                    ?>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                        <span id="autoload-rag-badge" style="display:inline-flex;align-items:center;gap:6px;background:<?php echo esc_attr( $al_rag_bg[ $al_rag2 ] ); ?>;color:#fff;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 6px rgba(0,0,0,0.2)"><?php echo esc_html( $al_rag_labels[ $al_rag2 ] ); ?> — <?php echo esc_html( size_format( $al_bytes2, 1 ) ); ?></span>
+                        <span style="font-size:11px;color:#78909c">autoloaded on every request</span>
+                    </div>
                     <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">WordPress loads autoloaded options on <strong>every page request</strong>. Expired transients and plugin caches often accumulate here, bloating memory usage. This cleanup deletes expired transients and disables autoloading for any remaining transient rows — no plugin data is removed.</p>
                     <div class="csc-button-row">
                         <button class="csc-btn csc-btn-secondary" id="btn-scan-autoload">🔍 Dry Run — Preview</button>
@@ -4100,6 +4534,76 @@ function csc_render_page() {
                         <div class="csc-progress-label" id="autoload-progress-label">Preparing…</div>
                     </div>
                     <pre class="csc-terminal" id="autoload-terminal" style="margin-top:10px;min-height:60px">Ready. Press Dry Run to preview autoloaded options, then Clean Autoload Now to optimise.</pre>
+                </div>
+            </div>
+
+            <div class="csc-card">
+                <div class="csc-card-header csc-card-header-slate-db"><span>Orphaned Plugin Options</span> <?php csc_explain_btn(
+                    'orphan-options',
+                    'Orphaned Plugin Options — How detection works',
+                    array(
+                        array( 'rec' => 'ℹ️ Info',        'name' => 'What are orphaned options?',    'desc' => 'When a plugin is deleted without a proper uninstall routine, its configuration rows remain in the wp_options table forever — including autoloaded rows that bloat every page request. WordPress never removes these automatically.' ),
+                        array( 'rec' => 'ℹ️ Info',        'name' => 'How detection works',           'desc' => 'The scan compares all wp_options rows against the list of currently installed plugins. Rows whose name prefix does not match any installed plugin are flagged as likely orphaned.' ),
+                        array( 'rec' => '⚠️ Review first', 'name' => 'Always review before deleting', 'desc' => 'Detection is heuristic. Some plugins use option names that do not obviously match their slug. Uncheck anything you are unsure about — deleting a live option can break a plugin.' ),
+                        array( 'rec' => '💡 Tip',         'name' => 'When in doubt, keep it',        'desc' => 'The scan is conservative — it skips all WordPress core options and any option whose name starts with an installed plugin slug. Anything remaining is a strong candidate for deletion, but use your judgement.' ),
+                    )
+                ); ?></div>
+                <div class="csc-card-body">
+                    <p style="margin:0 0 12px;font-size:13px;color:#3c434a;line-height:1.6">Scans wp_options for rows left behind by deleted plugins. Results are shown as a checklist — known plugins are pre-selected, unknowns are unchecked. Review, then move selected items to the recycle bin.</p>
+                    <div class="csc-button-row">
+                        <button class="csc-btn csc-btn-secondary" id="btn-scan-orphans">🔍 Scan for Orphans</button>
+                        <button class="csc-btn csc-btn-danger" id="btn-run-orphans" style="display:none">♻️ Move to Recycle Bin</button>
+                    </div>
+                    <?php
+                    $orphan_bin       = csc_orphan_bin_get();
+                    $orphan_bin_count = count( $orphan_bin );
+                    ?>
+                    <?php $bin_has = $orphan_bin_count > 0; ?>
+                    <div id="orphan-bin-bar" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:<?php echo $bin_has ? '#fff3e0' : '#f5f5f5'; ?>;border:1px solid <?php echo $bin_has ? '#ffb74d' : '#ddd'; ?>;border-radius:6px;font-size:12px">
+                        <span id="orphan-bin-label">♻️ Recycle Bin: <strong><?php echo esc_html( $orphan_bin_count ); ?></strong> item<?php echo $orphan_bin_count === 1 ? '' : 's'; ?></span>
+                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-view-bin" style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>View</button>
+                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-undo"     style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>↩ Restore All</button>
+                        <button class="csc-btn csc-btn-danger"    id="btn-orphan-empty"    style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>🗑 Empty Bin</button>
+                    </div>
+                    <div id="orphan-bin-list" style="margin-top:8px;display:none"></div>
+                    <div id="orphan-results" style="margin-top:12px"></div>
+                </div>
+            </div>
+
+            <div class="csc-card">
+                <?php
+                $tbl_overhead = csc_table_overhead_total();
+                $tbl_rag      = csc_table_overhead_rag( $tbl_overhead );
+                $tbl_hdr_bg   = $tbl_rag === 'red' ? 'linear-gradient(135deg,#b71c1c 0%,#c62828 100%)' : ( $tbl_rag === 'amber' ? 'linear-gradient(135deg,#bf360c 0%,#e64a19 100%)' : 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)' );
+                $tbl_rag_bgs  = array( 'green' => '#2e7d32', 'amber' => '#e65100', 'red' => '#c62828' );
+                $tbl_rag_lbls = array( 'green' => '✅ Healthy', 'amber' => '⚠️ Warning', 'red' => '🔴 Critical' );
+                ?>
+                <div class="csc-card-header" style="background:<?php echo esc_attr( $tbl_hdr_bg ); ?>;color:#fff;font-weight:700"><span>🔧 Table Overhead Repair</span><?php csc_explain_btn(
+                    'table-overhead',
+                    'Table Overhead Repair — How it works',
+                    array(
+                        array( 'rec' => 'ℹ️ Info',        'name' => 'What is table overhead?',        'desc' => 'Every time WordPress deletes rows — revisions, transients, spam, trashed posts — MySQL/InnoDB marks that space as free but does not physically return it. Over time tables accumulate "gaps" that waste disk space and slow down full-table scans.' ),
+                        array( 'rec' => 'ℹ️ Info',        'name' => 'What OPTIMIZE TABLE does',       'desc' => 'Rewrites the table file compactly, eliminating the gaps. The result is a smaller table file that fits better in the buffer pool and is faster to scan.' ),
+                        array( 'rec' => '✅ Safe',         'name' => 'InnoDB — online DDL, no lock',   'desc' => 'On MySQL 5.6+ with InnoDB (the WordPress default), OPTIMIZE TABLE uses online DDL. The table remains fully readable and writable during optimisation. No downtime required.' ),
+                        array( 'rec' => '⚠️ Note',        'name' => 'MyISAM — brief table lock',      'desc' => 'MyISAM tables (rare on modern WordPress installs) are locked briefly during optimisation. If any of your tables show engine: MyISAM in the dry run, run during low-traffic hours.' ),
+                        array( 'rec' => 'ℹ️ Info',        'name' => 'Data_free is an estimate',       'desc' => 'InnoDB reports Data_free as an approximation. Actual space reclaimed may differ slightly from the dry run estimate — this is normal.' ),
+                        array( 'rec' => '💡 Tip',         'name' => 'When to run',                    'desc' => 'Run after any large cleanup operation — deleting post revisions, expired transients, or orphaned options. On a typical WordPress site with regular content churn, running monthly keeps overhead low.' ),
+                    )
+                ); ?></div>
+                <div class="csc-card-body">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                        <span id="table-rag-badge" style="display:inline-flex;align-items:center;gap:6px;background:<?php echo esc_attr( $tbl_rag_bgs[ $tbl_rag ] ); ?>;color:#fff;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 6px rgba(0,0,0,0.2)"><?php echo esc_html( $tbl_rag_lbls[ $tbl_rag ] ); ?> — <?php echo esc_html( size_format( $tbl_overhead, 1 ) ); ?> overhead</span>
+                    </div>
+                    <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">After bulk deletes, MySQL tables accumulate fragmentation gaps. OPTIMIZE TABLE rewrites them compactly and reclaims that space. InnoDB runs online — no table locks on MySQL 5.6+.</p>
+                    <div class="csc-button-row">
+                        <button class="csc-btn csc-btn-secondary" id="btn-scan-tables">🔍 Dry Run — Preview</button>
+                        <button class="csc-btn csc-btn-danger"    id="btn-run-tables">🔧 Repair Tables</button>
+                    </div>
+                    <div class="csc-progress-outer" id="table-progress-outer" style="display:none">
+                        <div class="csc-progress-bar"><div class="csc-progress-fill" id="table-progress-fill"></div></div>
+                        <div class="csc-progress-label" id="table-progress-label">Preparing…</div>
+                    </div>
+                    <pre class="csc-terminal" id="table-terminal" style="margin-top:10px;min-height:60px">Ready. Press Dry Run to preview table overhead, then Repair Tables to optimise.</pre>
                 </div>
             </div>
 
