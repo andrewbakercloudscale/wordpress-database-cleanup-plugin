@@ -506,13 +506,17 @@ function cscOrphanToggle(el, type) {
             var knownCount = rows.filter(function(r) { return r.plugin !== 'Unknown plugin'; }).length;
             var html = '<p style="margin:0 0 8px;font-size:13px;color:#3c434a">'
                      + '<strong>' + rows.length + ' candidate' + (rows.length === 1 ? '' : 's') + '</strong>'
-                     + ' — <strong>' + formatBytes(totalSize) + '</strong> total.'
-                     + ' Known plugins pre-selected (' + knownCount + '); unknowns unchecked. Review before moving to bin.</p>';
+                     + ' — <strong>' + formatBytes(totalSize) + '</strong> total'
+                     + ' (' + knownCount + ' matched to a known plugin). Nothing pre-selected — review and check what you want to move.</p>';
 
-            html += '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
+            html += '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
                   + '<button id="orphan-select-all"    class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select All</button>'
                   + '<button id="orphan-deselect-all"  class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Deselect All</button>'
                   + '<button id="orphan-select-known"  class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select Known Plugins</button>'
+                  + '<div style="display:flex;gap:4px;align-items:center;margin-left:auto">'
+                  + '<input type="text" id="orphan-search" placeholder="Search plugin name… (wildcards ok)" style="padding:3px 8px;font-size:11px;border:1px solid #c3c4c7;border-radius:4px;width:200px;outline:none">'
+                  + '<button id="orphan-search-select" class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select Matching</button>'
+                  + '</div>'
                   + '</div>';
 
             html += '<div style="border:1px solid #ddd;border-radius:6px;overflow:hidden">'
@@ -531,7 +535,7 @@ function cscOrphanToggle(el, type) {
                     ? $('<div>').text(row.plugin).html()
                     : '<span style="color:#999;font-style:italic">Unknown plugin</span>';
                 html += '<tr style="background:' + bg + ';border-top:1px solid #eee">'
-                      + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" class="orphan-chk" data-name="' + $('<div>').text(row.name).html() + '"' + (isKnown ? ' checked' : '') + '></td>'
+                      + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" class="orphan-chk" data-name="' + $('<div>').text(row.name).html() + '"></td>'
                       + '<td style="padding:5px 8px;font-family:monospace;color:#1a1a2e;word-break:break-all">' + $('<div>').text(row.name).html() + '</td>'
                       + '<td style="padding:5px 8px;color:#555">' + pluginHtml + '</td>'
                       + '<td style="padding:5px 8px;text-align:right;color:#666">' + formatBytes(row.size) + '</td>'
@@ -550,6 +554,29 @@ function cscOrphanToggle(el, type) {
                     var plugin = $row.find('td:nth-child(3)').text().trim();
                     $(this).prop('checked', plugin !== 'Unknown plugin');
                 });
+            });
+
+            // Wildcard search — matches option name or plugin name, supports * as wildcard
+            function orphanMatchSearch(str, pattern) {
+                if (!pattern) { return false; }
+                // Convert wildcard pattern to regex: * → .*, ? → .
+                var escaped = pattern.replace(/[-[\]{}()+^$.|\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+                return new RegExp(escaped, 'i').test(str);
+            }
+            $(document).on('click', '#orphan-search-select', function () {
+                var q = $('#orphan-search').val().trim();
+                if (!q) { return; }
+                $('.orphan-chk').each(function () {
+                    var $row   = $(this).closest('tr');
+                    var plugin = $row.find('td:nth-child(3)').text().trim();
+                    var name   = $row.find('td:nth-child(2)').text().trim();
+                    if (orphanMatchSearch(plugin, q) || orphanMatchSearch(name, q)) {
+                        $(this).prop('checked', true);
+                    }
+                });
+            });
+            $(document).on('keydown', '#orphan-search', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); $('#orphan-search-select').trigger('click'); }
             });
         }).fail(function (jqXHR) {
             $btn.prop('disabled', false).html('🔍 Scan for Orphans');
