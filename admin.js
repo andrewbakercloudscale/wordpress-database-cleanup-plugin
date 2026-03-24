@@ -203,19 +203,42 @@ function cscOrphanToggle(el, type) {
     function cscShowModal(title, message) {
         var id = 'csc-warning-modal';
         $('#' + id).remove();
-        var html = '<div id="' + id + '" style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px">'
-            + '<div style="background:#fff;border-radius:10px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)">'
-            +   '<div style="background:#1a2a3a;border-radius:10px 10px 0 0;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">'
-            +     '<strong style="color:#fff;font-size:15px">⚠️ ' + esc(title) + '</strong>'
-            +     '<button type="button" onclick="document.getElementById(\'' + id + '\').remove()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:5px;color:#fff;font-size:16px;font-weight:700;padding:2px 10px;cursor:pointer;line-height:1">&#x2715;</button>'
-            +   '</div>'
-            +   '<div style="padding:24px;font-size:14px;line-height:1.6;color:#1d2327">' + esc(message) + '</div>'
-            +   '<div style="padding:12px 24px 20px;text-align:right">'
-            +     '<button type="button" onclick="document.getElementById(\'' + id + '\').remove()" style="background:#1a2a3a;border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:600;padding:8px 24px;cursor:pointer">Got it</button>'
+        var html = '<div id="' + id + '" style="position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px">'
+            + '<div class="csc-modal">'
+            +   '<div class="csc-modal-title">⚠️ ' + esc(title) + '</div>'
+            +   '<div class="csc-modal-body"><p>' + esc(message) + '</p></div>'
+            +   '<div class="csc-modal-footer">'
+            +     '<button type="button" class="csc-btn csc-btn-cancel" id="' + id + '-close">Close</button>'
             +   '</div>'
             + '</div>'
             + '</div>';
         $('body').append(html);
+        $('#' + id).on('click', function (e) { if (e.target === this) $(this).remove(); });
+        $('#' + id + '-close').on('click', function () { $('#' + id).remove(); });
+    }
+
+    function cscConfirmModal(opts, onConfirm) {
+        var id = 'csc-modal-' + Date.now();
+        var confirmClass = opts.confirmClass || 'csc-btn-primary';
+        var html = '<div id="' + id + '" style="position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;padding:16px">'
+            + '<div class="csc-modal">'
+            +   '<div class="csc-modal-title">' + (opts.icon ? opts.icon + ' ' : '') + esc(opts.title) + '</div>'
+            +   (opts.warning ? '<div class="csc-modal-warning">' + esc(opts.warning) + '</div>' : '')
+            +   (opts.body ? '<div class="csc-modal-body">' + opts.body + '</div>' : '')
+            +   '<div class="csc-modal-footer">'
+            +     '<button type="button" class="csc-btn csc-btn-cancel" id="' + id + '-cancel">' + esc(opts.cancelLabel || 'Cancel') + '</button>'
+            +     '<button type="button" class="csc-btn ' + esc(confirmClass) + '" id="' + id + '-confirm">' + esc(opts.confirmLabel || 'OK') + '</button>'
+            +   '</div>'
+            + '</div>'
+            + '</div>';
+        $('body').append(html);
+        var $overlay = $('#' + id);
+        $overlay.on('click', function (e) { if (e.target === this) $overlay.remove(); });
+        $('#' + id + '-cancel').on('click', function () { $overlay.remove(); });
+        $('#' + id + '-confirm').on('click', function () {
+            $overlay.remove();
+            if (typeof onConfirm === 'function') { onConfirm(); }
+        });
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -227,7 +250,10 @@ function cscOrphanToggle(el, type) {
     // ═════════════════════════════════════════════════════════════════════════
 
     function runChunked(opts) {
-        if (opts.confirmMsg && !confirm(opts.confirmMsg)) { return; }
+        if (opts.confirmOpts) {
+            cscConfirmModal(opts.confirmOpts, function () { runChunked($.extend({}, opts, { confirmOpts: null })); });
+            return;
+        }
 
         var total = 0;
         var done  = 0;
@@ -377,7 +403,12 @@ function cscOrphanToggle(el, type) {
             progressOuter: 'db-progress-outer',
             progressFill:  'db-progress-fill',
             progressLabel: 'db-progress-label',
-            confirmMsg:    'This will permanently delete the items shown in the dry run. Proceed?',
+            confirmOpts: {
+                icon: '🗑️', title: 'Run Database Cleanup',
+                warning: 'Selected items will be permanently deleted from the database.',
+                body: '<p>Items identified in the dry run will be removed based on your toggle selections — revisions, transients, spam comments, and other selected data.</p><p>This action <strong>cannot be undone</strong>.</p>',
+                cancelLabel: 'Cancel', confirmLabel: 'Run Cleanup', confirmClass: 'csc-btn-danger',
+            },
             $btn:          $(this),
             restoreLabel:  '🗑 Run Cleanup Now',
             toggleData:    toggleData,
@@ -417,7 +448,12 @@ function cscOrphanToggle(el, type) {
             progressOuter: 'autoload-progress-outer',
             progressFill:  'autoload-progress-fill',
             progressLabel: 'autoload-progress-label',
-            confirmMsg:    'This will delete expired transients and disable autoloading for transient rows. Proceed?',
+            confirmOpts: {
+                icon: '⚡', title: 'Clean Autoloaded Data',
+                warning: 'Expired transients will be deleted and autoloading disabled for oversized rows.',
+                body: '<p>This removes expired transient rows and sets <code>autoload = \'no\'</code> on oversized transient records in <code>wp_options</code>.</p><p>This action <strong>cannot be undone</strong>.</p>',
+                cancelLabel: 'Cancel', confirmLabel: 'Clean Now', confirmClass: 'csc-btn-danger',
+            },
             $btn:          $(this),
             restoreLabel:  '⚡ Clean Autoload Now',
             onFinish: function (resp) {
@@ -524,7 +560,7 @@ function cscOrphanToggle(el, type) {
     $('#btn-run-orphans').on('click', function () {
         var selected = [];
         $('.orphan-chk:checked').each(function () { selected.push($(this).data('name')); });
-        if (!selected.length) { alert('No options selected.'); return; }
+        if (!selected.length) { cscShowModal('Nothing Selected', 'Please check at least one option row before moving to the recycle bin.'); return; }
 
         var $btn = $(this).prop('disabled', true).html('⏳ Moving…');
         $.post(CSC.ajax_url, { action: 'csc_orphan_delete', nonce: CSC.nonce, options: selected }, function (resp) {
@@ -536,28 +572,35 @@ function cscOrphanToggle(el, type) {
                 if (!$('.orphan-chk').length) { $btn.hide(); }
                 orphanUpdateBinBar(resp.data.bin_count, resp.data.batch);
             } else {
-                alert('Failed: ' + (resp.data || 'unknown error'));
+                cscShowModal('Move Failed', 'Could not move the selected options to the recycle bin: ' + (resp.data || 'unknown error'));
             }
         }).fail(function () {
             $btn.prop('disabled', false).html('♻️ Move to Recycle Bin');
-            alert('Request failed.');
+            cscShowModal('Network Error', 'The request failed. Please check your connection and try again.');
         });
     });
 
     // Restore All
     $(document).on('click', '#btn-orphan-undo', function () {
         var count = parseInt($('#orphan-bin-count').text(), 10) || 0;
-        if (!confirm('Restore all ' + count + ' item' + (count === 1 ? '' : 's') + ' back to wp_options?')) { return; }
-        var $btn = $(this).prop('disabled', true).html('⏳ Restoring…');
-        $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('↩ Restore All');
-            if (resp.success) {
-                orphanUpdateBinBar(resp.data.bin_count, null);
-                $('#orphan-bin-list').hide().html('');
-                $('#orphan-results').prepend('<p style="color:#2e7d32;font-weight:600;margin-bottom:8px">✅ Restored ' + resp.data.restored + ' option' + (resp.data.restored === 1 ? '' : 's') + '.</p>');
-            } else {
-                alert('Restore failed: ' + (resp.data || 'unknown error'));
-            }
+        var $btn = $(this);
+        cscConfirmModal({
+            icon: '↩️', title: 'Restore Orphaned Options',
+            warning: 'All ' + count + ' recycled option row' + (count === 1 ? '' : 's') + ' will be moved back to wp_options.',
+            body: '<p>These rows will be restored to the active <code>wp_options</code> table and removed from the recycle bin. The site will use these options again immediately.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Restore All', confirmClass: 'csc-btn-primary',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Restoring…');
+            $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('↩ Restore All');
+                if (resp.success) {
+                    orphanUpdateBinBar(resp.data.bin_count, null);
+                    $('#orphan-bin-list').hide().html('');
+                    $('#orphan-results').prepend('<p style="color:#2e7d32;font-weight:600;margin-bottom:8px">✅ Restored ' + resp.data.restored + ' option' + (resp.data.restored === 1 ? '' : 's') + '.</p>');
+                } else {
+                    cscShowModal('Restore Failed', 'Could not restore the options: ' + (resp.data || 'unknown error'));
+                }
+            });
         });
     });
 
@@ -604,7 +647,7 @@ function cscOrphanToggle(el, type) {
                 orphanUpdateBinBar(resp.data.bin_count, null);
             } else {
                 $btn.prop('disabled', false).html('↩ Restore');
-                alert('Restore failed.');
+                cscShowModal('Restore Failed', 'Could not restore this item. Please try again or refresh the page.');
             }
         });
     });
@@ -612,16 +655,23 @@ function cscOrphanToggle(el, type) {
     // Empty bin permanently
     $(document).on('click', '#btn-orphan-empty', function () {
         var count = parseInt($('#orphan-bin-count').text(), 10) || 0;
-        if (!confirm('Permanently delete all ' + count + ' item' + (count === 1 ? '' : 's') + ' in the recycle bin? This cannot be undone.')) { return; }
-        var $btn = $(this).prop('disabled', true).html('⏳ Emptying…');
-        $.post(CSC.ajax_url, { action: 'csc_orphan_empty', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🗑 Empty Bin');
-            if (resp.success) {
-                orphanUpdateBinBar(0, null);
-                $('#orphan-bin-list').hide().html('');
-            } else {
-                alert('Failed: ' + (resp.data || 'unknown error'));
-            }
+        var $btn = $(this);
+        cscConfirmModal({
+            icon: '🗑️', title: 'Empty Options Recycle Bin',
+            warning: 'All ' + count + ' item' + (count === 1 ? '' : 's') + ' will be permanently deleted from the database.',
+            body: '<p>Recycled option rows will be permanently removed. They cannot be restored afterwards.</p><p>This action <strong>cannot be undone</strong>.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Empty Bin', confirmClass: 'csc-btn-danger',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Emptying…');
+            $.post(CSC.ajax_url, { action: 'csc_orphan_empty', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('🗑 Empty Bin');
+                if (resp.success) {
+                    orphanUpdateBinBar(0, null);
+                    $('#orphan-bin-list').hide().html('');
+                } else {
+                    cscShowModal('Empty Bin Failed', 'Could not empty the recycle bin: ' + (resp.data || 'unknown error'));
+                }
+            });
         });
     });
 
@@ -664,7 +714,12 @@ function cscOrphanToggle(el, type) {
             progressOuter: 'table-progress-outer',
             progressFill:  'table-progress-fill',
             progressLabel: 'table-progress-label',
-            confirmMsg:    'Run OPTIMIZE TABLE on all tables with significant overhead? Safe on InnoDB — no table locks on MySQL 5.6+.',
+            confirmOpts: {
+                icon: '🔧', title: 'Repair Table Overhead',
+                warning: 'OPTIMIZE TABLE will run on all tables with significant overhead.',
+                body: '<p>Safe on InnoDB — no table locks on MySQL 5.6+. This may take a few minutes on large databases.</p><p><strong>No data will be deleted.</strong></p>',
+                cancelLabel: 'Cancel', confirmLabel: 'Run Repair', confirmClass: 'csc-btn-primary',
+            },
             $btn:          $(this),
             restoreLabel:  '🔧 Repair Tables',
             onFinish: function (resp) {
@@ -760,43 +815,55 @@ function cscOrphanToggle(el, type) {
 
     // ── Media Recycle: Restore All ──
     $('#btn-restore-media').on('click', function () {
-        if ( !confirm('Restore all media from the recycle bin? This will re-create the attachment records and move files back.') ) { return; }
         var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Restoring…');
-        clearTerminal('img-terminal');
+        cscConfirmModal({
+            icon: '↩️', title: 'Restore All Media',
+            warning: 'All media in the recycle bin will be moved back to the Media Library.',
+            body: '<p>Attachment files will be moved from the recycle folder back to their original upload locations and re-added to the WordPress Media Library as attachment records.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Restore All', confirmClass: 'csc-btn-primary',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Restoring…');
+            clearTerminal('img-terminal');
 
-        $.post(CSC.ajax_url, { action: 'csc_media_restore', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('↩️ Restore All');
-            if (resp.success) {
-                appendLines('img-terminal', resp.data.lines);
-                mediaUpdateRecycleBin( resp.data.recycle );
-            } else {
-                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('↩️ Restore All');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $.post(CSC.ajax_url, { action: 'csc_media_restore', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('↩️ Restore All');
+                if (resp.success) {
+                    appendLines('img-terminal', resp.data.lines);
+                    mediaUpdateRecycleBin( resp.data.recycle );
+                } else {
+                    appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                $btn.prop('disabled', false).html('↩️ Restore All');
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            });
         });
     });
 
     // ── Media Recycle: Permanently Delete ──
     $('#btn-purge-media').on('click', function () {
-        if ( !confirm('PERMANENTLY DELETE all media in the recycle bin? This cannot be undone.') ) { return; }
         var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Deleting…');
-        clearTerminal('img-terminal');
+        cscConfirmModal({
+            icon: '🗑️', title: 'Permanently Delete All Media',
+            warning: 'All media in the recycle bin will be permanently deleted from disk.',
+            body: '<p>All attachment files and their database records will be removed permanently. Cloud copies (S3, Google Drive, Dropbox) are <strong>not affected</strong>.</p><p>This action <strong>cannot be undone</strong>.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Delete All', confirmClass: 'csc-btn-danger',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Deleting…');
+            clearTerminal('img-terminal');
 
-        $.post(CSC.ajax_url, { action: 'csc_media_purge', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🗑 Permanently Delete');
-            if (resp.success) {
-                appendLines('img-terminal', resp.data.lines);
-                mediaUpdateRecycleBin( resp.data.recycle );
-            } else {
-                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('🗑 Permanently Delete');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $.post(CSC.ajax_url, { action: 'csc_media_purge', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('🗑 Permanently Delete');
+                if (resp.success) {
+                    appendLines('img-terminal', resp.data.lines);
+                    mediaUpdateRecycleBin( resp.data.recycle );
+                } else {
+                    appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                $btn.prop('disabled', false).html('🗑 Permanently Delete');
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            });
         });
     });
 
@@ -833,9 +900,9 @@ function cscOrphanToggle(el, type) {
                             mediaUpdateRecycleBin( res.data.remaining );
                         } else {
                             $b.prop('disabled', false).text('↩️ Restore');
-                            alert('Restore failed: ' + (res.data || 'Unknown error'));
+                            cscShowModal('Restore Failed', 'Could not restore this attachment: ' + (res.data || 'Unknown error'));
                         }
-                    }).fail(function () { $b.prop('disabled', false).text('↩️ Restore'); alert('Network error.'); });
+                    }).fail(function () { $b.prop('disabled', false).text('↩️ Restore'); cscShowModal('Network Error', 'The request failed. Please check your connection and try again.'); });
                 });
 
                 $list.append($row);
@@ -893,64 +960,82 @@ function cscOrphanToggle(el, type) {
             cscShowModal('No File Types Selected', 'Please select at least one file type (Images, Documents, Video, or Audio) before moving files to recycle.');
             return;
         }
-        if ( !confirm('Move all orphaned files to the recycle bin? You can restore or permanently delete them afterwards.') ) { return; }
         var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Moving…');
-        clearTerminal('img-terminal');
+        cscConfirmModal({
+            icon: '♻️', title: 'Move Orphaned Files to Recycle',
+            warning: 'All scanned orphaned files will be moved to the recycle bin.',
+            body: '<p>Files are <strong>moved, not deleted</strong> — they are placed in a protected recycle folder on disk. You can restore or permanently delete them afterwards.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Move to Recycle', confirmClass: 'csc-btn-primary',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Moving…');
+            clearTerminal('img-terminal');
 
-        $.post(CSC.ajax_url, { action: 'csc_recycle_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
-            $btn.prop('disabled', false).html('♻️ Move to Recycle');
-            if (resp.success) {
-                appendLines('img-terminal', resp.data.lines);
-                orphanUpdateRecycleBin( resp.data.recycle );
-            } else {
-                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('♻️ Move to Recycle');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $.post(CSC.ajax_url, { action: 'csc_recycle_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
+                $btn.prop('disabled', false).html('♻️ Move to Recycle');
+                if (resp.success) {
+                    appendLines('img-terminal', resp.data.lines);
+                    orphanUpdateRecycleBin( resp.data.recycle );
+                } else {
+                    appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                $btn.prop('disabled', false).html('♻️ Move to Recycle');
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            });
         });
     });
 
     // Restore
     $('#btn-restore-orphan').on('click', function () {
-        if ( !confirm('Restore all files from the recycle bin to their original locations?') ) { return; }
         var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Restoring…');
-        clearTerminal('img-terminal');
+        cscConfirmModal({
+            icon: '↩️', title: 'Restore All Orphan Files',
+            warning: 'All files in the recycle bin will be restored to their original locations.',
+            body: '<p>Files will be moved back from the recycle folder to where they were originally found on disk.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Restore All', confirmClass: 'csc-btn-primary',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Restoring…');
+            clearTerminal('img-terminal');
 
-        $.post(CSC.ajax_url, { action: 'csc_restore_orphan_files', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('↩️ Restore All');
-            if (resp.success) {
-                appendLines('img-terminal', resp.data.lines);
-                orphanUpdateRecycleBin( resp.data.recycle );
-            } else {
-                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('↩️ Restore All');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $.post(CSC.ajax_url, { action: 'csc_restore_orphan_files', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('↩️ Restore All');
+                if (resp.success) {
+                    appendLines('img-terminal', resp.data.lines);
+                    orphanUpdateRecycleBin( resp.data.recycle );
+                } else {
+                    appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                $btn.prop('disabled', false).html('↩️ Restore All');
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            });
         });
     });
 
     // Permanently delete
     $('#btn-purge-orphan').on('click', function () {
-        if ( !confirm('PERMANENTLY DELETE all files in the recycle bin? This cannot be undone.') ) { return; }
         var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Deleting…');
-        clearTerminal('img-terminal');
+        cscConfirmModal({
+            icon: '🗑️', title: 'Permanently Delete All Orphan Files',
+            warning: 'All files in the recycle bin will be permanently deleted from disk.',
+            body: '<p>All orphaned files will be removed from the server permanently.</p><p>This action <strong>cannot be undone</strong>.</p>',
+            cancelLabel: 'Cancel', confirmLabel: 'Delete All', confirmClass: 'csc-btn-danger',
+        }, function () {
+            $btn.prop('disabled', true).html('⏳ Deleting…');
+            clearTerminal('img-terminal');
 
-        $.post(CSC.ajax_url, { action: 'csc_purge_orphan_files', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🗑 Permanently Delete');
-            if (resp.success) {
-                appendLines('img-terminal', resp.data.lines);
-                orphanUpdateRecycleBin( resp.data.recycle );
-            } else {
-                appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('🗑 Permanently Delete');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $.post(CSC.ajax_url, { action: 'csc_purge_orphan_files', nonce: CSC.nonce }, function (resp) {
+                $btn.prop('disabled', false).html('🗑 Permanently Delete');
+                if (resp.success) {
+                    appendLines('img-terminal', resp.data.lines);
+                    orphanUpdateRecycleBin( resp.data.recycle );
+                } else {
+                    appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                $btn.prop('disabled', false).html('🗑 Permanently Delete');
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            });
         });
     });
 
@@ -988,7 +1073,12 @@ function cscOrphanToggle(el, type) {
             progressOuter: 'opt-progress-outer',
             progressFill:  'opt-progress-fill',
             progressLabel: 'opt-progress-label',
-            confirmMsg:    'This will modify original image files on disk. Take a backup first. Proceed?',
+            confirmOpts: {
+                icon: '🖼️', title: 'Optimise Images',
+                warning: 'Original image files on disk will be permanently modified.',
+                body: '<p>Images will be re-compressed in place. <strong>Take a backup before proceeding.</strong></p><p>This action <strong>cannot be undone</strong>.</p>',
+                cancelLabel: 'Cancel', confirmLabel: 'Optimise Now', confirmClass: 'csc-btn-danger',
+            },
             $btn:          $(this),
             restoreLabel:  '⚡ Optimise Images Now',
             // Show running disk savings in the progress label
@@ -1183,7 +1273,7 @@ function cscOrphanToggle(el, type) {
                             $('#orphan-recycle-count').text(res.data.remaining > 0 ? res.data.remaining + ' file(s)' : 'Empty');
                         } else {
                             $b.prop('disabled', false).text('↩️ Restore').css('background', '#ef5350');
-                            alert('Restore failed: ' + ((res && res.data) || 'Unknown error'));
+                            cscShowModal('Restore Failed', 'Could not restore this file: ' + ((res && res.data) || 'Unknown error'));
                         }
                     });
                 });
@@ -1340,7 +1430,7 @@ function cscOrphanToggle(el, type) {
         $.each(fileList, function (i, f) {
             if (f.type !== 'image/png') {
                 cspjDbg('WARN', 'Rejected non PNG: <span class="cspj-log-err">' + esc(f.name) + '</span>');
-                alert(f.name + ' is not a PNG file and was skipped.');
+                cscShowModal('File Skipped', f.name + ' is not a PNG file and was skipped. Only PNG files can be converted to WebP.');
                 return;
             }
             var id = 'cspj-' + Date.now() + '-' + i;
@@ -1390,12 +1480,12 @@ function cscOrphanToggle(el, type) {
     // Convert all
     $('#cspj-convert-all').on('click', function () {
         if (!CSC.ajax_url || !CSC.nonce) {
-            alert('Configuration error: AJAX URL or security nonce is not set. This usually means the plugin assets are not loading correctly. Please deactivate and reactivate the plugin, clear your browser cache, and ensure the plugin folder is named "cloudscale-cleanup" with no nested subfolders.');
+            cscShowModal('Configuration Error', 'The AJAX URL or security nonce is missing. This usually means the plugin assets are not loading correctly. Please deactivate and reactivate the plugin, clear your browser cache, and ensure the plugin folder is named "cloudscale-cleanup" with no nested subfolders.');
             cspjDbg('ERROR', '<span class="cspj-log-err">Cannot start: CSC.ajax_url=' + (CSC.ajax_url || 'EMPTY') + ' CSC.nonce=' + (CSC.nonce || 'EMPTY') + '</span>');
             return;
         }
         var pending = cspjFiles.filter(function (f) { return f.status === 'pending'; });
-        if (!pending.length) { alert('No pending files to convert.'); return; }
+        if (!pending.length) { cscShowModal('Nothing to Convert', 'There are no pending PNG files to convert. Drop PNG files into the upload area first.'); return; }
         cspjDbg('INFO', 'Starting batch: <span class="cspj-log-val">' + pending.length + ' file(s)</span>');
         $('#cspj-results').show();
         cspjConvertNext(pending, 0);
@@ -1915,6 +2005,351 @@ function cscOrphanToggle(el, type) {
             setTimeout(function() { $btn.html('&#128203; Copy'); }, 2000);
         });
     });
+
+    // ── Cron Management ────────────────────────────────────────────────────────
+
+    var ROW_COLORS = [
+        '#2196F3','#4CAF50','#FF9800','#9C27B0','#F44336',
+        '#00BCD4','#795548','#607D8B','#E91E63','#009688',
+        '#3F51B5','#8BC34A','#FF5722','#FFC107','#673AB7'
+    ];
+
+    /**
+     * Render the 24-hour cron timeline onto the canvas.
+     * @param {Array}  events     - event objects from AJAX response
+     * @param {number} serverTime - Unix timestamp for "now"
+     * @param {Array}  congestion - congestion bucket objects
+     */
+    function cscRenderCronTimeline(events, serverTime, congestion) {
+        var canvas = document.getElementById('csc-cron-timeline');
+        if (!canvas || !canvas.getContext) { return; }
+
+        // Filter to events that actually fire in the next 24h
+        var visible = events.filter(function(e) { return e.occurrences && e.occurrences.length > 0; });
+        if (visible.length === 0) {
+            canvas.style.display = 'none';
+            return;
+        }
+        canvas.style.display = 'block';
+
+        var dpr       = window.devicePixelRatio || 1;
+        var LABEL_W   = 210;
+        var HEADER_H  = 30;
+        var ROW_H     = 26;
+        var FOOT_H    = 4;
+        var cssW      = canvas.parentElement.clientWidth || 700;
+        var cssH      = HEADER_H + visible.length * ROW_H + FOOT_H;
+
+        canvas.width  = cssW * dpr;
+        canvas.height = cssH * dpr;
+        canvas.style.width  = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+
+        var ctx   = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        var chartW    = cssW - LABEL_W;
+        var nowTs     = serverTime;
+        var windowSec = 86400; // 24h in seconds
+
+        // Background
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, cssW, cssH);
+
+        // Congestion zone highlights
+        congestion.forEach(function(zone) {
+            var x = LABEL_W + (zone.offset_seconds / windowSec) * chartW;
+            var w = Math.max((300 / windowSec) * chartW, 4);
+            ctx.fillStyle = 'rgba(220, 53, 69, 0.13)';
+            ctx.fillRect(x - w * 0.5, HEADER_H, w * 2, cssH - HEADER_H);
+        });
+
+        // Hour grid lines + header labels
+        ctx.textBaseline = 'middle';
+        for (var h = 0; h <= 24; h++) {
+            var gx = LABEL_W + (h / 24) * chartW;
+            ctx.strokeStyle = h === 0 ? '#ccc' : '#ebebeb';
+            ctx.lineWidth   = h === 0 ? 1.5 : 1;
+            ctx.beginPath();
+            ctx.moveTo(gx, HEADER_H - 6);
+            ctx.lineTo(gx, cssH);
+            ctx.stroke();
+
+            ctx.fillStyle  = '#888';
+            ctx.font       = '10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+            ctx.textAlign  = 'center';
+            var lbl = h === 0 ? 'Now' : ('+' + h + 'h');
+            ctx.fillText(lbl, gx, HEADER_H / 2);
+        }
+
+        // Separator line below header
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth   = 1;
+        ctx.beginPath();
+        ctx.moveTo(LABEL_W, HEADER_H - 0.5);
+        ctx.lineTo(cssW, HEADER_H - 0.5);
+        ctx.stroke();
+
+        // Rows
+        visible.forEach(function(ev, i) {
+            var rowY  = HEADER_H + i * ROW_H;
+            var midY  = rowY + ROW_H / 2;
+            var color = ROW_COLORS[i % ROW_COLORS.length];
+
+            // Alternating row bg
+            if (i % 2 === 0) {
+                ctx.fillStyle = 'rgba(0,0,0,0.025)';
+                ctx.fillRect(0, rowY, cssW, ROW_H);
+            }
+
+            // Label — truncate to fit
+            ctx.fillStyle  = '#1d2327';
+            ctx.font       = '11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+            ctx.textAlign  = 'left';
+            ctx.textBaseline = 'middle';
+            var maxLabelPx = LABEL_W - 10;
+            var labelText  = ev.hook;
+            // Truncate until it fits
+            while (ctx.measureText(labelText).width > maxLabelPx && labelText.length > 4) {
+                labelText = labelText.slice(0, -4) + '\u2026';
+            }
+            ctx.fillText(labelText, 6, midY);
+
+            // Dashed connecting line between first and last dot
+            var occs = ev.occurrences;
+            if (occs.length > 1) {
+                var x0 = LABEL_W + ((occs[0] - nowTs) / windowSec) * chartW;
+                var x1 = LABEL_W + ((occs[occs.length - 1] - nowTs) / windowSec) * chartW;
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.3;
+                ctx.lineWidth   = 1;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(x0, midY);
+                ctx.lineTo(x1, midY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.globalAlpha = 1;
+            }
+
+            // Occurrence dots
+            occs.forEach(function(t) {
+                var dx = LABEL_W + ((t - nowTs) / windowSec) * chartW;
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.9;
+                ctx.beginPath();
+                ctx.arc(dx, midY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Row border
+            ctx.strokeStyle = '#f0f0f0';
+            ctx.lineWidth   = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, rowY + ROW_H);
+            ctx.lineTo(cssW, rowY + ROW_H);
+            ctx.stroke();
+        });
+    }
+
+    /**
+     * Format a Unix timestamp as a human-readable relative or absolute string.
+     */
+    function cscFmtCronTime(ts, now) {
+        var diff = ts - now;
+        if (diff < 0) {
+            var ago = Math.abs(diff);
+            if (ago < 3600)  { return Math.round(ago / 60) + ' min overdue'; }
+            if (ago < 86400) { return Math.round(ago / 3600) + 'h overdue'; }
+            return Math.round(ago / 86400) + 'd overdue';
+        }
+        if (diff < 60)    { return 'In < 1 min'; }
+        if (diff < 3600)  { return 'In ' + Math.round(diff / 60) + ' min'; }
+        if (diff < 86400) { return 'In ' + Math.round(diff / 3600) + 'h'; }
+        return 'In ' + Math.round(diff / 86400) + 'd';
+    }
+
+    /**
+     * Populate the events table from the AJAX response.
+     */
+    function cscRenderCronTable(events, now) {
+        var $tbody = $('#csc-cron-events-body');
+        if (!events || events.length === 0) {
+            $tbody.html('<tr><td colspan="4" style="text-align:center;padding:12px;color:#666">No scheduled events found.</td></tr>');
+            return;
+        }
+        var rows = events.map(function(ev) {
+            var overdueCls = ev.overdue ? ' csc-cron-row-overdue' : '';
+            var statusHtml = ev.overdue
+                ? '<span class="csc-cron-badge csc-cron-badge-red">Overdue</span>'
+                : '<span class="csc-cron-badge csc-cron-badge-green">OK</span>';
+            var timeHtml = cscFmtCronTime(ev.next_run, now);
+            return '<tr class="' + overdueCls + '">'
+                + '<td class="csc-cron-hook-cell">' + $('<span>').text(ev.hook).html() + '</td>'
+                + '<td>' + $('<span>').text(ev.schedule).html() + '</td>'
+                + '<td>' + timeHtml + '</td>'
+                + '<td>' + statusHtml + '</td>'
+                + '</tr>';
+        });
+        $tbody.html(rows.join(''));
+    }
+
+    /**
+     * Render the WP-Cron health banner.
+     */
+    function cscRenderCronHealth(data) {
+        var $banner = $('#csc-cron-health-banner');
+        var disabled    = data.wp_cron_disabled;
+        var overdue     = data.overdue_count || 0;
+        var congested   = data.congestion && data.congestion.length > 0;
+
+        var icon, cls, msg;
+        if (disabled) {
+            icon = '&#9989;'; cls = 'csc-cron-health-ok';
+            msg = 'DISABLE_WP_CRON is set — pseudo-cron is off. Ensure a real server cron is running.';
+        } else if (overdue > 3 || congested) {
+            icon = '&#9888;'; cls = 'csc-cron-health-warn';
+            var parts = [];
+            if (overdue > 0) { parts.push(overdue + ' overdue event' + (overdue > 1 ? 's' : '')); }
+            if (congested)   { parts.push(data.congestion.length + ' congestion zone' + (data.congestion.length > 1 ? 's' : '')); }
+            msg = 'WP-Cron is running (pseudo-cron). Issues detected: ' + parts.join(', ') + '.';
+        } else {
+            icon = '&#9989;'; cls = 'csc-cron-health-ok';
+            msg  = 'WP-Cron is running (pseudo-cron). ' + (overdue === 0 ? 'No overdue events.' : overdue + ' overdue event(s).');
+        }
+
+        $banner
+            .removeClass('csc-cron-health-loading csc-cron-health-ok csc-cron-health-warn csc-cron-health-error')
+            .addClass(cls)
+            .html('<span class="csc-cron-health-icon">' + icon + '</span><span>' + msg + '</span>');
+    }
+
+    /**
+     * Render the congestion warning box.
+     */
+    function cscRenderCongestion(congestion, now) {
+        var $warn = $('#csc-cron-congestion-warn');
+        if (!congestion || congestion.length === 0) {
+            $warn.hide();
+            return;
+        }
+        var lines = congestion.map(function(zone) {
+            var offsetMin = Math.round(zone.offset_seconds / 60);
+            var timeLabel = offsetMin < 1 ? 'now' : 'in ~' + offsetMin + ' min';
+            var hooks = zone.hooks.slice(0, 4).join(', ') + (zone.hooks.length > 4 ? ', ...' : '');
+            return '<li><strong>' + zone.count + ' jobs</strong> firing ' + timeLabel + ': ' + hooks + '</li>';
+        });
+        $warn.html(
+            '<strong>&#9888; Cron Congestion Detected</strong> — multiple jobs firing in the same 5-minute window may cause CPU spikes and slow page responses.' +
+            '<ul style="margin:6px 0 0 16px;padding:0">' + lines.join('') + '</ul>'
+        ).show();
+    }
+
+    /** Load cron status from the server and render all components. */
+    function cscLoadCronStatus() {
+        $('#csc-cron-health-banner')
+            .removeClass('csc-cron-health-ok csc-cron-health-warn csc-cron-health-error')
+            .addClass('csc-cron-health-loading')
+            .html('<span class="csc-cron-spinner"></span> Loading cron status&hellip;');
+        $('#csc-cron-events-body').html('<tr><td colspan="4" style="text-align:center;padding:12px;color:#666">Loading&hellip;</td></tr>');
+
+        $.post(CSC.ajax_url, { action: 'csc_cron_status', nonce: CSC.nonce }, function(resp) {
+            if (!resp.success) {
+                $('#csc-cron-health-banner').addClass('csc-cron-health-error').html('&#10060; Failed to load cron data.');
+                return;
+            }
+            var d = resp.data;
+            cscRenderCronHealth(d);
+            cscRenderCronTable(d.events, d.server_time);
+            cscRenderCongestion(d.congestion, d.server_time);
+            // Slight delay to ensure the card is visible and has rendered width
+            setTimeout(function() {
+                cscRenderCronTimeline(d.events, d.server_time, d.congestion);
+            }, 50);
+        }).fail(function() {
+            $('#csc-cron-health-banner').addClass('csc-cron-health-error').html('&#10060; Network error loading cron data.');
+        });
+    }
+
+    // Load when Settings tab is shown
+    var cronLoaded = false;
+    $(document).on('click', '.csc-tab[data-tab="settings"]', function() {
+        if (!cronLoaded) { cscLoadCronStatus(); cronLoaded = true; }
+    });
+    // Also load if Settings is the active tab on page load
+    if ($('.csc-tab[data-tab="settings"]').hasClass('csc-tab-active') ||
+        window.location.search.indexOf('tab=settings') !== -1) {
+        cscLoadCronStatus(); cronLoaded = true;
+    }
+
+    // Refresh button
+    $('#btn-cron-refresh').on('click', function() {
+        cronLoaded = false;
+        cscLoadCronStatus();
+        cronLoaded = true;
+    });
+
+    // Copy crontab command
+    $('#btn-copy-cron-cmd').on('click', function() {
+        var $btn = $(this);
+        var raw  = $('#csc-cron-cmd').text();
+        navigator.clipboard.writeText(raw).then(function() {
+            $btn.html('&#10003; Copied!');
+            setTimeout(function() { $btn.html('Copy'); }, 2000);
+        }).catch(function() {
+            $btn.html('&#10007; Failed');
+            setTimeout(function() { $btn.html('Copy'); }, 2000);
+        });
+    });
+
+    // Re-render timeline on window resize
+    var cronResizeTimer;
+    $(window).on('resize', function() {
+        clearTimeout(cronResizeTimer);
+        cronResizeTimer = setTimeout(function() {
+            if (!cronLoaded) { return; }
+            $.post(CSC.ajax_url, { action: 'csc_cron_status', nonce: CSC.nonce }, function(resp) {
+                if (resp.success) {
+                    cscRenderCronTimeline(resp.data.events, resp.data.server_time, resp.data.congestion);
+                }
+            });
+        }, 250);
+    });
+
+    // Manual trigger buttons
+    $(document).on('click', '#btn-cron-run-db, #btn-cron-run-img', function() {
+        var $btn  = $(this);
+        var hook  = $btn.data('hook');
+        var $res  = $('#csc-cron-run-result');
+        $btn.prop('disabled', true).prepend('&#9203; ');
+        $res.hide();
+
+        $.post(CSC.ajax_url, { action: 'csc_cron_run_now', nonce: CSC.nonce, hook: hook }, function(resp) {
+            $btn.prop('disabled', false).find('span').remove();
+            // Restore button text
+            $btn.html($btn.data('hook') === 'csc_scheduled_db_cleanup'
+                ? '&#9654; Run DB Cleanup Now'
+                : '&#9654; Run Media Cleanup Now');
+            if (resp.success) {
+                $res.css({ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534' })
+                    .html('&#10003; Hook <code>' + hook + '</code> fired successfully.')
+                    .show();
+            } else {
+                $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                    .html('&#10007; ' + (resp.data || 'Failed to run hook.'))
+                    .show();
+            }
+            setTimeout(function() { $res.hide(); }, 5000);
+        }).fail(function() {
+            $btn.prop('disabled', false);
+            $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                .html('&#10007; Network error.').show();
+            setTimeout(function() { $res.hide(); }, 4000);
+        });
+    });
+
+    // ── End Cron Management ────────────────────────────────────────────────────
 
     }); // document.ready
 
