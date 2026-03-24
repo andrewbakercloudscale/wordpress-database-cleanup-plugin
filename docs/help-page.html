@@ -39,17 +39,54 @@
 
 <div class="cs-toc">
 <div class="cs-toc-title">Contents</div>
-<ol><li><a href="#db-cleanup">Database Cleanup</a></li>
+<ol><li><a href="#site-health">Site Health</a></li>
+<li><a href="#db-cleanup">Database Cleanup</a></li>
 <li><a href="#img-cleanup">Media Library Cleanup</a></li>
-<li><a href="#img-optimise">Image Optimisation</a></li></ol>
+<li><a href="#img-optimise">Image Optimisation</a></li>
+<li><a href="#png-to-jpeg">PNG to JPEG Converter</a></li>
+<li><a href="#settings">Settings</a></li></ol>
 </div>
 
 <hr class="cs-divider"/>
 
 
 <div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="site-health">Site Health</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-site-health-1.jpg" alt="Site Health" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Site Health</strong> tab is a live dashboard showing disk storage growth, CPU usage, and memory usage — collected automatically in the background and displayed as a RAG (Red/Amber/Green) status indicator.</p>
+<p><strong>Metric groups:</strong></p>
+<ul>
+<li><strong>Disk Storage</strong> — shows <code>wp-content</code> disk usage, free disk space, total disk capacity, database size, weekly growth rate, and an estimated time to storage full. The growth rate is calculated from up to 3 months of weekly snapshots. The estimate is colour-coded: green = 6+ months remaining, amber = 3–6 months, red = under 3 months.</li>
+<li><strong>CPU</strong> — shows current CPU usage percentage, peak over the last 24 hours, and peak over the last 7 days.</li>
+<li><strong>Memory</strong> — shows current memory usage percentage, peak over the last 24 hours, and peak over the last 7 days.</li>
+</ul>
+<p>Metrics are collected automatically via WordPress Cron: an hourly job records CPU and memory peaks; a weekly job records disk snapshots. All data is stored in <code>wp_options</code> with <code>autoload</code> disabled. Records older than 6 months (180 days) are automatically purged.</p>
+<p><strong>Buttons:</strong></p>
+<ul>
+<li><strong>Refresh</strong> — reloads the dashboard from stored data without running a new collection.</li>
+<li><strong>Collect Metrics Now</strong> — immediately runs both the hourly and weekly collection jobs. Useful on a fresh install to seed initial readings rather than waiting for the first cron execution.</li>
+<li><strong>Test Sysstat</strong> — checks whether the <code>sar</code> command from the <code>sysstat</code> package is accessible and returning data.</li>
+</ul>
+<h3>sysstat (sar) for accurate CPU and memory peaks</h3>
+<p>Without <code>sysstat</code>, the plugin falls back to instantaneous snapshots of CPU load average and <code>/proc/meminfo</code>. On a lightly loaded server these snapshots often read 0% because they only capture the moment the cron job runs. <code>sysstat</code> samples the system every 10 minutes continuously so the plugin can query the actual per-minute peaks for the past hour.</p>
+<p>Install and enable on Amazon Linux / RHEL:</p>
+<pre><code>sudo yum install sysstat -y
+sudo systemctl enable sysstat &amp;&amp; sudo systemctl start sysstat
+sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start sysstat-collect.timer</code></pre>
+<p>Install and enable on Ubuntu / Debian:</p>
+<pre><code>sudo apt install sysstat -y
+sudo systemctl enable sysstat &amp;&amp; sudo systemctl start sysstat
+sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start sysstat-collect.timer</code></pre>
+<p>Verify data is being collected:</p>
+<pre><code>LC_ALL=C /usr/bin/sar -u 2&gt;&amp;1 | tail -5</code></pre>
+<p>You should see CPU usage lines with timestamps. If you only see a header with no data rows, <code>sysstat-collect.timer</code> is not running. On Amazon Linux 2023, enabling <code>sysstat</code> alone is not sufficient — you must also enable <code>sysstat-collect.timer</code> separately. Use the <strong>Test Sysstat</strong> button in the plugin to confirm it is working.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="db-cleanup">Database Cleanup</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-db-cleanup-5.jpg" alt="Database Cleanup" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-db-cleanup-1.jpg" alt="Database Cleanup" /></figure>
 <div class="cs-panel-body">
 <div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
 <h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Cleanup?</h2>
@@ -58,53 +95,165 @@
 <p style="margin:0 0 10px;">Every operation has a <strong>dry-run preview mode</strong>: you see exactly what will be deleted before anything is removed. Cleanup runs in chunks to avoid timeouts on shared hosting. Your data is never sent anywhere.</p>
 <p style="margin:0;"><strong>Completely free.</strong> No premium tier, no upgrade prompts, source code on GitHub.</p>
 </div>
-<p>The <strong>Database Cleanup</strong> tab removes accumulated junk from your WordPress database that slows down queries and inflates backup sizes. On a WordPress site with 3–5 years of content and active editing, these items routinely account for 30–70% of total database size.</p>
+<p>The <strong>Database Cleanup</strong> tab has four distinct panels, each targeting a different category of database bloat.</p>
+<h3>Main Cleanup</h3>
+<p>Removes accumulated junk from your WordPress database that slows down queries and inflates backup sizes. On a WordPress site with 3–5 years of content and active editing, these items routinely account for 30–70% of total database size.</p>
 <p><strong>Always run Dry Run first</strong> — it shows exactly what will be deleted and how many rows are affected, without making any changes. Processing is done in configurable chunks (default: 500 rows per batch) using a timed loop that checks elapsed time before each chunk to avoid PHP <code>max_execution_time</code> errors.</p>
 <p><strong>Items cleaned and the tables affected:</strong></p>
 <ul>
-<li><strong>Post revisions</strong> — rows in <code>wp_posts</code> where <code>post_type = 'revision'</code>, plus their associated rows in <code>wp_postmeta</code>. WordPress saves a revision on every manual save and autosave. A single post edited 50 times generates 50 revision rows. Cleaned with a single <code>DELETE FROM wp_posts WHERE post_type = 'revision'</code> followed by an orphaned postmeta sweep.</li>
-<li><strong>Auto-drafts</strong> — <code>wp_posts</code> rows where <code>post_status = 'auto-draft'</code>. Created by the Gutenberg editor each time you open a new post. Accumulate invisibly in the database.</li>
+<li><strong>Post revisions</strong> — rows in <code>wp_posts</code> where <code>post_type = 'revision'</code>, plus their associated rows in <code>wp_postmeta</code>. WordPress saves a revision on every manual save and autosave. A single post edited 50 times generates 50 revision rows.</li>
+<li><strong>Draft posts</strong> — posts saved as drafts but never published. A configurable age threshold controls how old a draft must be before deletion — fresh drafts are never touched.</li>
 <li><strong>Trashed content</strong> — posts, pages, and custom post types in <code>post_status = 'trash'</code>. Comments in <code>comment_approved = 'trash'</code>. WordPress does not auto-purge trash on a schedule unless you configure it.</li>
+<li><strong>Auto-drafts</strong> — <code>wp_posts</code> rows where <code>post_status = 'auto-draft'</code>. Created by the Gutenberg editor each time you open a new post. Accumulate invisibly in the database.</li>
 <li><strong>Spam comments</strong> — <code>wp_comments</code> rows where <code>comment_approved = 'spam'</code>. High-traffic sites accumulate tens of thousands of these.</li>
-<li><strong>Orphaned post meta</strong> — rows in <code>wp_postmeta</code> where the <code>post_id</code> no longer exists in <code>wp_posts</code>. Generated when posts are force-deleted without a corresponding meta cleanup. Identified with: <code>SELECT pm.* FROM wp_postmeta pm LEFT JOIN wp_posts p ON pm.post_id = p.ID WHERE p.ID IS NULL</code>.</li>
 <li><strong>Expired transients</strong> — <code>wp_options</code> rows where <code>option_name</code> matches <code>_transient_%</code> or <code>_transient_timeout_%</code> and the timeout value is in the past. On sites using a persistent object cache (Redis, Memcached), transients are stored there instead — this cleanup is a no-op in that case.</li>
-</ul></div>
+<li><strong>Orphaned post meta</strong> — rows in <code>wp_postmeta</code> where the <code>post_id</code> no longer exists in <code>wp_posts</code>. Generated when posts are force-deleted without a corresponding meta cleanup.</li>
+<li><strong>Orphaned user meta</strong> — rows in <code>wp_usermeta</code> where the <code>user_id</code> no longer exists in <code>wp_users</code>. Accumulates when users are deleted from the system.</li>
+</ul>
+<p>Each item type has a toggle so you can include or exclude it from every cleanup run. Output is shown in the <strong>Database Console</strong> at the bottom of the tab — a dark terminal that logs every step of the cleanup run, including row counts for each item type processed. Use <strong>Copy</strong> to export the full log.</p>
+<h3>Autoloaded Options</h3>
+<p>WordPress loads every row in <code>wp_options</code> marked <code>autoload=yes</code> on <strong>every page request</strong> — even on pages that never use those values. Plugins and themes add rows here for caching and configuration but often forget to clean up expired or stale entries. On a site with many installed plugins, autoloaded data can reach 500 KB–2 MB, adding measurable overhead to every request.</p>
+<p>The Autoloaded Options panel shows the current autoload size with a RAG (Red/Amber/Green) badge: green = healthy, amber = elevated, red = excessive. The panel also shows the top rows consuming the most autoload space.</p>
+<p><strong>What the cleanup does:</strong></p>
+<ul>
+<li><strong>Deletes expired transients</strong> — any transient rows whose timeout has already passed (same as the main cleanup, but scoped to autoloaded rows).</li>
+<li><strong>Disables autoload on remaining transients</strong> — transient rows that have not yet expired do not need to be autoloaded. WordPress fetches them on demand when a plugin requests them. Setting <code>autoload=no</code> removes them from the per-request payload without deleting any data.</li>
+</ul>
+<p>This cleanup is non-destructive — no valid plugin data is removed. Only expired transients are deleted; all other options are left in place with only their autoload flag changed. Run <strong>Dry Run — Preview</strong> first to see the current size breakdown before applying the cleanup.</p>
+<h3>Orphaned Plugin Options</h3>
+<p>When a plugin is deleted without a proper uninstall routine, its configuration rows remain in <code>wp_options</code> forever — including autoloaded rows that bloat every page request. WordPress never removes these automatically.</p>
+<p>The Orphaned Plugin Options panel scans <code>wp_options</code> using heuristic prefix matching against a list of known plugin slugs. Rows whose option name prefix matches a plugin slug that is no longer installed are flagged as orphans. Results are shown as a checklist — rows matched by a known plugin prefix are pre-selected; unknown prefixes are unchecked for manual review.</p>
+<p><strong>Always review results carefully before deleting.</strong> Detection is heuristic — some plugins use option names that do not obviously match their slug. Uncheck any row you are unsure about; deleting a live option can break a plugin. The plugin uses a <strong>recycle bin</strong> for safety:</p>
+<ul>
+<li><strong>Scan for Orphans</strong> — runs the detection scan and displays the checklist. No changes are made at this stage.</li>
+<li><strong>Move to Recycle Bin</strong> — moves selected rows to the recycle bin (stored in a separate <code>wp_options</code> key). The original values are preserved and can be fully restored.</li>
+<li><strong>View</strong> — shows all items currently in the recycle bin with their option names and values.</li>
+<li><strong>Restore All</strong> — moves all recycled options back to their original <code>wp_options</code> rows.</li>
+<li><strong>Empty Bin</strong> — permanently deletes all recycled option rows. This cannot be undone.</li>
+</ul>
+<h3>Table Overhead Repair</h3>
+<p>Every time WordPress deletes rows — revisions, transients, spam comments, trashed posts — MySQL/InnoDB marks that space as free but does not immediately return it to the filesystem. Over time, tables accumulate fragmentation gaps that waste disk space and slow down full-table scans.</p>
+<p><code>OPTIMIZE TABLE</code> rewrites the table compactly, physically reclaiming the free space. On InnoDB (the default MySQL storage engine for WordPress), this runs online on MySQL 5.6+ — no table locks, no downtime.</p>
+<p>The panel shows current total overhead across all tables with a RAG badge (green = negligible, amber = moderate, red = significant). Run <strong>Dry Run — Preview</strong> to see a per-table breakdown of overhead sizes before repairing. Run <strong>Repair Tables</strong> to apply <code>OPTIMIZE TABLE</code> to all tables with overhead above the minimum threshold.</p>
+<h3>Scheduled Database Cleanup</h3>
+<p>When enabled, the plugin registers a WordPress Cron job that automatically runs the full database cleanup on the selected days at the configured hour — without you having to log in manually.</p>
+<ul>
+<li><strong>Day selection</strong> — choose one or more days per week. Default: Monday, Wednesday, Friday.</li>
+<li><strong>Hour</strong> — enter the hour in server local time (0–23). Most VPS hosts default to UTC.</li>
+<li><strong>Auto-reschedule</strong> — after each run the plugin automatically registers the next execution, so the schedule stays active indefinitely.</li>
+</ul>
+<p><strong>WordPress Cron note:</strong> WordPress Cron is triggered by page visits, not a real system clock. On low-traffic sites a job scheduled for 3 AM may not run until the first visitor arrives after that time. For precise scheduling, disable WP-Cron in <code>wp-config.php</code> and add a real server cron that calls <code>wp-cron.php</code> directly. The <strong>Settings</strong> tab shows the next scheduled run time.</p></div>
 </div>
 <hr class="cs-divider"/>
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="img-cleanup">Media Library Cleanup</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-cleanup-5.jpg" alt="Media Library Cleanup" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-cleanup-1.jpg" alt="Media Library Cleanup" /></figure>
 <div class="cs-panel-body">
-<p>The <strong>Media Library Cleanup</strong> tab identifies media attachments that exist in the WordPress database but are not referenced anywhere on the site, freeing disk space and reducing backup sizes.</p>
-<p><strong>How attachment references are checked:</strong> The scanner searches for each attachment's URL and ID in:</p>
+<p>The <strong>Media Library Cleanup</strong> tab identifies and safely removes media attachments and upload files that are no longer used — freeing disk space and reducing backup sizes.</p>
+<h3>Unused Media</h3>
+<p>Finds media library attachments that exist in the WordPress database but are not referenced anywhere on the site. An attachment is considered unused if it cannot be found in any of these locations:</p>
 <ul>
 <li><code>wp_posts.post_content</code> — direct <code>&lt;img&gt;</code> tags, Gutenberg block attributes, and shortcode references.</li>
 <li><code>wp_postmeta</code> — featured image (<code>_thumbnail_id</code>), WooCommerce gallery images, and any meta value containing the attachment ID or URL.</li>
 <li><code>wp_options</code> — widget configurations, theme customizer settings, and site icon references.</li>
+<li>The site logo and site icon set in Appearance &gt; Customize are always protected, regardless of whether they appear in post content.</li>
 </ul>
 <p><strong>Workflow:</strong></p>
 <ol>
-<li><strong>Scan</strong> — builds a list of all attachment IDs from <code>wp_posts WHERE post_type = 'attachment'</code> and cross-references against the above sources. Processing is chunked to handle large libraries without timeout.</li>
-<li><strong>Preview</strong> — shows thumbnails and filenames of all attachments flagged as unreferenced. Review carefully before deleting — some plugins store media references in custom tables not covered by the scan (e.g. sliders, page builders). If in doubt, download the attachment before deleting.</li>
-<li><strong>Delete</strong> — calls <code>wp_delete_attachment($id, true)</code> for each selected item. This removes the database row, all generated image sizes from disk, and clears any related postmeta.</li>
+<li><strong>Dry Run — Preview</strong> — scans the library and lists all attachments flagged as unreferenced. Review carefully before recycling. Some plugins store media references in custom tables not covered by the scan (e.g. sliders, page builders). When in doubt, use <em>View Recycle Bin</em> to retrieve items after the fact.</li>
+<li><strong>Move to Recycle</strong> — moves flagged attachments to a protected recycle bin. The original file, all generated thumbnail sizes, the database record, and all attachment metadata are preserved so items can be completely restored. Processing is chunked at 25 attachments per request.</li>
 </ol>
-<p><strong>Important:</strong> Always take a full backup before running media cleanup. Files deleted via this tool are permanently removed from the server's filesystem — they cannot be recovered from the WordPress trash.</p></div>
+<p><strong>Recycle Bin actions:</strong></p>
+<ul>
+<li><strong>Restore All</strong> — moves all recycled media back to the active media library, exactly as it was before.</li>
+<li><strong>Permanently Delete</strong> — removes recycled files from disk and their database records permanently. This cannot be undone.</li>
+<li><strong>View Recycle Bin</strong> — opens a modal showing all recycled attachments with their original filenames and sizes for selective review before committing to permanent deletion.</li>
+</ul>
+<h3>Unregistered Files</h3>
+<p>Finds files that exist physically on disk inside <code>wp-content/uploads</code> but have no corresponding record in the WordPress media library. These are different from unused media: unused media has a database record but no content references; unregistered files have no database record at all.</p>
+<p>Common causes: files uploaded via FTP without being registered in WordPress, partially completed uploads, images imported without the media importer, or files left behind by deleted plugins.</p>
+<p>Use the file type filter pills (Images, Documents, Video, Audio) to include or exclude each category before scanning. The same Dry Run → Move to Recycle → Restore/Delete workflow applies.</p>
+<h3>Broken Image Links</h3>
+<p>A read-only scan that checks all published posts and pages for image URLs that reference files in your uploads directory and verifies each file actually exists on disk. Detects broken images caused by deleted files, renamed files, moved files, or failed optimisation runs. Reports the post title and missing file path. Use <strong>Copy Results</strong> to export the full list.</p>
+<h3>Scheduled Media Cleanup</h3>
+<p>When enabled, automatically runs the unused media cleanup on the selected days and hour. Unused attachments are moved to the media recycle bin — not permanently deleted. The same detection logic as the manual cleanup is used; the site logo and site icon are always protected. After each run the next scheduled execution is automatically registered.</p></div>
 </div>
 <hr class="cs-divider"/>
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="img-optimise">Image Optimisation</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-optimise-5.jpg" alt="Image Optimisation" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-optimise-1.jpg" alt="Image Optimisation" /></figure>
 <div class="cs-panel-body">
-<p>The <strong>Image Optimisation</strong> tab reduces the on-disk file size of images in your media library using PHP's GD or Imagick library (whichever is available on your server). No external service or API is used — all processing is local.</p>
+<p>The <strong>Image Optimisation</strong> tab reduces the on-disk file size of images already in your media library using PHP's GD or Imagick library. No external service or API is used — all processing is local.</p>
+<p>The optimiser processes your original uploaded images in two passes:</p>
 <ul>
-<li><strong>PNG to JPEG conversion</strong> — converts PNG files that have no alpha-channel transparency to JPEG format. PNGs with transparency are automatically detected and skipped. The original <code>.png</code> file is replaced with a <code>.jpg</code> at the configured quality level. Typical size reduction: 3–5× for photographic content; 20–40% for diagrams and screenshots. WordPress attachment metadata is updated so all references to the image continue to work.</li>
-<li><strong>JPEG recompression</strong> — re-encodes existing JPEG files using PHP GD's <code>imagejpeg()</code> at the configured quality level. Images already stored at or below the target quality are detected via embedded EXIF data and skipped to avoid double-compression artefacts.</li>
-<li><strong>Quality setting</strong> — JPEG quality on a 1–100 scale. Recommended: 82 (default) for blog photography, 75 for UI screenshots and diagrams. Below 70 introduces visible banding in gradients. Above 90 produces diminishing returns with significantly larger files.</li>
-<li><strong>Chunked processing</strong> — the library is processed in batches of 10 images per AJAX request, with progress displayed in real time. You can close the browser and return — the tool tracks processed attachment IDs in a WordPress option and resumes from where it left off. To reset progress and reprocess everything, click <strong>Reset Progress</strong>.</li>
-<li><strong>Server requirements:</strong> PHP 7.4+ with GD compiled with JPEG and PNG support, or Imagick extension. Check via <code>phpinfo()</code> or <code>php -m | grep -i imagick</code>. Minimum recommended memory: <code>memory_limit = 128M</code> for large images; 256M for images over 5000×5000 pixels.</li>
-</ul></div>
+<li><strong>Resize</strong> — scales down any image whose width or height exceeds the configured maximum, preserving the aspect ratio. Default maximum: 1920 × 1080. If your theme never displays images wider than 1200 px, setting the maximum to 1200 will produce better storage savings.</li>
+<li><strong>Recompress</strong> — re-saves JPEG files at the configured quality level using PHP GD's <code>imagejpeg()</code>.</li>
+</ul>
+<p>After each image is processed, all registered WordPress thumbnail sizes are regenerated from the new optimised original to ensure consistency across the site.</p>
+<p><strong>Always run Dry Run first</strong> — it previews the estimated savings for each image without modifying any files. Processing is chunked at 5 images per AJAX request to stay well within any server's PHP timeout limit.</p>
+<p><strong>Important:</strong> this operation modifies original image files on disk. Take a full backup before running on a production site. WordPress 5.3+ automatically preserves a scaled backup of oversized originals.</p>
+<h3>Optimisation Settings</h3>
+<ul>
+<li><strong>Maximum width (px)</strong> — any image wider than this value is scaled down proportionally. Default: 1920.</li>
+<li><strong>Maximum height (px)</strong> — any image taller than this value is scaled down proportionally. Default: 1080.</li>
+<li><strong>JPEG quality (1–100)</strong> — controls compression when saving JPEG files. 80–85 is the recommended sweet spot. Default: 82. Below 70 introduces visible banding in gradients; above 90 produces diminishing returns with significantly larger files.</li>
+<li><strong>Convert non-transparent PNGs to JPEG</strong> — when enabled, PNG files with no alpha-channel transparency are converted to JPEG. PNG files with transparency are automatically detected and skipped. Typical size reduction: 40–70% for photographic content. WordPress attachment metadata is updated so all references to the image continue to work.</li>
+</ul>
+<h3>Server requirements</h3>
+<p>PHP 7.4+ with GD compiled with JPEG and PNG support, or the Imagick extension. Check via <code>phpinfo()</code> or <code>php -m | grep -i imagick</code>. Minimum recommended memory: <code>memory_limit = 128M</code> for standard images; 256M for images over 5000 × 5000 pixels.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="png-to-jpeg">PNG to JPEG Converter</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-png-to-jpeg-1.jpg" alt="PNG to JPEG Converter" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>PNG to JPEG</strong> tab is a standalone drag-and-drop converter that takes PNG files from your computer, converts them to JPEG, and optionally saves the result directly to your WordPress media library — without touching any existing media library files.</p>
+<h3>How to use it</h3>
+<ol>
+<li><strong>Configure settings</strong> — set your JPEG quality (default: 90), choose an output size preset or enter custom dimensions, and adjust the chunk size if needed.</li>
+<li><strong>Add files</strong> — drag PNG files onto the upload area or click Browse to select files. Multiple files can be queued at once.</li>
+<li><strong>Convert</strong> — click <strong>Convert All</strong> to process every queued file. Progress and results are shown in real time in the Converter Console.</li>
+<li><strong>Download or save to library</strong> — each converted file shows a download button and a <strong>Save to Media Library</strong> button. Saving prompts for a filename (the <code>.jpg</code> extension is added automatically) and adds the image to your WordPress media library.</li>
+</ol>
+<p>PNG transparency is composited onto a white background before conversion to JPEG, so no content is lost even if the source PNG has an alpha channel.</p>
+<h3>Conversion Settings</h3>
+<ul>
+<li><strong>JPEG Quality (1–100)</strong> — controls compression when saving JPEG files. 80–92 is the recommended range. Default: 90. Use 95+ for print; 60–75 for web thumbnails.</li>
+<li><strong>Output Size</strong> — choose a preset resolution (4K, 2K, Full HD, HD, XGA, SVGA, VGA, Square 512, Square 256) or select Custom to enter exact pixel dimensions. Enable <strong>Constrain proportions</strong> to calculate the missing dimension automatically.</li>
+<li><strong>Chunk Size (MB)</strong> — large files are automatically split into chunks to stay within your server's upload limit; each chunk is reassembled server-side before conversion. Default: 1.5 MB. Keep below the server request limit shown next to the setting.</li>
+</ul>
+<h3>Converter Console</h3>
+<p>The dark console at the bottom of the tab shows detailed per-file progress, chunk upload status, conversion results, and any server-side errors. Use <strong>Copy</strong> to copy the full log for troubleshooting, and <strong>Clear</strong> to reset it. The console header also shows detected server environment information (PHP memory limit, upload limits, available image libraries) to help diagnose configuration issues.</p></div>
+</div>
+<hr class="cs-divider"/>
+
+<div class="cs-panel-section">
+<h3 class="cs-panel-heading" id="settings">Settings</h3>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-settings-1.jpg" alt="Settings" /></figure>
+<div class="cs-panel-body">
+<p>The <strong>Settings</strong> tab shows plugin information, lifetime activity statistics, and WordPress Cron status for the two scheduled cleanup jobs.</p>
+<h3>About</h3>
+<p><strong>CloudScale Cleanup</strong> is a free, open source WordPress plugin by <a href="https://andrewbaker.ninja" target="_blank">Andrew Baker</a> — Chief Information Officer at Capitec Bank and author of a popular technology blog covering cloud architecture, banking technology, and enterprise software.</p>
+<p>No accounts. No API keys. No subscriptions. No data leaves your server. All processing uses standard WordPress APIs.</p>
+<p><strong>Lifetime statistics:</strong></p>
+<ul>
+<li><strong>Last DB Cleanup</strong> — date and time of the most recent database cleanup run (manual or scheduled).</li>
+<li><strong>Last Media Cleanup</strong> — date and time of the most recent media library cleanup run.</li>
+<li><strong>Last Optimisation</strong> — date and time of the most recent image optimisation run.</li>
+<li><strong>PNG Conversions</strong> — total number of PNG files converted to JPEG across all runs of the PNG to JPEG Converter.</li>
+<li><strong>Version</strong> — currently installed plugin version.</li>
+</ul>
+<h3>WordPress Cron Status</h3>
+<p>Shows the current enabled/disabled status and next scheduled run time for both automated cleanup jobs:</p>
+<ul>
+<li><strong>DB Cleanup</strong> — the scheduled database cleanup job (<code>csc_scheduled_db_cleanup</code>). Configure its schedule on the Database Cleanup tab.</li>
+<li><strong>Media Cleanup</strong> — the scheduled media library cleanup job (<code>csc_scheduled_img_cleanup</code>). Configure its schedule on the Media Cleanup tab.</li>
+</ul>
+<p><strong>WordPress Cron note:</strong> WordPress Cron fires when someone visits your site. On low-traffic sites a scheduled job may run a few minutes after the configured time, or later if no visitors arrive. For exact timing, disable WP-Cron in <code>wp-config.php</code> by adding <code>define('DISABLE_WP_CRON', true);</code> and add a real server cron job that calls <code>wp-cron.php</code> directly:</p>
+<pre><code>*/5 * * * * wget -q -O - https://yourdomain.com/wp-cron.php?doing_wp_cron &gt; /dev/null 2&gt;&amp;1</code></pre></div>
 </div>
 <hr class="cs-divider"/>
 </div>
