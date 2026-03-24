@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: CloudScale Cleanup
- * Plugin URI:  https://andrewbaker.ninja
+ * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.38
+ * Version:     2.5.1
  * Author:      Andrew Baker
- * Author URI:  https://andrewbaker.ninja
+ * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: cloudscale-cleanup
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.38' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.1' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -348,7 +348,7 @@ function csc_render_dashboard_widget() {
     $fmt = function ( $val ) {
         return $val
             ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' ) . '</span>'
-            : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5)">Not yet run</span>';
+            : '<span style="font-size:12px;font-weight:700;color:rgba(255,255,2.5.1.5)">Not yet run</span>';
     };
 
     // Health data
@@ -378,19 +378,19 @@ function csc_render_dashboard_widget() {
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
             <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">⚡ DB Cleanup</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">🖼 Unused Media</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
                 <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Img Optimise</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#546e7a 0%,#78909c 100%);box-shadow:0 2px 6px rgba(84,110,122,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">📊 Site Health</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
                 <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
             </a>
         </div>
@@ -412,7 +412,7 @@ function csc_render_dashboard_widget() {
             <?php
             $wks_bg    = $health['disk_rag'] === 'red' ? '#c62828' : ( $health['disk_rag'] === 'amber' ? '#e65100' : '#f0f2f5' );
             $wks_color = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? '#fff' : '#263238';
-            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(255,255,255,0.8)' : '#78909c';
+            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(255,255,2.5.1.8)' : '#78909c';
             ?>
             <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
@@ -423,7 +423,7 @@ function csc_render_dashboard_widget() {
             $al_rag   = csc_autoload_rag( $al_bytes );
             $al_bg    = $al_rag === 'red' ? '#c62828' : ( $al_rag === 'amber' ? '#e65100' : '#f0f2f5' );
             $al_color = ( $al_rag === 'red' || $al_rag === 'amber' ) ? '#fff' : '#263238';
-            $al_label = ( $al_rag === 'red' || $al_rag === 'amber' ) ? 'rgba(255,255,255,0.8)' : '#78909c';
+            $al_label = ( $al_rag === 'red' || $al_rag === 'amber' ) ? 'rgba(255,255,2.5.1.8)' : '#78909c';
             ?>
             <div style="background:<?php echo esc_attr( $al_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $al_label ); ?>;font-weight:600;margin-bottom:2px">Autoload Size</div>
@@ -435,11 +435,11 @@ function csc_render_dashboard_widget() {
         <?php endif; ?>
 
         <div style="display:flex;flex-direction:column;gap:10px">
-            <a href="https://andrewbaker.ninja" target="_blank" rel="noopener"
-               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#f953c6 0%,#b91d73 40%,#4f46e5 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(249,83,198,0.4);transition:filter 0.15s,transform 0.15s"
+            <a href="https://terraclaim.org" target="_blank" rel="noopener"
+               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#4a9eff 0%,#7c5cfc 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(74,158,255,0.4);transition:filter 0.15s,transform 0.15s"
                onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
                onmouseout="this.style.filter='';this.style.transform=''">
-                <span style="font-size:15px">🥷</span> Visit AndrewBaker.Ninja
+                <span style="font-size:15px">&#127759;</span> Visit TerraCllaim.org
             </a>
             <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup&tab=png-to-jpeg' ) ); ?>"
                style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#689f38 0%,#8bc34a 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(104,159,56,0.35);transition:filter 0.15s,transform 0.15s"
@@ -477,7 +477,7 @@ class CSC_Front_Widget extends WP_Widget {
             'csc_front_widget',
             'CloudScale Cleanup',
             array(
-                'description' => 'Shows last cleanup run times and links to the CloudScale Cleanup plugin and andrewbaker.ninja.',
+                'description' => 'Shows last cleanup run times and links to the CloudScale Cleanup plugin at terraclaim.org.',
                 'classname'   => 'widget-csc-cleanup',
             )
         );
@@ -529,12 +529,12 @@ class CSC_Front_Widget extends WP_Widget {
                 </li>
             </ul>
             <div class="csc-fw-links">
-                <a href="https://andrewbaker.ninja" target="_blank" rel="noopener" class="csc-fw-link">andrewbaker.ninja</a>
+                <a href="https://terraclaim.org" target="_blank" rel="noopener" class="csc-fw-link">terraclaim.org</a>
                 <?php if ( current_user_can( 'manage_options' ) ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>" class="csc-fw-link csc-fw-link-admin">Run Cleanup</a>
                 <?php endif; ?>
             </div>
-            <p class="csc-fw-credit">Powered by <a href="https://andrewbaker.ninja" target="_blank" rel="noopener">CloudScale Cleanup</a></p>
+            <p class="csc-fw-credit">Powered by <a href="https://terraclaim.org" target="_blank" rel="noopener">CloudScale Cleanup</a></p>
         </div>
         <?php
         echo $args['after_widget'];
@@ -4415,6 +4415,142 @@ function csc_ajax_health_sysstat_test() {
     wp_send_json_success( $result );
 }
 
+// ─── Cron Management ─────────────────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_cron_status', 'csc_ajax_cron_status' );
+/**
+ * Returns all scheduled cron events with 24-hour projection and congestion analysis.
+ *
+ * @since 2.5.1
+ * @return void
+ */
+function csc_ajax_cron_status() {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Insufficient permissions.' );
+	}
+
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	if ( ! is_array( $cron_array ) ) {
+		$cron_array = array();
+	}
+
+	$now    = time();
+	$end    = $now + DAY_IN_SECONDS;
+	$events = array();
+
+	foreach ( $cron_array as $timestamp => $hooks ) {
+		foreach ( $hooks as $hook => $instances ) {
+			foreach ( $instances as $data ) {
+				$schedule = isset( $data['schedule'] ) ? $data['schedule'] : false;
+				$interval = isset( $data['interval'] ) ? (int) $data['interval'] : 0;
+
+				// Project occurrences over the next 24 hours.
+				$occurrences = array();
+				$next        = (int) $timestamp;
+
+				if ( $schedule && $interval > 0 ) {
+					// Advance past "now" for recurring events already overdue.
+					$t = $next;
+					if ( $t < $now && $interval > 0 ) {
+						$steps = (int) ceil( ( $now - $t ) / $interval );
+						$t    += $steps * $interval;
+					}
+					while ( $t <= $end ) {
+						$occurrences[] = $t;
+						$t            += $interval;
+					}
+				} elseif ( $next >= $now && $next <= $end ) {
+					$occurrences[] = $next;
+				}
+
+				$events[] = array(
+					'hook'        => $hook,
+					'next_run'    => (int) $timestamp,
+					'schedule'    => $schedule ? $schedule : 'one-time',
+					'interval'    => $interval,
+					'overdue'     => (int) $timestamp < $now,
+					'occurrences' => $occurrences,
+				);
+			}
+		}
+	}
+
+	// Sort by next_run ascending.
+	usort(
+		$events,
+		function ( $a, $b ) {
+			return $a['next_run'] - $b['next_run'];
+		}
+	);
+
+	// Congestion: group all occurrences into 5-minute buckets; flag buckets with 3+ jobs.
+	$buckets = array();
+	foreach ( $events as $ev ) {
+		foreach ( $ev['occurrences'] as $t ) {
+			$bucket = (int) floor( ( $t - $now ) / 300 );
+			if ( ! isset( $buckets[ $bucket ] ) ) {
+				$buckets[ $bucket ] = array();
+			}
+			$buckets[ $bucket ][] = $ev['hook'];
+		}
+	}
+
+	$congestion = array();
+	foreach ( $buckets as $bucket => $bucket_hooks ) {
+		if ( count( $bucket_hooks ) >= 3 ) {
+			$congestion[] = array(
+				'offset_seconds' => $bucket * 300,
+				'hooks'          => array_values( array_unique( $bucket_hooks ) ),
+				'count'          => count( $bucket_hooks ),
+			);
+		}
+	}
+
+	$overdue_count = 0;
+	foreach ( $events as $ev ) {
+		if ( $ev['overdue'] ) {
+			++$overdue_count;
+		}
+	}
+
+	wp_send_json_success(
+		array(
+			'wp_cron_disabled' => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON,
+			'alternate_cron'   => defined( 'ALTERNATE_WP_CRON' ) && ALTERNATE_WP_CRON,
+			'server_time'      => $now,
+			'events'           => $events,
+			'overdue_count'    => $overdue_count,
+			'congestion'       => $congestion,
+			'wp_cron_url'      => site_url( '/wp-cron.php?doing_wp_cron' ),
+		)
+	);
+}
+
+add_action( 'wp_ajax_csc_cron_run_now', 'csc_ajax_cron_run_now' );
+/**
+ * Immediately fires a specific allowed CSC cron hook.
+ *
+ * @since 2.5.1
+ * @return void
+ */
+function csc_ajax_cron_run_now() {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Insufficient permissions.' );
+	}
+
+	$allowed = array( 'csc_scheduled_db_cleanup', 'csc_scheduled_img_cleanup' );
+	$hook    = isset( $_POST['hook'] ) ? sanitize_key( wp_unslash( $_POST['hook'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+
+	if ( ! in_array( $hook, $allowed, true ) ) {
+		wp_send_json_error( 'Invalid hook.' );
+	}
+
+	do_action( $hook ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+	wp_send_json_success( array( 'hook' => $hook ) );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ADMIN PAGE
 // ═════════════════════════════════════════════════════════════════════════════
@@ -4435,24 +4571,20 @@ function csc_ajax_health_sysstat_test() {
  * @param string $color Background colour for the button (CSS colour string).
  * @return void
  */
-function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(255,255,255,0.2)' ): void {
+function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(255,255,2.5.1.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
     ?>
     <button type="button" id="<?php echo esc_attr( $btn_id ); ?>"
         data-color="<?php echo esc_attr( $color ); ?>"
         onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='flex'"
-        style="background:<?php echo esc_attr( $color ); ?>!important;border:1px solid rgba(255,255,255,0.5)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:600!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:none!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
+        style="background:<?php echo esc_attr( $color ); ?>!important;border:1px solid rgba(255,255,2.5.1.5)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:600!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:none!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
         Explain...
     </button>
-    <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
-        <div style="background:#fff;border-radius:10px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
-            <div style="background:#1a2a3a;border-radius:10px 10px 0 0;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
-                <strong style="color:#fff;font-size:15px"><?php echo esc_html( $title ); ?></strong>
-                <button type="button" onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='none'"
-                    style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:5px;color:#fff;font-size:16px;font-weight:700;padding:2px 10px;cursor:pointer;line-height:1">&#x2715;</button>
-            </div>
-            <div style="padding:20px 24px;font-size:13px;line-height:1.6;color:#1d2327">
+    <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
+        <div class="csc-modal" style="max-width:640px;max-height:88vh;overflow-y:auto">
+            <div class="csc-modal-title"><?php echo esc_html( $title ); ?></div>
+            <div class="csc-modal-body">
                 <?php foreach ( $items as $item ) :
                     $rec    = $item['rec'];
                     $is_on  = strpos( $rec, 'Recommended' ) !== false;
@@ -4470,11 +4602,9 @@ function csc_explain_btn( string $id, string $title, array $items, string $color
                 </div>
                 <?php endforeach; ?>
             </div>
-            <div style="padding:12px 24px 20px;text-align:right">
+            <div class="csc-modal-footer">
                 <button type="button" onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='none'"
-                    style="background:#1a2a3a;border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:600;padding:8px 24px;cursor:pointer">
-                    Got it
-                </button>
+                    class="csc-btn csc-btn-cancel">Got it</button>
             </div>
         </div>
     </div>
@@ -4494,12 +4624,12 @@ function csc_render_page() {
                     <span class="csc-logo">⚡</span>
                     <div>
                         <h1>CloudScale Cleanup</h1>
-                        <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://andrewbaker.ninja" target="_blank">andrewbaker.ninja</a></p>
+                        <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://terraclaim.org" target="_blank">terraclaim.org</a></p>
                     </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px">
                     <div class="csc-header-version">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
-                    <a href="https://andrewbaker.ninja/wordpress-plugin-help/cleanup-help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5)" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
+                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5)" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
                 </div>
             </div>
         </div>
@@ -4642,7 +4772,7 @@ function csc_render_page() {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#00c853 0%,#69f0ae 100%);color:#003d00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(0,200,83,0.3)">✅ Last Run: <?php echo $last_db_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_db_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_db_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -4763,7 +4893,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,2.5.1.28)'" onmouseout="this.style.background='rgba(255,255,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
@@ -4818,19 +4948,16 @@ function csc_render_page() {
                         </div>
 
                         <!-- Media Recycle Bin Browser Modal -->
-                        <div id="csc-media-recycle-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;background:rgba(0,0,0,0.6);padding:20px;overflow-y:auto">
-                            <div style="max-width:900px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);overflow:hidden">
-                                <div style="background:linear-gradient(135deg,#7b1fa2 0%,#9c27b0 100%);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between">
+                        <div id="csc-media-recycle-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100001;background:rgba(0,0,0,0.55);padding:20px;overflow-y:auto">
+                            <div class="csc-modal csc-modal-lg" style="margin:40px auto">
+                                <div class="csc-modal-header">
                                     <div>
-                                        <div style="font-size:18px;font-weight:700">♻️ Media Recycle Bin</div>
-                                        <div id="media-recycle-modal-summary" style="font-size:12px;opacity:0.8;margin-top:2px">Loading…</div>
+                                        <div class="csc-modal-header-title">♻️ Media Recycle Bin</div>
+                                        <div id="media-recycle-modal-summary" class="csc-modal-header-sub">Loading…</div>
                                     </div>
-                                    <button id="btn-media-recycle-modal-close"
-                                        style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">
-                                        ✕
-                                    </button>
+                                    <button id="btn-media-recycle-modal-close" class="csc-modal-close">✕</button>
                                 </div>
-                                <div id="media-recycle-modal-list" style="max-height:500px;overflow-y:auto;padding:0 24px"></div>
+                                <div id="media-recycle-modal-list" class="csc-modal-list"></div>
                             </div>
                         </div>
                     </div>
@@ -4880,28 +5007,22 @@ function csc_render_page() {
                         </div>
 
                         <!-- Recycle Bin Browser Modal -->
-                        <div id="csc-recycle-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100000;background:rgba(0,0,0,0.6);padding:20px;overflow-y:auto">
-                            <div style="max-width:900px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);overflow:hidden">
-                                <div style="background:linear-gradient(135deg,#5c6bc0 0%,#3949ab 100%);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between">
+                        <div id="csc-recycle-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:100001;background:rgba(0,0,0,0.55);padding:20px;overflow-y:auto">
+                            <div class="csc-modal csc-modal-lg" style="margin:40px auto">
+                                <div class="csc-modal-header">
                                     <div>
-                                        <div style="font-size:18px;font-weight:700">♻️ Recycle Bin Browser</div>
-                                        <div id="recycle-modal-summary" style="font-size:12px;opacity:0.8;margin-top:2px">Loading…</div>
+                                        <div class="csc-modal-header-title">♻️ Recycle Bin Browser</div>
+                                        <div id="recycle-modal-summary" class="csc-modal-header-sub">Loading…</div>
                                     </div>
                                     <div style="display:flex;gap:8px;align-items:center">
-                                        <button id="btn-recycle-copy-all"
-                                            style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">
-                                            📋 Copy All to Clipboard
-                                        </button>
-                                        <button id="btn-recycle-modal-close"
-                                            style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:20px;width:32px;height:32px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">
-                                            ✕
-                                        </button>
+                                        <button id="btn-recycle-copy-all" class="csc-btn csc-btn-secondary csc-btn-sm">📋 Copy All to Clipboard</button>
+                                        <button id="btn-recycle-modal-close" class="csc-modal-close">✕</button>
                                     </div>
                                 </div>
-                                <div style="padding:16px 24px;border-bottom:1px solid #e0e0e0">
-                                    <input type="text" id="recycle-search" placeholder="Search files…" style="width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;transition:border-color 0.15s" onfocus="this.style.borderColor='#5c6bc0'" onblur="this.style.borderColor='#e0e0e0'">
+                                <div class="csc-modal-search">
+                                    <input type="text" id="recycle-search" placeholder="Search files…">
                                 </div>
-                                <div id="recycle-modal-list" style="max-height:500px;overflow-y:auto;padding:0 24px"></div>
+                                <div id="recycle-modal-list" class="csc-modal-list"></div>
                             </div>
                         </div>
                     </div>
@@ -4941,7 +5062,7 @@ function csc_render_page() {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(255,109,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -4970,7 +5091,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,2.5.1.28)'" onmouseout="this.style.background='rgba(255,255,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
@@ -5036,7 +5157,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,2.5.1.28)'" onmouseout="this.style.background='rgba(255,255,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
@@ -5153,9 +5274,9 @@ function csc_render_page() {
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #ce93d8;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#ce93d8;color:#1a0533;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">📷 Converter Console</span>
                         <span style="margin-left:auto;display:flex;gap:6px">
-                            <button id="cspj-debug-copy" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
-                            <button id="cspj-debug-clear" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
-                            <button id="cspj-debug-toggle" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
+                            <button id="cspj-debug-copy" style="background:rgba(255,255,2.5.1.15);border:1px solid rgba(255,255,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
+                            <button id="cspj-debug-clear" style="background:rgba(255,255,2.5.1.15);border:1px solid rgba(255,255,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
+                            <button id="cspj-debug-toggle" style="background:rgba(255,255,2.5.1.15);border:1px solid rgba(255,255,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
                         </span>
                     </div>
                     <div id="cspj-debug-env" style="padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--csc-border);font-size:11px;color:var(--csc-muted);font-family:monospace;line-height:1.7"></div>
@@ -5164,20 +5285,17 @@ function csc_render_page() {
             </div>
 
             <!-- Rename popup -->
-            <div id="cspj-popup-rename" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px">
-                <div style="background:#fff;border-radius:10px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
-                    <div style="background:#1a2a3a;border-radius:10px 10px 0 0;padding:14px 20px;display:flex;justify-content:space-between;align-items:center">
-                        <strong style="color:#fff;font-size:14px">💾 Save to Media Library</strong>
-                        <button type="button" id="cspj-rename-cancel" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:5px;color:#fff;font-size:16px;font-weight:700;padding:2px 10px;cursor:pointer;line-height:1">✕</button>
-                    </div>
-                    <div style="padding:20px 24px">
-                        <p style="margin:0 0 10px;font-size:13px;color:#1d2327">Enter a filename for this image in the Media Library. The <code>.jpg</code> extension will be added automatically.</p>
+            <div id="cspj-popup-rename" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px">
+                <div class="csc-modal">
+                    <div class="csc-modal-title">💾 Save to Media Library</div>
+                    <div class="csc-modal-body">
+                        <p>Enter a filename for this image in the Media Library. The <code>.jpg</code> extension will be added automatically.</p>
                         <input type="text" id="cspj-rename-input" style="width:100%;padding:9px 12px;border:2px solid var(--csc-border);border-radius:6px;font-size:14px;box-sizing:border-box" placeholder="e.g. my-product-hero">
                         <div id="cspj-rename-error" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;font-size:13px;color:#991b1b;margin-top:8px"></div>
-                        <div style="display:flex;gap:10px;margin-top:14px">
-                            <button id="cspj-rename-confirm" class="csc-btn csc-btn-primary">💾 Add to Library</button>
-                            <button id="cspj-rename-cancel-2" class="csc-btn" style="background:#f1f5f9;color:var(--csc-muted);border:1px solid var(--csc-border)">Cancel</button>
-                        </div>
+                    </div>
+                    <div class="csc-modal-footer">
+                        <button id="cspj-rename-cancel" class="csc-btn csc-btn-cancel">Cancel</button>
+                        <button id="cspj-rename-confirm" class="csc-btn csc-btn-primary">💾 Add to Library</button>
                     </div>
                 </div>
             </div>
@@ -5337,7 +5455,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-blue">About CloudScale Cleanup</div>
                 <div class="csc-card-body csc-about">
-                    <p><strong>CloudScale Cleanup</strong> is a free, open source WordPress plugin by <a href="https://andrewbaker.ninja" target="_blank">Andrew Baker</a> — Chief Information Officer at Capitec Bank and author of a popular technology blog covering cloud architecture, banking technology, and enterprise software.</p>
+                    <p><strong>CloudScale Cleanup</strong> is a free, open source WordPress plugin by <a href="https://terraclaim.org" target="_blank">Andrew Baker</a> — part of the TerraCllaim suite of precision tools for WordPress infrastructure.</p>
                     <p>No accounts. No API keys. No subscriptions. No data leaves your server. All processing uses standard WordPress APIs.</p>
                     <div class="csc-stats-grid" style="grid-template-columns:repeat(5,1fr)">
                         <div class="csc-stat-box">
@@ -5364,28 +5482,64 @@ function csc_render_page() {
                 </div>
             </div>
 
-            <div class="csc-card">
-                <div class="csc-card-header csc-card-header-teal">WordPress Cron Status</div>
+            <div class="csc-card" id="csc-cron-management">
+                <div class="csc-card-header csc-card-header-teal">
+                    <span>Cron Management</span>
+                </div>
                 <div class="csc-card-body">
-                    <?php
-                    $next_db  = wp_next_scheduled( 'csc_scheduled_db_cleanup' );
-                    $next_img = wp_next_scheduled( 'csc_scheduled_img_cleanup' );
-                    $db_en    = get_option( 'csc_schedule_db_enabled',  '0' ) === '1';
-                    $img_en   = get_option( 'csc_schedule_img_enabled', '0' ) === '1';
-                    ?>
-                    <table class="csc-status-table">
-                        <tr>
-                            <td>DB Cleanup</td>
-                            <td><span class="csc-badge <?php echo $db_en  ? 'csc-badge-green' : 'csc-badge-grey'; ?>"><?php echo $db_en  ? 'Enabled' : 'Disabled'; ?></span></td>
-                            <td><?php echo $next_db  ? esc_html( 'Next: ' . date_i18n( 'D j M Y H:i', $next_db  ) ) : '—'; ?></td>
-                        </tr>
-                        <tr>
-                            <td>Media Cleanup</td>
-                            <td><span class="csc-badge <?php echo $img_en ? 'csc-badge-green' : 'csc-badge-grey'; ?>"><?php echo $img_en ? 'Enabled' : 'Disabled'; ?></span></td>
-                            <td><?php echo $next_img ? esc_html( 'Next: ' . date_i18n( 'D j M Y H:i', $next_img ) ) : '—'; ?></td>
-                        </tr>
-                    </table>
-                    <p class="csc-note">WordPress Cron fires when someone visits your site. On low-traffic sites scheduled jobs may run a few minutes after the configured time. For exact timing, add a real server cron job calling <code>wp-cron.php</code> directly.</p>
+
+                    <!-- Health banner — rendered by JS after AJAX -->
+                    <div id="csc-cron-health-banner" class="csc-cron-health-loading">
+                        <span class="csc-cron-spinner"></span> Loading cron status&hellip;
+                    </div>
+
+                    <!-- Server cron setup -->
+                    <div class="csc-cron-setup-box">
+                        <strong>Real Server Cron Setup</strong>
+                        <p class="csc-note" style="margin:6px 0 8px">WordPress pseudo-cron fires only on page visits — jobs may run late on low-traffic sites. Add a real server cron for reliable, clock-accurate scheduling:</p>
+                        <div class="csc-cron-cmd-row">
+                            <code id="csc-cron-cmd">*/5 * * * * curl -s "<?php echo esc_url( site_url( '/wp-cron.php?doing_wp_cron' ) ); ?>" &gt; /dev/null 2&gt;&amp;1</code>
+                            <button type="button" id="btn-copy-cron-cmd" class="csc-btn csc-btn-secondary csc-btn-sm">Copy</button>
+                        </div>
+                        <p class="csc-note" style="margin-top:6px">Add to your server's crontab (<code>crontab -e</code>), then add <code>define('DISABLE_WP_CRON', true);</code> to <code>wp-config.php</code>.</p>
+                    </div>
+
+                    <!-- 24-hour timeline -->
+                    <div class="csc-cron-section-title">24-Hour Job Timeline</div>
+                    <p class="csc-note" style="margin:0 0 8px">Each dot marks a scheduled execution. Red bands = Cron Congestion — 3 or more jobs firing within the same 5-minute window.</p>
+                    <div id="csc-cron-timeline-wrap" class="csc-cron-timeline-wrap">
+                        <canvas id="csc-cron-timeline"></canvas>
+                    </div>
+                    <div id="csc-cron-congestion-warn" class="csc-cron-congestion-alert" style="display:none"></div>
+
+                    <!-- All scheduled events table -->
+                    <div class="csc-cron-section-title" style="margin-top:20px">All Scheduled Events</div>
+                    <div id="csc-cron-events-wrap" style="overflow-x:auto">
+                        <table class="csc-cron-events-table">
+                            <thead>
+                                <tr>
+                                    <th>Hook</th>
+                                    <th>Schedule</th>
+                                    <th>Next Run</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csc-cron-events-body">
+                                <tr><td colspan="4" style="text-align:center;padding:12px;color:#666">Loading&hellip;</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" id="btn-cron-refresh" class="csc-btn csc-btn-secondary" style="margin-top:10px">Refresh</button>
+
+                    <!-- Manual triggers -->
+                    <div class="csc-cron-section-title" style="margin-top:20px">Manual Triggers</div>
+                    <p class="csc-note" style="margin:0 0 10px">Fire a CSC scheduled job immediately, without waiting for the next scheduled time.</p>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <button type="button" id="btn-cron-run-db"  class="csc-btn csc-btn-secondary" data-hook="csc_scheduled_db_cleanup">&#9654; Run DB Cleanup Now</button>
+                        <button type="button" id="btn-cron-run-img" class="csc-btn csc-btn-secondary" data-hook="csc_scheduled_img_cleanup">&#9654; Run Media Cleanup Now</button>
+                    </div>
+                    <div id="csc-cron-run-result" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:5px"></div>
+
                 </div>
             </div>
         </div>
@@ -5393,32 +5547,37 @@ function csc_render_page() {
         <div id="csc-save-notice" class="csc-save-notice" style="display:none">Settings saved.</div>
 
         <!-- Collect Now confirmation modal — outside all cards to avoid overflow:hidden clipping -->
-        <div id="csc-collect-modal" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center">
-            <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
-                <div style="font-size:18px;font-weight:700;color:#1d2327;margin-bottom:10px">📊 Collect Metrics Now</div>
-                <p style="margin:0 0 12px;font-size:14px;color:#3c434a;line-height:1.6">This will immediately run both collection jobs:</p>
-                <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;color:#3c434a;line-height:1.8">
-                    <li><strong>Hourly sample</strong> — records current CPU % and memory % into the rolling store</li>
-                    <li><strong>Weekly disk snapshot</strong> — records current disk used/free/total (needed to calculate storage growth rate and Est. Wks to Full)</li>
-                </ul>
-                <p style="margin:0 0 20px;font-size:12px;color:#646970">Normally these run automatically on cron. Use this to seed data on a fresh install or force an immediate reading.</p>
-                <div style="display:flex;gap:10px;justify-content:flex-end">
-                    <button id="btn-collect-cancel" class="csc-btn csc-btn-secondary">Cancel</button>
+        <div id="csc-collect-modal" style="display:none;position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px">
+            <div class="csc-modal">
+                <div class="csc-modal-title">📊 Collect Metrics Now</div>
+                <div class="csc-modal-warning">Both collection jobs will run immediately on the server.</div>
+                <div class="csc-modal-body">
+                    <p>This will immediately run both scheduled collection jobs:</p>
+                    <ul>
+                        <li><strong>Hourly sample</strong> — records current CPU % and memory % into the rolling store</li>
+                        <li><strong>Weekly disk snapshot</strong> — records current disk used/free/total (needed to calculate storage growth rate and Est. Wks to Full)</li>
+                    </ul>
+                    <p>Normally these run automatically on cron. Use this to seed data on a fresh install or force an immediate reading.</p>
+                </div>
+                <div class="csc-modal-footer">
+                    <button id="btn-collect-cancel" class="csc-btn csc-btn-cancel">Cancel</button>
                     <button id="btn-collect-confirm" class="csc-btn csc-btn-primary">Yes, Collect Now</button>
                 </div>
             </div>
         </div>
         <!-- Move to Recycle confirmation modal -->
-        <div id="csc-img-move-modal" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center">
-            <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.25)">
-                <div style="font-size:18px;font-weight:700;color:#1d2327;margin-bottom:6px">♻️ Move to Recycle</div>
-                <p id="csc-img-move-msg" style="margin:0 0 16px;font-size:14px;color:#00897b;font-weight:600;line-height:1.5"></p>
-                <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">Files are <strong>moved, not deleted</strong> — originals and all thumbnails are copied to a protected recycle folder on disk.</p>
-                <p style="margin:0 0 10px;font-size:13px;color:#3c434a;line-height:1.6">WordPress database records are removed so the items no longer appear in the Media Library.</p>
-                <p style="margin:0 0 20px;font-size:13px;color:#3c434a;line-height:1.6">This is <strong>fully reversible</strong> — use <em>Restore All</em> or the Recycle Bin browser to bring any item back. Nothing is permanently deleted unless you choose <em>Permanently Delete</em>.</p>
-                <div style="display:flex;gap:10px;justify-content:flex-end">
-                    <button id="btn-recycle-cancel" class="csc-btn csc-btn-secondary">Cancel</button>
-                    <button id="btn-recycle-confirm" class="csc-btn csc-btn-primary">OK</button>
+        <div id="csc-img-move-modal" style="display:none;position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px">
+            <div class="csc-modal">
+                <div class="csc-modal-title">♻️ Move to Recycle</div>
+                <p id="csc-img-move-msg" class="csc-modal-warning"></p>
+                <div class="csc-modal-body">
+                    <p>Files are <strong>moved, not deleted</strong> — originals and all thumbnails are copied to a protected recycle folder on disk.</p>
+                    <p>WordPress database records are removed so the items no longer appear in the Media Library.</p>
+                    <p>This is <strong>fully reversible</strong> — use <em>Restore All</em> or the Recycle Bin browser to bring any item back. Nothing is permanently deleted unless you choose <em>Permanently Delete</em>.</p>
+                </div>
+                <div class="csc-modal-footer">
+                    <button id="btn-recycle-cancel" class="csc-btn csc-btn-cancel">Cancel</button>
+                    <button id="btn-recycle-confirm" class="csc-btn csc-btn-primary">Move to Recycle</button>
                 </div>
             </div>
         </div>

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.1 — 2026-03-24
+- UI: Replaced all browser-native `alert()` and `confirm()` dialogs with styled in-page modals — no more "andrewbaker.ninja says…" popups
+- UI: Unified modal design across all confirmation dialogs and info boxes — white card, icon + bold title, red warning line, plain-English explanation, and Cancel / action buttons
+- UI: All confirmation actions now show context-aware explanations: what will happen, whether it's reversible, and what cannot be undone
+- UI: Recycle bin browser modals updated to clean white header with close button and subtitle count
+- UI: "Explain…" modals updated to match new design (no dark header bar)
+- UI: Save to Media Library popup updated to new modal style
+
+## 2.5.0 — 2026-03-24
+- NEW: Cron Management section in Settings tab, replacing the basic "WordPress Cron Status" card
+- NEW: 24-hour canvas timeline — each scheduled cron job plotted as dots over a 24h window, coloured by hook, with dashed connecting lines for recurring jobs
+- NEW: Cron Congestion detection — 5-minute bucket analysis flags windows where 3+ jobs fire simultaneously; shown as red bands on timeline and a warning alert
+- NEW: All Scheduled Events table — AJAX-loaded, covers all WP cron hooks (not just CSC), overdue events highlighted amber, Refresh button
+- NEW: Manual Triggers — "Run DB Cleanup Now" / "Run Media Cleanup Now" buttons fire cron hooks immediately via AJAX
+- NEW: Server Cron Setup box — copy-ready crontab command pre-filled with site URL, with instructions to set DISABLE_WP_CRON
+- NEW: WP-Cron health banner with status indicator (OK / Warning / Congestion) rendered after AJAX load
+
 ## 2.4.35 — 2026-03-24
 - FIX: Table overhead RAG thresholds updated — amber 12–28 MB, red > 28 MB
 - FIX: Explain modal now resets text-transform so content displays in normal case
