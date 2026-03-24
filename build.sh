@@ -69,6 +69,8 @@ rsync -a \
   --exclude='build.sh' --exclude='deploy-wordpress.sh' \
   --exclude='backup-s3.sh' --exclude='purge-cloudflare.sh' \
   --exclude='rollback-wordpress.sh' \
+  --exclude='node_modules' --exclude='package.json' --exclude='package-lock.json' \
+  --exclude='playwright.config.js' --exclude='tests' --exclude='test-results' --exclude='playwright-report' \
   "$REPO_DIR/" "$TEMP_DIR/$PLUGIN_NAME/"
 
 # Create versioned copies of admin.js and admin.css for cache busting

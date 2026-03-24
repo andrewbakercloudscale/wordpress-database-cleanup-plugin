@@ -7,6 +7,12 @@
 *.zip
 node_modules/
 vendor/
+package.json
+package-lock.json
+playwright.config.js
+tests/
+test-results/
+playwright-report/
 wp-config.php
 wp-content/uploads/
 # Local deploy tooling
