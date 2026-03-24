@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.4.35 — 2026-03-24
+- FIX: Table overhead RAG thresholds updated — amber 12–28 MB, red > 28 MB
+- FIX: Explain modal now resets text-transform so content displays in normal case
+
+## 2.4.34 — 2026-03-24
+- FIX: Table overhead warning threshold raised to 12 MB
+
+## 2.4.33 — 2026-03-24
+- FIX: Explain modal text no longer uppercase; added text-transform:none reset to modal root
+
+## 2.4.32 — 2026-03-24
+- FIX: Explain button text now displays in normal case (was inheriting text-transform:uppercase from card header)
+- PCP: Moved inline `<script>` blocks (cscToggle, cscOrphanToggle) to admin.js
+- PCP: Added wp_unslash() to all sanitize_text_field( $_POST ) calls
+- PCP: Replaced date() with gmdate() throughout
+- PCP: Added esc_attr() to unescaped inline style/attribute echoes
+- PCP: Added phpcs:ignore suppressions for rmdir(), error_log(), direct DB queries, SHOW TABLE STATUS, OPTIMIZE TABLE
+- PCP: readme.txt tags reduced from 7 to 5 (max allowed)
+- PCP: array_map sanitize now uses wp_unslash on the array before mapping
+
 ## 2.4.2
 - FIX: Inline CSS fallback for Site Health purple tab header when external stylesheet is blocked
 - Build-time cache busting: JS and CSS filenames include version hash in the distributable zip

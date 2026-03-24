@@ -2,6 +2,39 @@
  * Chunked processing engine: start → loop chunks → finish
  * Each operation sends small AJAX requests until done.
  */
+
+// Global helpers — called from inline onclick attributes in PHP-rendered HTML.
+// Must be window-scoped so they are reachable from HTML event attributes.
+function cscToggle(track) {
+    var isOn = track.getAttribute('data-on') === '1';
+    var newOn = !isOn;
+    track.setAttribute('data-on', newOn ? '1' : '0');
+    track.style.background = newOn ? '#00a32a' : '#c3c4c7';
+    track.querySelector('span').style.left = newOn ? '23px' : '3px';
+    var row = track.parentNode;
+    var hidden = row.querySelector('input[type="hidden"][data-csc-toggle]');
+    if (hidden) { hidden.value = newOn ? '1' : '0'; }
+}
+
+var cscPillOff = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #c3c4c7;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#50575e;margin:0 4px 4px 0';
+var cscPillOn  = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0';
+window.cscOrphanTypes = ['images','documents','video','audio'];
+function cscOrphanToggle(el, type) {
+    var idx = window.cscOrphanTypes.indexOf(type);
+    if (idx === -1) {
+        window.cscOrphanTypes.push(type);
+        el.style.cssText = cscPillOn;
+    } else {
+        window.cscOrphanTypes.splice(idx, 1);
+        el.style.cssText = cscPillOff;
+    }
+    var joined = window.cscOrphanTypes.join(',');
+    var scanBtn = document.getElementById('btn-scan-orphan');
+    var recycleBtn = document.getElementById('btn-recycle-orphan');
+    if (scanBtn) { scanBtn.setAttribute('data-ftype', joined); }
+    if (recycleBtn) { recycleBtn.setAttribute('data-ftype', joined); }
+}
+
 (function ($) {
     'use strict';
 

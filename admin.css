@@ -870,6 +870,8 @@
     padding: 5px 14px;
     cursor: pointer;
     border: 1px solid rgba(255,255,255,0.5) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
 }
 
 /* ─── PNG to JPEG Converter tab styles ──────────────────────────────── */

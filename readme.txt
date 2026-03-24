@@ -1,10 +1,10 @@
 === CloudScale Cleanup ===
 Contributors: andrewbaker
-Tags: cleanup, database, media, revisions, transients, optimize, images
+Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.4.2
+Stable tag: 2.4.38
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -115,9 +115,11 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
-= 2.4.2 =
-* FIX: Inline CSS fallback for Site Health purple tab header when external stylesheet is blocked
-* Build-time cache busting: JS and CSS filenames include version hash in the distributable zip
+= 2.4.38 =
+* PCP compliance: removed inline script blocks, added wp_unslash(), replaced date() with gmdate(), escaped all output variables
+* Table overhead RAG thresholds updated: amber 12–28 MB, red > 28 MB
+* readme.txt tags reduced to 5; CHANGELOG brought up to date
+* Explain modal text now displays in normal case (fixed uppercase inheritance)
 
 = 2.4.1 =
 * Site Health tab header styled purple to match CloudScale plugin family theme
@@ -158,8 +160,8 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Upgrade Notice ==
 
-= 2.4.2 =
-Recommended update. Fixes Site Health tab display on some server configurations and includes cache-busted assets.
+= 2.4.38 =
+Recommended update. PCP compliance fixes, table repair threshold improvements, and UI display fixes.
 
 == Privacy Policy ==
 

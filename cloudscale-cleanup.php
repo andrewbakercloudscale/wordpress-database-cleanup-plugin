@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://andrewbaker.ninja
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.4.31
+ * Version:     2.4.38
  * Author:      Andrew Baker
  * Author URI:  https://andrewbaker.ninja
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.31' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.4.38' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -29,7 +29,7 @@ register_deactivation_hook( __FILE__, function() {
     $assets = $dir . 'assets/';
     if ( is_dir( $assets ) ) {
         foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { wp_delete_file( $f ); } }
-        rmdir( $assets );
+        rmdir( $assets ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir, no user input, WP_Filesystem::rmdir not available in deactivation hook context
     }
 } );
 
@@ -65,7 +65,7 @@ function csc_cleanup_stale_assets() {
     $assets = $dir . 'assets/';
     if ( is_dir( $assets ) ) {
         foreach ( glob( $assets . '*' ) as $f ) { if ( is_file( $f ) ) { wp_delete_file( $f ); } }
-        rmdir( $assets );
+        rmdir( $assets ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir, no user input
     }
 }
 
@@ -377,19 +377,19 @@ function csc_render_dashboard_widget() {
         </p>
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
-            <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; ?>>
+            <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
-            <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; ?>>
+            <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">🖼 Unused Media</div>
                 <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
-            <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; ?>>
+            <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
-            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo $tile; ?>;background:linear-gradient(135deg,#546e7a 0%,#78909c 100%);box-shadow:0 2px 6px rgba(84,110,122,0.35)" <?php echo $hover; ?>>
+            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#546e7a 0%,#78909c 100%);box-shadow:0 2px 6px rgba(84,110,122,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
                 <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.7);margin-bottom:5px">📊 Site Health</div>
                 <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
             </a>
@@ -627,7 +627,8 @@ function csc_ajax_save_settings() {
     }
     foreach ( $arrays as $f ) {
         update_option( $f, isset( $_POST[ $f ] ) && is_array( $_POST[ $f ] )
-            ? array_map( 'sanitize_text_field', $_POST[ $f ] )
+            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitised via array_map/sanitize_text_field after wp_unslash
+            ? array_map( 'sanitize_text_field', wp_unslash( $_POST[ $f ] ) )
             : array()
         );
     }
@@ -669,7 +670,7 @@ function csc_next_run_timestamp( $days, $hour ) {
         $d = strtolower( trim( $d ) );
         if ( ! isset( $map[ $d ] ) ) { continue; }
         $candidate = strtotime( 'next ' . $map[ $d ], $now );
-        $candidate = mktime( $hour, 0, 0, date( 'n', $candidate ), date( 'j', $candidate ), date( 'Y', $candidate ) );
+        $candidate = mktime( $hour, 0, 0, gmdate( 'n', $candidate ), gmdate( 'j', $candidate ), gmdate( 'Y', $candidate ) );
         if ( $candidate <= $now ) { $candidate += WEEK_IN_SECONDS; }
         if ( $best === null || $candidate < $best ) { $best = $candidate; }
     }
@@ -714,7 +715,7 @@ function csc_cron_img_cleanup() {
         try {
             $result = csc_media_recycle_save_attachment( intval( $id ) );
             if ( ! empty( $result['error'] ) ) {
-                error_log( '[CSC] Cron recycle error for ID ' . $id . ': ' . $result['error'] );
+                error_log( '[CSC] Cron recycle error for ID ' . $id . ': ' . $result['error'] ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
                 continue;
             }
             $manifest[ (string) $id ] = array(
@@ -726,17 +727,17 @@ function csc_cron_img_cleanup() {
             wp_delete_attachment( $id, true );
             $recycled++;
         } catch ( Exception $e ) {
-            error_log( '[CSC] Cron recycle exception for ID ' . $id . ': ' . $e->getMessage() );
+            error_log( '[CSC] Cron recycle exception for ID ' . $id . ': ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
         } catch ( Throwable $e ) {
-            error_log( '[CSC] Cron recycle fatal for ID ' . $id . ': ' . $e->getMessage() );
+            error_log( '[CSC] Cron recycle fatal for ID ' . $id . ': ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
         }
     }
 
     if ( ! csc_media_recycle_write_manifest( $manifest ) ) {
-        error_log( '[CSC] Cron: Failed to write media recycle manifest.' );
+        error_log( '[CSC] Cron: Failed to write media recycle manifest.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
     }
 
-    error_log( '[CSC] Cron: Recycled ' . $recycled . ' unused attachment(s). Total in recycle bin: ' . count( $manifest ) );
+    error_log( '[CSC] Cron: Recycled ' . $recycled . ' unused attachment(s). Total in recycle bin: ' . count( $manifest ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
     update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
     update_option( 'csc_last_scheduled_img_cleanup', current_time( 'mysql' ) );
     csc_schedule_crons();
@@ -811,7 +812,7 @@ function csc_ajax_scan_db() {
     $toggle = function( $opt ) use ( $has_post_toggles ) {
         if ( $has_post_toggles ) {
             // Full UI submission — use POST value, absent = '0' (toggled off)
-            return isset( $_POST[ $opt ] ) && $_POST[ $opt ] === '1';
+            return isset( $_POST[ $opt ] ) && wp_unslash( $_POST[ $opt ] ) === '1'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- boolean toggle, validated via strict comparison
         }
         // No UI data sent (e.g. scheduled run) — use DB
         return get_option( $opt, '1' ) === '1';
@@ -868,7 +869,8 @@ function csc_ajax_scan_db() {
     }
 
     if ( $toggle( 'csc_clean_transients' ) ) {
-        $cnt_t = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%' AND option_value < UNIX_TIMESTAMP()" );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        $cnt_t = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%' AND option_value < UNIX_TIMESTAMP()" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no user input, table name is trusted $wpdb property
         $lines[] = array( 'type' => 'section', 'text' => 'Expired Transients' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_t );
     } else {
@@ -876,7 +878,8 @@ function csc_ajax_scan_db() {
     }
 
     if ( $toggle( 'csc_clean_orphan_post' ) ) {
-        $cnt_pm = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        $cnt_pm = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" ); // no user input, table names are trusted $wpdb properties
         $lines[] = array( 'type' => 'section', 'text' => 'Orphaned Post Meta' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_pm . ' rows' );
     } else {
@@ -884,7 +887,8 @@ function csc_ajax_scan_db() {
     }
 
     if ( $toggle( 'csc_clean_orphan_user' ) ) {
-        $cnt_um = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        $cnt_um = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" ); // no user input, table names are trusted $wpdb properties
         $lines[] = array( 'type' => 'section', 'text' => 'Orphaned User Meta' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_um . ' rows' );
     } else {
@@ -927,7 +931,7 @@ function csc_ajax_db_start() {
     $overrides = array();
     foreach ( $toggle_keys as $k ) {
         if ( isset( $_POST[ $k ] ) ) {
-            $overrides[ $k ] = $_POST[ $k ] === '1' ? '1' : '0';
+            $overrides[ $k ] = wp_unslash( $_POST[ $k ] ) === '1' ? '1' : '0'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- boolean toggle, validated via strict comparison
         }
     }
 
@@ -1023,6 +1027,12 @@ function csc_ajax_db_finish() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 add_action( 'wp_ajax_csc_autoload_scan', 'csc_ajax_autoload_scan' );
+/**
+ * AJAX: Scan autoloaded options — returns size, count, top rows, and transient stats.
+ *
+ * @since 2.4.0
+ * @return void Sends JSON response via wp_send_json_success/error.
+ */
 function csc_ajax_autoload_scan() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1076,6 +1086,12 @@ function csc_ajax_autoload_scan() {
 }
 
 add_action( 'wp_ajax_csc_autoload_start', 'csc_ajax_autoload_start' );
+/**
+ * AJAX: Build the autoload cleanup queue and store it as a transient.
+ *
+ * @since 2.4.0
+ * @return void Sends JSON response with total item count.
+ */
 function csc_ajax_autoload_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1094,6 +1110,14 @@ function csc_ajax_autoload_start() {
 }
 
 add_action( 'wp_ajax_csc_autoload_chunk', 'csc_ajax_autoload_chunk' );
+/**
+ * AJAX: Process one chunk of the autoload cleanup queue.
+ *
+ * Disables autoload on expired transient rows, then deletes them in batches.
+ *
+ * @since 2.4.0
+ * @return void Sends JSON response with remaining count and log lines.
+ */
 function csc_ajax_autoload_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1124,6 +1148,12 @@ function csc_ajax_autoload_chunk() {
 }
 
 add_action( 'wp_ajax_csc_autoload_finish', 'csc_ajax_autoload_finish' );
+/**
+ * AJAX: Finalise the autoload cleanup run — returns new size and RAG status.
+ *
+ * @since 2.4.0
+ * @return void Sends JSON response with new_size, new_rag, and summary line.
+ */
 function csc_ajax_autoload_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1141,12 +1171,24 @@ function csc_ajax_autoload_finish() {
 // ORPHANED PLUGIN OPTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Return option name prefixes that belong to WordPress core and should never be flagged as orphaned.
+ *
+ * @since 2.4.20
+ * @return string[] List of prefix strings.
+ */
 function csc_orphan_core_prefixes(): array {
     return array(
         '_transient_', '_site_transient_', 'widget_', 'wp_', '_wp_', 'theme_mods_',
     );
 }
 
+/**
+ * Return exact option names that belong to WordPress core.
+ *
+ * @since 2.4.20
+ * @return string[] List of option names.
+ */
 function csc_orphan_core_names(): array {
     return array(
         'siteurl', 'blogname', 'blogdescription', 'blogpublic', 'admin_email',
@@ -1171,6 +1213,13 @@ function csc_orphan_core_names(): array {
     );
 }
 
+/**
+ * Check whether an option name belongs to WordPress core.
+ *
+ * @since 2.4.20
+ * @param string $name Option name to test.
+ * @return bool True if the option is a known WP core option.
+ */
 function csc_orphan_is_core( string $name ): bool {
     if ( in_array( $name, csc_orphan_core_names(), true ) ) { return true; }
     foreach ( csc_orphan_core_prefixes() as $prefix ) {
@@ -1179,6 +1228,14 @@ function csc_orphan_is_core( string $name ): bool {
     return false;
 }
 
+/**
+ * Return a map of known plugin option name prefixes to human-readable plugin names.
+ *
+ * Used to attribute orphaned options to a specific deleted plugin rather than showing "Unknown".
+ *
+ * @since 2.4.20
+ * @return array<string,string> Map of prefix → plugin label.
+ */
 function csc_orphan_known_prefix_map(): array {
     return array(
         'wpseo'           => 'Yoast SEO',
@@ -1227,6 +1284,16 @@ function csc_orphan_known_prefix_map(): array {
     );
 }
 
+/**
+ * Scan wp_options for rows left behind by deleted plugins.
+ *
+ * Compares option name prefixes against installed plugin slugs and the
+ * known prefix map. Options not claimed by any installed plugin are
+ * returned as candidates for removal.
+ *
+ * @since 2.4.20
+ * @return array<int, array{name: string, plugin: string, size: int, autoload: string}> Orphaned option rows.
+ */
 function csc_find_orphaned_options(): array {
     global $wpdb;
 
@@ -1301,16 +1368,37 @@ function csc_ajax_orphan_scan() {
 
 define( 'CSC_ORPHAN_BIN_KEY', 'csc_orphan_recycle_bin' );
 
+/**
+ * Return the current contents of the orphan options recycle bin.
+ *
+ * @since 2.4.20
+ * @return array<string, mixed> Bin contents keyed by option name.
+ */
 function csc_orphan_bin_get(): array {
     $bin = get_option( CSC_ORPHAN_BIN_KEY, array() );
     return is_array( $bin ) ? $bin : array();
 }
 
+/**
+ * Persist the orphan options recycle bin to the database (not autoloaded).
+ *
+ * @since 2.4.20
+ * @param array<string, mixed> $bin Bin contents to save.
+ * @return void
+ */
 function csc_orphan_bin_save( array $bin ): void {
     update_option( CSC_ORPHAN_BIN_KEY, $bin, 'no' );
 }
 
 add_action( 'wp_ajax_csc_orphan_delete', 'csc_ajax_orphan_delete' );
+/**
+ * AJAX: Move selected orphaned options to the recycle bin.
+ *
+ * Saves the raw value, autoload flag, and a batch timestamp before calling delete_option().
+ *
+ * @since 2.4.20
+ * @return void Sends JSON response with bin count and batch timestamp.
+ */
 function csc_ajax_orphan_delete() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1349,13 +1437,21 @@ function csc_ajax_orphan_delete() {
 }
 
 add_action( 'wp_ajax_csc_orphan_restore', 'csc_ajax_orphan_restore' );
+/**
+ * AJAX: Restore orphaned options from the recycle bin.
+ *
+ * Restores by single name, by batch timestamp, or all when no parameters are supplied.
+ *
+ * @since 2.4.20
+ * @return void Sends JSON response with restored count and remaining bin count.
+ */
 function csc_ajax_orphan_restore() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
     // phpcs:ignore WordPress.Security.NonceVerification.Missing
-    $batch     = isset( $_POST['batch'] ) ? (int) $_POST['batch'] : 0;
+    $batch     = isset( $_POST['batch'] ) ? (int) wp_unslash( $_POST['batch'] ) : 0;
     // phpcs:ignore WordPress.Security.NonceVerification.Missing
     $single    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
     $bin       = csc_orphan_bin_get();
@@ -1387,6 +1483,12 @@ function csc_ajax_orphan_restore() {
 }
 
 add_action( 'wp_ajax_csc_orphan_empty', 'csc_ajax_orphan_empty' );
+/**
+ * AJAX: Permanently empty the orphan options recycle bin.
+ *
+ * @since 2.4.20
+ * @return void Sends JSON success response.
+ */
 function csc_ajax_orphan_empty() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1398,6 +1500,12 @@ function csc_ajax_orphan_empty() {
 }
 
 add_action( 'wp_ajax_csc_orphan_bin_list', 'csc_ajax_orphan_bin_list' );
+/**
+ * AJAX: Return a summary of the orphan options recycle bin (size only, no raw values).
+ *
+ * @since 2.4.20
+ * @return void Sends JSON response with item list and total count.
+ */
 function csc_ajax_orphan_bin_list() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1418,15 +1526,32 @@ function csc_ajax_orphan_bin_list() {
 // TABLE OVERHEAD REPAIR
 // ═════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Return the RAG status for total table overhead.
+ *
+ * Thresholds: green < 12 MB, amber 12–28 MB, red > 28 MB.
+ *
+ * @since 2.4.30
+ * @param int $bytes Total overhead in bytes.
+ * @return string 'green', 'amber', or 'red'.
+ */
 function csc_table_overhead_rag( int $bytes ): string {
-    if ( $bytes > 20 * MB_IN_BYTES ) { return 'red'; }
-    if ( $bytes >  5 * MB_IN_BYTES ) { return 'amber'; }
+    if ( $bytes > 28 * MB_IN_BYTES ) { return 'red'; }
+    if ( $bytes > 12 * MB_IN_BYTES ) { return 'amber'; }
     return 'green';
 }
 
+/**
+ * Return the total reclaimable overhead across all site tables.
+ *
+ * Sums the Data_free column from SHOW TABLE STATUS for all tables matching the site prefix.
+ *
+ * @since 2.4.30
+ * @return int Total overhead in bytes.
+ */
 function csc_table_overhead_total(): int {
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
     $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $total = 0;
     foreach ( $rows as $row ) { $total += (int) $row->Data_free; }
@@ -1434,12 +1559,18 @@ function csc_table_overhead_total(): int {
 }
 
 add_action( 'wp_ajax_csc_table_scan', 'csc_ajax_table_scan' );
+/**
+ * AJAX: Dry-run scan — returns a list of tables with significant overhead.
+ *
+ * @since 2.4.30
+ * @return void Sends JSON response with table list, total overhead, and RAG status.
+ */
 function csc_ajax_table_scan() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
     $rows   = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $tables = array();
     $total  = 0;
@@ -1487,12 +1618,18 @@ function csc_ajax_table_scan() {
 }
 
 add_action( 'wp_ajax_csc_table_start', 'csc_ajax_table_start' );
+/**
+ * AJAX: Build the OPTIMIZE TABLE queue for all tables with overhead > 100 KB.
+ *
+ * @since 2.4.30
+ * @return void Sends JSON response with total queue count.
+ */
 function csc_ajax_table_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
     $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $queue = array();
     foreach ( $rows as $row ) {
@@ -1510,6 +1647,14 @@ function csc_ajax_table_start() {
 }
 
 add_action( 'wp_ajax_csc_table_chunk', 'csc_ajax_table_chunk' );
+/**
+ * AJAX: Run OPTIMIZE TABLE on one table from the queue.
+ *
+ * Records before/after Data_free values and reports the bytes saved.
+ *
+ * @since 2.4.30
+ * @return void Sends JSON response with remaining count and log lines.
+ */
 function csc_ajax_table_chunk() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1526,7 +1671,7 @@ function csc_ajax_table_chunk() {
         $table = $item['table'];
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $before = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.SchemaChange
         $wpdb->query( 'OPTIMIZE TABLE `' . esc_sql( $table ) . '`' );
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
         $after   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
@@ -1538,6 +1683,12 @@ function csc_ajax_table_chunk() {
 }
 
 add_action( 'wp_ajax_csc_table_finish', 'csc_ajax_table_finish' );
+/**
+ * AJAX: Finalise the table repair run — returns new total overhead and RAG status.
+ *
+ * @since 2.4.30
+ * @return void Sends JSON response with new_overhead, new_rag, and summary line.
+ */
 function csc_ajax_table_finish() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
@@ -1581,7 +1732,8 @@ function csc_get_used_attachment_ids() {
     $upload_dir  = wp_upload_dir();
     $upload_url  = trailingslashit( $upload_dir['baseurl'] );
     $file_to_id  = array();
-    $rows = $wpdb->get_results( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key='_wp_attached_file'" );
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+    $rows = $wpdb->get_results( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key='_wp_attached_file'" ); // no user input, table name is trusted $wpdb property
     foreach ( $rows as $row ) {
         $file_to_id[ $row->meta_value ] = intval( $row->post_id );
         // Also index the basename without extension for thumbnail matching
@@ -1740,7 +1892,7 @@ function csc_media_recycle_count(): int {
 function csc_media_recycle_ensure_dir(): bool {
     $dir = csc_media_recycle_dir();
     if ( ! wp_mkdir_p( $dir ) ) {
-        error_log( '[CSC] Cannot create media recycle directory: ' . $dir );
+        error_log( '[CSC] Cannot create media recycle directory: ' . $dir ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
         return false;
     }
     // Prevent directory listing and direct file access
@@ -1770,20 +1922,20 @@ function csc_media_recycle_read_manifest(): array {
         if ( is_array( $data ) ) {
             return $data;
         }
-        error_log( '[CSC] Media recycle manifest.json corrupted (json_last_error=' . json_last_error() . '). Trying backup.' );
+        error_log( '[CSC] Media recycle manifest.json corrupted (json_last_error=' . json_last_error() . '). Trying backup.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
     }
 
     // Try backup manifest
     if ( file_exists( $backup ) ) {
-        $raw  = file_get_contents( $backup );
+        $raw  = file_get_contents( $backup ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- local filesystem read, not a remote URL
         $data = json_decode( $raw, true );
         if ( is_array( $data ) ) {
-            error_log( '[CSC] Recovered media recycle manifest from backup.' );
+            error_log( '[CSC] Recovered media recycle manifest from backup.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
             // Restore the primary from backup
             copy( $backup, $path );
             return $data;
         }
-        error_log( '[CSC] Media recycle backup manifest also corrupted.' );
+        error_log( '[CSC] Media recycle backup manifest also corrupted.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
     }
 
     return array();
@@ -1799,7 +1951,7 @@ function csc_media_recycle_write_manifest( array $manifest ): bool {
     $json   = json_encode( $manifest, JSON_PRETTY_PRINT );
 
     if ( $json === false ) {
-        error_log( '[CSC] Failed to encode media recycle manifest (json_last_error=' . json_last_error() . ').' );
+        error_log( '[CSC] Failed to encode media recycle manifest (json_last_error=' . json_last_error() . ').' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
         return false;
     }
 
@@ -1810,18 +1962,18 @@ function csc_media_recycle_write_manifest( array $manifest ): bool {
 
     // Write atomically: write to temp file then rename
     $tmp = $path . '.tmp';
-    $written = file_put_contents( $tmp, $json );
+    $written = file_put_contents( $tmp, $json ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- local atomic write, WP Filesystem does not support rename
     if ( $written === false ) {
-        error_log( '[CSC] Failed to write media recycle manifest temp file.' );
+        error_log( '[CSC] Failed to write media recycle manifest temp file.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
         return false;
     }
 
     if ( ! @rename( $tmp, $path ) ) {
         // Fallback: direct write if rename fails (cross device)
-        $written = file_put_contents( $path, $json );
+        $written = file_put_contents( $path, $json ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- local atomic write fallback
         wp_delete_file( $tmp );
         if ( $written === false ) {
-            error_log( '[CSC] Failed to write media recycle manifest (direct write also failed).' );
+            error_log( '[CSC] Failed to write media recycle manifest (direct write also failed).' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- manifest integrity logging
             return false;
         }
     }
@@ -2187,7 +2339,7 @@ function csc_ajax_media_restore_single() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $att_id = sanitize_text_field( $_POST['att_id'] ?? '' );
+    $att_id = sanitize_text_field( wp_unslash( $_POST['att_id'] ?? '' ) );
     if ( empty( $att_id ) ) { wp_send_json_error( 'No attachment ID specified.' ); }
 
     $manifest = csc_media_recycle_read_manifest();
@@ -2439,7 +2591,7 @@ function csc_ajax_scan_orphan_files() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $raw_types  = sanitize_text_field( $_POST['file_type'] ?? '' );
+    $raw_types  = sanitize_text_field( wp_unslash( $_POST['file_type'] ?? '' ) );
     $ext_sets   = csc_orphan_ext_sets();
     if ( empty( $raw_types ) ) {
         wp_send_json_error( 'No file type selected. Please select at least one file type.' );
@@ -2746,7 +2898,7 @@ function csc_ajax_recycle_restore_single() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $rel = sanitize_text_field( $_POST['rel'] ?? '' );
+    $rel = sanitize_text_field( wp_unslash( $_POST['rel'] ?? '' ) );
     if ( empty( $rel ) ) { wp_send_json_error( 'No file specified.' ); }
 
     $manifest_path = csc_recycle_manifest();
@@ -2796,10 +2948,10 @@ function csc_rmdir_recursive( string $dir ): void {
             RecursiveIteratorIterator::CHILD_FIRST
         );
         foreach ( $iter as $f ) {
-            $f->isDir() ? rmdir( $f->getRealPath() ) : wp_delete_file( $f->getRealPath() );
+            $f->isDir() ? rmdir( $f->getRealPath() ) : wp_delete_file( $f->getRealPath() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- recursive removal of plugin-owned temp dirs
         }
     } catch ( Exception $e ) {}
-    rmdir( $dir );
+    rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3099,9 +3251,9 @@ function csc_cspj_delete_dir( $dir ) {
     $it    = new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS );
     $files = new RecursiveIteratorIterator( $it, RecursiveIteratorIterator::CHILD_FIRST );
     foreach ( $files as $file ) {
-        $file->isDir() ? rmdir( $file->getRealPath() ) : wp_delete_file( $file->getRealPath() );
+        $file->isDir() ? rmdir( $file->getRealPath() ) : wp_delete_file( $file->getRealPath() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- recursive removal of plugin-owned temp dirs
     }
-    rmdir( $dir );
+    rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir
 }
 
 function csc_cspj_resolve_dimensions( $size, $ow, $oh, $cw, $ch, $constrain ) {
@@ -3191,9 +3343,9 @@ function csc_ajax_cspj_chunk_start() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $filename   = sanitize_file_name( $_POST['filename'] ?? '' );
-    $total_size = intval( $_POST['total_size'] ?? 0 );
-    $total      = intval( $_POST['total_chunks'] ?? 0 );
+    $filename   = sanitize_file_name( wp_unslash( $_POST['filename'] ?? '' ) );
+    $total_size = intval( wp_unslash( $_POST['total_size'] ?? 0 ) );
+    $total      = intval( wp_unslash( $_POST['total_chunks'] ?? 0 ) );
 
     if ( $filename === '' || $total_size <= 0 || $total <= 0 ) {
         wp_send_json_error( 'Invalid upload session parameters.' );
@@ -3225,9 +3377,9 @@ function csc_ajax_cspj_chunk_upload() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $upload_id = sanitize_text_field( $_POST['upload_id'] ?? '' );
-    $index     = intval( $_POST['chunk_index'] ?? -1 );
-    $total     = intval( $_POST['total_chunks'] ?? 0 );
+    $upload_id = sanitize_text_field( wp_unslash( $_POST['upload_id'] ?? '' ) );
+    $index     = intval( wp_unslash( $_POST['chunk_index'] ?? -1 ) );
+    $total     = intval( wp_unslash( $_POST['total_chunks'] ?? 0 ) );
 
     if ( $upload_id === '' || $index < 0 || $total <= 0 ) {
         wp_send_json_error( 'Invalid chunk parameters.' );
@@ -3262,12 +3414,12 @@ function csc_ajax_cspj_chunk_finish() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $upload_id  = sanitize_text_field( $_POST['upload_id'] ?? '' );
-    $quality    = max( 1, min( 100, intval( $_POST['quality'] ?? 90 ) ) );
-    $size       = sanitize_text_field( $_POST['size'] ?? 'original' );
-    $custom_w   = intval( $_POST['custom_w'] ?? 0 );
-    $custom_h   = intval( $_POST['custom_h'] ?? 0 );
-    $constrain  = isset( $_POST['constrain'] ) && $_POST['constrain'] === '1';
+    $upload_id  = sanitize_text_field( wp_unslash( $_POST['upload_id'] ?? '' ) );
+    $quality    = max( 1, min( 100, intval( wp_unslash( $_POST['quality'] ?? 90 ) ) ) );
+    $size       = sanitize_text_field( wp_unslash( $_POST['size'] ?? 'original' ) );
+    $custom_w   = intval( wp_unslash( $_POST['custom_w'] ?? 0 ) );
+    $custom_h   = intval( wp_unslash( $_POST['custom_h'] ?? 0 ) );
+    $constrain  = isset( $_POST['constrain'] ) && wp_unslash( $_POST['constrain'] ) === '1'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- boolean toggle, validated via strict comparison
 
     $dir       = csc_cspj_chunk_dir( $upload_id );
     $meta_path = trailingslashit( $dir ) . 'meta.json';
@@ -3334,9 +3486,9 @@ function csc_ajax_cspj_add_to_library() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $path     = sanitize_text_field( $_POST['path']     ?? '' );
-    $url      = esc_url_raw(         $_POST['url']      ?? '' );
-    $new_name = sanitize_text_field( $_POST['new_name'] ?? '' );
+    $path     = sanitize_text_field( wp_unslash( $_POST['path']     ?? '' ) );
+    $url      = esc_url_raw(  wp_unslash( $_POST['url']      ?? '' ) );
+    $new_name = sanitize_text_field( wp_unslash( $_POST['new_name'] ?? '' ) );
 
     if ( ! file_exists( $path ) ) { wp_send_json_error( 'File not found on disk.' ); }
 
@@ -3587,7 +3739,7 @@ function csc_health_dir_size( string $dir ): int {
             }
         }
     } catch ( Exception $e ) {
-        error_log( '[CSC] health dir_size error: ' . $e->getMessage() );
+        error_log( '[CSC] health dir_size error: ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
     }
     return $size;
 }
@@ -3716,7 +3868,7 @@ function csc_health_system_time( string $fmt, int $ts = 0 ): string {
     }
     $old_tz = date_default_timezone_get();
     date_default_timezone_set( $sys_tz );
-    $result = date( $fmt, $ts ?: time() );
+    $result = gmdate( $fmt, $ts ?: time() );
     date_default_timezone_set( $old_tz );
     return $result;
 }
@@ -4257,7 +4409,7 @@ function csc_ajax_health_sysstat_test() {
     // Debug: timezone info for diagnosing sar time window mismatches
     $result['debug_wp_tz']      = date_default_timezone_get();
     $result['debug_sys_time']   = csc_health_system_time( 'H:i:s' );
-    $result['debug_php_time']   = date( 'H:i:s' );
+    $result['debug_php_time']   = gmdate( 'H:i:s' );
     $result['debug_sar_window'] = csc_health_system_time( 'H:i:s', time() - 3600 ) . ' to ' . csc_health_system_time( 'H:i:s' );
 
     wp_send_json_success( $result );
@@ -4270,6 +4422,19 @@ function csc_ajax_health_sysstat_test() {
 
 // ─── Explain modal helper ────────────────────────────────────────────────────
 
+/**
+ * Render an "Explain..." button and its associated modal dialog.
+ *
+ * The modal is rendered inline with display:none and opened via onclick. JS functions
+ * (cscToggle, cscOrphanToggle) are defined globally in admin.js.
+ *
+ * @since 2.3.0
+ * @param string $id    Unique identifier for this button/modal pair (used in element IDs).
+ * @param string $title Modal dialog title.
+ * @param array  $items Array of explanation items, each with 'name', 'desc', and 'rec' keys.
+ * @param string $color Background colour for the button (CSS colour string).
+ * @return void
+ */
 function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(255,255,255,0.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
@@ -4280,7 +4445,7 @@ function csc_explain_btn( string $id, string $title, array $items, string $color
         style="background:<?php echo esc_attr( $color ); ?>!important;border:1px solid rgba(255,255,255,0.5)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:600!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:none!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
         Explain...
     </button>
-    <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px">
+    <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
         <div style="background:#fff;border-radius:10px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
             <div style="background:#1a2a3a;border-radius:10px 10px 0 0;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
                 <strong style="color:#fff;font-size:15px"><?php echo esc_html( $title ); ?></strong>
@@ -4393,30 +4558,18 @@ function csc_render_page() {
                                     <span style="font-size:12px;color:#787c82;line-height:1.5;"><?php echo esc_html( $info[1] ); ?></span>
                                 </div>
                                 <!-- Hidden input holds the real value for form submission -->
-                                <input type="hidden" name="<?php echo esc_attr( $opt ); ?>" value="<?php echo $is_on ? '1' : '0'; ?>" data-csc-toggle="1">
+                                <input type="hidden" name="<?php echo esc_attr( $opt ); ?>" value="<?php echo esc_attr( $is_on ? '1' : '0' ); ?>" data-csc-toggle="1">
                                 <!-- Pure-div toggle — zero CSS class dependencies, all inline -->
                                 <div data-csc-toggle-track="1"
-                                     data-on="<?php echo $is_on ? '1' : '0'; ?>"
+                                     data-on="<?php echo esc_attr( $is_on ? '1' : '0' ); ?>"
                                      onclick="cscToggle(this)"
-                                     style="position:relative;display:inline-block;width:44px;height:24px;min-width:44px;border-radius:24px;background:<?php echo $is_on ? '#00a32a' : '#c3c4c7'; ?>;cursor:pointer;transition:background 0.2s;flex-shrink:0;">
-                                    <span style="position:absolute;top:3px;left:<?php echo $is_on ? '23px' : '3px'; ?>;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);transition:left 0.2s;"></span>
+                                     style="position:relative;display:inline-block;width:44px;height:24px;min-width:44px;border-radius:24px;background:<?php echo esc_attr( $is_on ? '#00a32a' : '#c3c4c7' ); ?>;cursor:pointer;transition:background 0.2s;flex-shrink:0;">
+                                    <span style="position:absolute;top:3px;left:<?php echo esc_attr( $is_on ? '23px' : '3px' ); ?>;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3);transition:left 0.2s;"></span>
                                 </div>
                             </div>
                             <?php endforeach; ?>
                         </div>
-                        <script>
-                        function cscToggle(track) {
-                            var isOn = track.getAttribute('data-on') === '1';
-                            var newOn = !isOn;
-                            track.setAttribute('data-on', newOn ? '1' : '0');
-                            track.style.background = newOn ? '#00a32a' : '#c3c4c7';
-                            track.querySelector('span').style.left = newOn ? '23px' : '3px';
-                            // Update the hidden input
-                            var row = track.parentNode;
-                            var hidden = row.querySelector('input[type="hidden"][data-csc-toggle]');
-                            if (hidden) hidden.value = newOn ? '1' : '0';
-                        }
-                        </script>
+                        <?php /* cscToggle() defined in admin.js — no inline script needed */ ?>
                         <div class="csc-button-row" style="margin-top:18px">
                             <button class="csc-btn csc-btn-primary csc-save-btn" data-group="db-types">Save Selection</button>
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-db">🔍 Dry Run — Preview</button>
@@ -4696,24 +4849,7 @@ function csc_render_page() {
         ); ?></div>
                     <div class="csc-card-body">
                         <p>Finds files sitting in your uploads folder that have no matching record in the WordPress media library. Typically from FTP uploads, failed imports, or plugins that wrote files directly. Use the recycle workflow to safely remove them.</p>
-                        <script>
-                        var cscPillOff = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #c3c4c7;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#50575e;margin:0 4px 4px 0';
-                        var cscPillOn  = 'display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0';
-                        window.cscOrphanTypes = ['images','documents','video','audio'];
-                        function cscOrphanToggle(el, type) {
-                            var idx = window.cscOrphanTypes.indexOf(type);
-                            if (idx === -1) {
-                                window.cscOrphanTypes.push(type);
-                                el.style.cssText = cscPillOn;
-                            } else {
-                                window.cscOrphanTypes.splice(idx, 1);
-                                el.style.cssText = cscPillOff;
-                            }
-                            var joined = window.cscOrphanTypes.join(',');
-                            document.getElementById('btn-scan-orphan').setAttribute('data-ftype', joined);
-                            document.getElementById('btn-recycle-orphan').setAttribute('data-ftype', joined);
-                        }
-                        </script>
+                        <?php /* cscPillOff/cscPillOn/cscOrphanToggle/cscOrphanTypes defined in admin.js — no inline script needed */ ?>
                         <div style="display:flex;gap:0;flex-wrap:wrap;margin-bottom:14px">
                             <span class="csc-orphan-pill" onclick="cscOrphanToggle(this,'images')"    style="display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0">🖼 Images</span>
                             <span class="csc-orphan-pill" onclick="cscOrphanToggle(this,'documents')" style="display:inline-block;padding:6px 14px;border-radius:20px;border:2px solid #00a32a;font-size:12px;font-weight:700;cursor:pointer;background:#00a32a;color:#fff;margin:0 4px 4px 0">📄 Documents</span>
@@ -5203,11 +5339,6 @@ function csc_render_page() {
                 <div class="csc-card-body csc-about">
                     <p><strong>CloudScale Cleanup</strong> is a free, open source WordPress plugin by <a href="https://andrewbaker.ninja" target="_blank">Andrew Baker</a> — Chief Information Officer at Capitec Bank and author of a popular technology blog covering cloud architecture, banking technology, and enterprise software.</p>
                     <p>No accounts. No API keys. No subscriptions. No data leaves your server. All processing uses standard WordPress APIs.</p>
-                    <div class="csc-about-links">
-                        <a href="https://andrewbaker.ninja" target="_blank" class="csc-btn csc-btn-primary">andrewbaker.ninja</a>
-                        <a href="https://andrewbaker.ninja/2026/02/24/cloudscale-free-backup-and-restore-a-wordpress-backup-plugin-that-does-exactly-what-it-says/" target="_blank" class="csc-btn csc-btn-secondary">CloudScale Backup Plugin</a>
-                        <a href="https://andrewbaker.ninja/2026/02/24/cloudscale-seo-ai-optimiser-enterprise-grade-wordpress-seo-completely-free/" target="_blank" class="csc-btn csc-btn-secondary">CloudScale SEO Plugin</a>
-                    </div>
                     <div class="csc-stats-grid" style="grid-template-columns:repeat(5,1fr)">
                         <div class="csc-stat-box">
                             <div class="csc-stat-label">Last DB Cleanup</div>
