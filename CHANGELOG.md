@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.5.2 — 2026-03-24
+- FIX: Bump version to 2.5.2 to force browser cache-bust on admin.js and admin.css after modal redesign
+
 ## 2.5.1 — 2026-03-24
 - UI: Replaced all browser-native `alert()` and `confirm()` dialogs with styled in-page modals — no more "andrewbaker.ninja says…" popups
 - UI: Unified modal design across all confirmation dialogs and info boxes — white card, icon + bold title, red warning line, plain-English explanation, and Cancel / action buttons
