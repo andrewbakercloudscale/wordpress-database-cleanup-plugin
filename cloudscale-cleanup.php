@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.7
+ * Version:     2.5.23
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.7' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.23' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -348,7 +348,7 @@ function csc_render_dashboard_widget() {
     $fmt = function ( $val ) {
         return $val
             ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' ) . '</span>'
-            : '<span style="font-size:12px;font-weight:700;color:rgba(2.5.755,2.5.1.5)">Not yet run</span>';
+            : '<span style="font-size:12px;font-weight:700;color:rgba(2.5.2355,2.5.1.5)">Not yet run</span>';
     };
 
     // Health data
@@ -378,19 +378,19 @@ function csc_render_dashboard_widget() {
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
             <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.755,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.755,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
                 <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.755,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:<?php echo esc_attr( $rag_info['bg'] ); ?>;box-shadow:0 2px 6px <?php echo esc_attr( $rag_info['shadow'] ); ?>" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.755,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
                 <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
             </a>
         </div>
@@ -407,16 +407,16 @@ function csc_render_dashboard_widget() {
             </div>
             <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
                 <div style="color:#78909c;font-weight:600;margin-bottom:2px">Growth/Wk</div>
-                <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : '—'; ?></div>
+                <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : esc_html( '—' ); ?></div>
             </div>
             <?php
             $wks_bg    = $health['disk_rag'] === 'red' ? '#c62828' : ( $health['disk_rag'] === 'amber' ? '#e65100' : '#f0f2f5' );
             $wks_color = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? '#fff' : '#263238';
-            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(2.5.755,2.5.1.8)' : '#78909c';
+            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(2.5.2355,2.5.1.8)' : '#78909c';
             ?>
             <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
-                <div style="font-weight:700;color:<?php echo esc_attr( $wks_color ); ?>"><?php echo $health['weeks_remaining'] > 104 ? '>> 2 Yrs' : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) . ' wks' : '—' ); ?></div>
+                <div style="font-weight:700;color:<?php echo esc_attr( $wks_color ); ?>"><?php echo $health['weeks_remaining'] > 104 ? esc_html( '>> 2 Yrs' ) : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) . esc_html( ' wks' ) : esc_html( '—' ) ); ?></div>
             </div>
             <?php
             $al_bytes = csc_get_autoload_size();
@@ -1875,7 +1875,7 @@ function csc_media_recycle_manifest(): string {
 function csc_media_recycle_count(): int {
     $manifest = csc_media_recycle_manifest();
     if ( ! file_exists( $manifest ) ) { return 0; }
-    $data = json_decode( file_get_contents( $manifest ), true );
+    $data = json_decode( file_get_contents( $manifest ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     return is_array( $data ) ? count( $data ) : 0;
 }
 
@@ -1892,11 +1892,11 @@ function csc_media_recycle_ensure_dir(): bool {
     // Prevent directory listing and direct file access
     $htaccess = $dir . '.htaccess';
     if ( ! file_exists( $htaccess ) ) {
-        @file_put_contents( $htaccess, "Order deny,allow\nDeny from all\n" );
+        @file_put_contents( $htaccess, "Order deny,allow\nDeny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned local manifest/meta files
     }
     $index = $dir . 'index.php';
     if ( ! file_exists( $index ) ) {
-        @file_put_contents( $index, "<?php // Silence is golden.\n" );
+        @file_put_contents( $index, "<?php // Silence is golden.\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned index.php stub
     }
     return true;
 }
@@ -1911,7 +1911,7 @@ function csc_media_recycle_read_manifest(): array {
 
     // Try primary manifest
     if ( file_exists( $path ) ) {
-        $raw  = file_get_contents( $path );
+        $raw  = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files
         $data = json_decode( $raw, true );
         if ( is_array( $data ) ) {
             return $data;
@@ -2039,7 +2039,7 @@ function csc_media_recycle_save_attachment( int $id ): array {
             $files_moved[] = $rel;
         } else {
             // Try copy+delete as fallback (cross-device move)
-            if ( copy( $src_path, $dest ) && unlink( $src_path ) ) {
+            if ( copy( $src_path, $dest ) && unlink( $src_path ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
                 $files_moved[] = $rel;
             } else {
                 $errors[] = 'Failed to move: ' . $rel;
@@ -2265,7 +2265,7 @@ function csc_ajax_media_restore() {
                     continue;
                 }
                 if ( ! @rename( $src, $dest ) ) {
-                    if ( ! ( copy( $src, $dest ) && unlink( $src ) ) ) {
+                    if ( ! ( copy( $src, $dest ) && unlink( $src ) ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
                         $file_errors[] = 'Move failed: ' . $rel;
                     }
                 }
@@ -2352,7 +2352,7 @@ function csc_ajax_media_restore_single() {
             if ( file_exists( $src ) ) {
                 wp_mkdir_p( dirname( $dest ) );
                 if ( ! @rename( $src, $dest ) ) {
-                    copy( $src, $dest ) && unlink( $src );
+                    copy( $src, $dest ) && unlink( $src ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
                 }
             }
         }
@@ -2427,7 +2427,7 @@ function csc_ajax_media_purge() {
                 $path = $recycle . $rel;
                 if ( file_exists( $path ) ) {
                     $freed += filesize( $path );
-                    if ( unlink( $path ) ) {
+                    if ( unlink( $path ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
                         $file_deleted++;
                     } else {
                         $errors++;
@@ -2572,7 +2572,7 @@ function csc_scan_orphan_files_with_exts( array $exts ): array {
 function csc_recycle_count(): int {
     $manifest = csc_recycle_manifest();
     if ( ! file_exists( $manifest ) ) { return 0; }
-    $data = json_decode( file_get_contents( $manifest ), true );
+    $data = json_decode( file_get_contents( $manifest ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     return is_array( $data ) ? count( $data ) : 0;
 }
 
@@ -2655,7 +2655,7 @@ function csc_ajax_recycle_orphan_files() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $raw_types = sanitize_text_field( $_POST['file_type'] ?? '' );
+    $raw_types = sanitize_text_field( wp_unslash( $_POST['file_type'] ?? '' ) );
     $ext_sets  = csc_orphan_ext_sets();
     if ( empty( $raw_types ) ) {
         wp_send_json_error( 'No file type selected.' );
@@ -2683,7 +2683,7 @@ function csc_ajax_recycle_orphan_files() {
     $manifest_path = csc_recycle_manifest();
     $manifest = array();
     if ( file_exists( $manifest_path ) ) {
-        $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array();
+        $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     }
 
     $moved = 0;
@@ -2711,7 +2711,7 @@ function csc_ajax_recycle_orphan_files() {
         }
     }
 
-    file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+    file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned local manifest/meta files
 
     $lines[] = array( 'type' => 'success', 'text' => '  ✅ Moved ' . $moved . ' file(s) to recycle bin.' . ( $errors ? ' ' . $errors . ' error(s).' : '' ) );
     $lines[] = array( 'type' => 'info',    'text' => '  Files are in: wp-content/uploads/.csc-recycle/' );
@@ -2739,7 +2739,7 @@ function csc_ajax_restore_orphan_files() {
         return;
     }
 
-    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array();
+    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     if ( empty( $manifest ) ) {
         $lines[] = array( 'type' => 'info', 'text' => '  Recycle bin is empty — nothing to restore.' );
         wp_send_json_success( array( 'lines' => $lines, 'restored' => 0 ) );
@@ -2781,7 +2781,7 @@ function csc_ajax_restore_orphan_files() {
         // Clean up empty recycle dirs
         csc_rmdir_recursive( $recycle );
     } else {
-        file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+        file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned local manifest/meta files
     }
 
     $lines[] = array( 'type' => 'success', 'text' => '  ✅ Restored ' . $restored . ' file(s) to original locations.' . ( $errors ? ' ' . $errors . ' error(s).' : '' ) );
@@ -2808,7 +2808,7 @@ function csc_ajax_purge_orphan_files() {
         return;
     }
 
-    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array();
+    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     $recycle  = csc_recycle_dir();
     $deleted  = 0;
     $errors   = 0;
@@ -2818,7 +2818,7 @@ function csc_ajax_purge_orphan_files() {
         $recycle_path = $recycle . $rel;
         if ( file_exists( $recycle_path ) ) {
             $freed += filesize( $recycle_path );
-            if ( unlink( $recycle_path ) ) {
+            if ( unlink( $recycle_path ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned recycle bin file, path built from validated manifest entry
                 $lines[] = array( 'type' => 'deleted', 'text' => '  [DELETED] ' . $rel );
                 $deleted++;
             } else {
@@ -2857,7 +2857,7 @@ function csc_ajax_recycle_browse() {
         return;
     }
 
-    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array();
+    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     $recycle  = csc_recycle_dir();
     $files    = array();
     $total_size = 0;
@@ -2898,7 +2898,7 @@ function csc_ajax_recycle_restore_single() {
     $manifest_path = csc_recycle_manifest();
     if ( ! file_exists( $manifest_path ) ) { wp_send_json_error( 'Recycle bin is empty.' ); }
 
-    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array();
+    $manifest = json_decode( file_get_contents( $manifest_path ), true ) ?: array(); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     if ( ! isset( $manifest[ $rel ] ) ) { wp_send_json_error( 'File not found in manifest.' ); }
 
     $original_path = $manifest[ $rel ];
@@ -2916,7 +2916,7 @@ function csc_ajax_recycle_restore_single() {
         wp_delete_file( $manifest_path );
         csc_rmdir_recursive( csc_recycle_dir() );
     } else {
-        file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+        file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned local manifest/meta files
     }
 
     wp_send_json_success( array(
@@ -3322,7 +3322,7 @@ function csc_ajax_cspj_save_settings() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    $chunk_mb = floatval( $_POST['chunk_mb'] ?? CSPJ_DEFAULT_CHUNK_MB );
+    $chunk_mb = floatval( wp_unslash( $_POST['chunk_mb'] ?? CSPJ_DEFAULT_CHUNK_MB ) );
     if ( $chunk_mb <= 0 ) { $chunk_mb = CSPJ_DEFAULT_CHUNK_MB; }
     $chunk_mb = max( 0.25, min( 1.95, $chunk_mb ) );
     update_option( CSPJ_OPTION_CHUNK_MB, $chunk_mb );
@@ -3359,7 +3359,7 @@ function csc_ajax_cspj_chunk_start() {
         'created'      => time(),
         'user_id'      => get_current_user_id(),
     );
-    file_put_contents( trailingslashit( $dir ) . 'meta.json', wp_json_encode( $meta ) );
+    file_put_contents( trailingslashit( $dir ) . 'meta.json', wp_json_encode( $meta ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes plugin-owned local manifest/meta files
     wp_send_json_success( array( 'upload_id' => $upload_id ) );
 }
 
@@ -3421,7 +3421,7 @@ function csc_ajax_cspj_chunk_finish() {
         wp_send_json_error( 'Upload session not found (expired or invalid).' );
     }
 
-    $meta = json_decode( file_get_contents( $meta_path ), true );
+    $meta = json_decode( file_get_contents( $meta_path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     if ( empty( $meta['total_chunks'] ) ) {
         wp_send_json_error( 'Upload session metadata missing.' );
     }
@@ -3546,7 +3546,7 @@ function csc_ajax_scan_broken_images() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $offset = intval( $_POST['offset'] ?? 0 );
+    $offset = intval( wp_unslash( $_POST['offset'] ?? 0 ) );
     $batch  = 50;
 
     global $wpdb;
@@ -3627,7 +3627,7 @@ function csc_ajax_cspj_delete_converted() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $path = sanitize_text_field( $_POST['path'] ?? '' );
+    $path = sanitize_text_field( wp_unslash( $_POST['path'] ?? '' ) );
     if ( empty( $path ) ) { wp_send_json_error( 'No path provided.' ); }
 
     $upload_dir = wp_upload_dir();
@@ -3657,7 +3657,7 @@ function csc_cspj_cron_cleanup() {
     foreach ( glob( trailingslashit( $root ) . '*' ) as $dir ) {
         if ( ! is_dir( $dir ) ) { continue; }
         $meta    = trailingslashit( $dir ) . 'meta.json';
-        $created = file_exists( $meta ) ? intval( json_decode( file_get_contents( $meta ), true )['created'] ?? 0 ) : 0;
+        $created = file_exists( $meta ) ? intval( json_decode( file_get_contents( $meta ), true )['created'] ?? 0 ) : 0; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
         $age     = $created > 0 ? ( $now - $created ) : ( $now - filemtime( $dir ) );
         if ( $age > $max_age ) { csc_cspj_delete_dir( $dir ); }
     }
@@ -4293,7 +4293,7 @@ function csc_ajax_health_hourly_data() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $days    = intval( $_POST['days'] ?? 7 );
+    $days    = intval( wp_unslash( $_POST['days'] ?? 7 ) );
     $days    = max( 1, min( 180, $days ) );
     $cutoff  = time() - ( $days * DAY_IN_SECONDS );
     $hourly  = get_option( CSC_HEALTH_HOURLY_KEY, array() );
@@ -4411,6 +4411,432 @@ function csc_ajax_health_sysstat_test() {
 
 // ─── Cron Management ─────────────────────────────────────────────────────────
 
+// ── Cron execution timing ────────────────────────────────────────────────────
+
+add_action( 'init', 'csc_cron_register_timing_hooks' );
+/**
+ * During a real cron run, add before/after hooks to every scheduled job
+ * so we can record how long each one took.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_cron_register_timing_hooks() {
+	if ( ! defined( 'DOING_CRON' ) || ! DOING_CRON ) {
+		return;
+	}
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	if ( ! is_array( $cron_array ) ) {
+		return;
+	}
+	$hooks = array();
+	foreach ( $cron_array as $jobs ) {
+		foreach ( array_keys( $jobs ) as $hook ) {
+			$hooks[ $hook ] = true;
+		}
+	}
+	foreach ( array_keys( $hooks ) as $hook ) {
+		add_action( $hook, 'csc_cron_time_start', -9999, 0 );
+		add_action( $hook, 'csc_cron_time_end',    9999, 0 );
+	}
+}
+
+/**
+ * Records the start time for a cron hook execution.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_cron_time_start() {
+	$GLOBALS['_csc_cron_t'][ current_action() ] = microtime( true );
+}
+
+/**
+ * Records duration for a cron hook execution and persists to the run log.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_cron_time_end() {
+	$hook = current_action();
+	if ( ! isset( $GLOBALS['_csc_cron_t'][ $hook ] ) ) {
+		return;
+	}
+	$ms  = (int) round( ( microtime( true ) - $GLOBALS['_csc_cron_t'][ $hook ] ) * 1000 );
+	$log = get_option( 'csc_cron_run_log', array() );
+	$log[ $hook ] = array(
+		'last_run'    => time(),
+		'duration_ms' => $ms,
+	);
+	if ( count( $log ) > 300 ) {
+		uasort( $log, function ( $a, $b ) { return $b['last_run'] - $a['last_run']; } );
+		$log = array_slice( $log, 0, 300, true );
+	}
+	update_option( 'csc_cron_run_log', $log, false );
+}
+
+// ── Cron delete / restore / purge ────────────────────────────────────────────
+
+add_action( 'wp_ajax_csc_cron_delete', 'csc_ajax_cron_delete' );
+/**
+ * Moves all instances of a scheduled cron hook into the recycle bin.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_ajax_cron_delete() {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Insufficient permissions.' );
+	}
+
+	$hook = isset( $_POST['hook'] ) ? sanitize_text_field( wp_unslash( $_POST['hook'] ) ) : '';
+	if ( empty( $hook ) ) {
+		wp_send_json_error( 'Missing hook name.' );
+	}
+
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	$saved      = array();
+
+	foreach ( (array) $cron_array as $timestamp => $hooks ) {
+		if ( isset( $hooks[ $hook ] ) ) {
+			foreach ( $hooks[ $hook ] as $data ) {
+				$saved[] = array(
+					'hook'       => $hook,
+					'args'       => isset( $data['args'] ) ? $data['args'] : array(),
+					'schedule'   => isset( $data['schedule'] ) ? $data['schedule'] : false,
+					'interval'   => isset( $data['interval'] ) ? (int) $data['interval'] : 0,
+					'next_run'   => (int) $timestamp,
+					'deleted_at' => time(),
+					'id'         => wp_generate_uuid4(),
+				);
+			}
+		}
+	}
+
+	if ( empty( $saved ) ) {
+		wp_send_json_error( 'Hook not found in cron schedule.' );
+	}
+
+	$bin = get_option( 'csc_cron_recycle_bin', array() );
+	$bin = array_merge( $bin, $saved );
+	if ( count( $bin ) > 200 ) {
+		$bin = array_slice( $bin, - 200 );
+	}
+	update_option( 'csc_cron_recycle_bin', $bin );
+
+	foreach ( $saved as $entry ) {
+		wp_clear_scheduled_hook( $entry['hook'], $entry['args'] );
+	}
+
+	wp_send_json_success( array( 'deleted' => count( $saved ), 'hook' => $hook ) );
+}
+
+add_action( 'wp_ajax_csc_cron_restore', 'csc_ajax_cron_restore' );
+/**
+ * Restores a cron entry from the recycle bin back into the WP cron schedule.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_ajax_cron_restore() {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Insufficient permissions.' );
+	}
+
+	$id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+	if ( empty( $id ) ) {
+		wp_send_json_error( 'Missing entry ID.' );
+	}
+
+	$bin     = get_option( 'csc_cron_recycle_bin', array() );
+	$entry   = null;
+	$bin_new = array();
+
+	foreach ( $bin as $item ) {
+		if ( isset( $item['id'] ) && $item['id'] === $id ) {
+			$entry = $item;
+		} else {
+			$bin_new[] = $item;
+		}
+	}
+
+	if ( ! $entry ) {
+		wp_send_json_error( 'Entry not found in recycle bin.' );
+	}
+
+	$next = max( (int) $entry['next_run'], time() + 30 );
+
+	if ( ! empty( $entry['schedule'] ) && $entry['interval'] > 0 ) {
+		wp_schedule_event( $next, $entry['schedule'], $entry['hook'], (array) $entry['args'] );
+	} else {
+		wp_schedule_single_event( $next, $entry['hook'], (array) $entry['args'] );
+	}
+
+	update_option( 'csc_cron_recycle_bin', array_values( $bin_new ) );
+	wp_send_json_success( array( 'restored' => $entry['hook'] ) );
+}
+
+add_action( 'wp_ajax_csc_cron_purge_bin', 'csc_ajax_cron_purge_bin' );
+/**
+ * Permanently removes a single entry from the cron recycle bin.
+ *
+ * @since 2.5.23
+ * @return void
+ */
+function csc_ajax_cron_purge_bin() {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Insufficient permissions.' );
+	}
+
+	$id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+	if ( empty( $id ) ) {
+		wp_send_json_error( 'Missing entry ID.' );
+	}
+
+	$bin     = get_option( 'csc_cron_recycle_bin', array() );
+	$found   = false;
+	$bin_new = array();
+
+	foreach ( $bin as $item ) {
+		if ( isset( $item['id'] ) && $item['id'] === $id ) {
+			$found = true;
+		} else {
+			$bin_new[] = $item;
+		}
+	}
+
+	if ( ! $found ) {
+		wp_send_json_error( 'Entry not found.' );
+	}
+
+	update_option( 'csc_cron_recycle_bin', array_values( $bin_new ) );
+	wp_send_json_success( array( 'purged' => $id ) );
+}
+
+// ── Plugin lookup for cron hooks ─────────────────────────────────────────────
+
+/**
+ * Maps a cron hook name to its origin plugin via prefix matching.
+ * Rules are sorted longest-prefix-first so more specific entries win.
+ *
+ * @since 2.5.23
+ * @param string $hook Cron hook name.
+ * @return array|null ['n' => name, 's' => slug, 'c' => is_core] or null.
+ */
+function csc_resolve_cron_hook_plugin( $hook ) {
+	static $rules = null;
+	if ( null === $rules ) {
+		// Each entry: 'p' = prefix, 'n' = display name, 's' = plugin slug (dir), 'c' = WP core
+		$raw = array(
+			// ── WordPress Core ────────────────────────────────────────────────
+			array( 'p' => 'wp_site_health_scheduled_check',      'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_privacy_delete_old_export_files',  'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_delete_temp_updater_backups',      'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_scheduled_auto_draft_delete',      'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'recovery_mode_clean_expired_keys',    'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'delete_expired_transients',           'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_scheduled_delete',                 'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_update_user_counts',               'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_version_check',                    'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_update_plugins',                   'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_update_themes',                    'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_delete_',                          'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_update_',                          'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_privacy_',                         'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_scheduled_',                       'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			array( 'p' => 'wp_site_health_',                     'n' => 'WordPress Core',            's' => '',                                          'c' => true ),
+			// ── CloudScale (this plugin family) ──────────────────────────────
+			array( 'p' => 'csc_',                                'n' => 'CloudScale Cleanup',        's' => 'cloudscale-cleanup',                        'c' => false ),
+			array( 'p' => 'cspj_',                               'n' => 'CloudScale Post Janitor',   's' => 'cloudscale-post-janitor',                   'c' => false ),
+			array( 'p' => 'cs_seo_',                             'n' => 'CloudScale SEO',            's' => 'cloudscale-seo',                            'c' => false ),
+			array( 'p' => 'cs_scheduled_ami_backup',             'n' => 'CloudScale Backup & Restore', 's' => 'cloudscale-backup',                       'c' => false ),
+			array( 'p' => 'cs_scheduled_backup',                 'n' => 'CloudScale Backup & Restore', 's' => 'cloudscale-backup',                       'c' => false ),
+			array( 'p' => 'cs_backup_',                          'n' => 'CloudScale Backup & Restore', 's' => 'cloudscale-backup',                       'c' => false ),
+			array( 'p' => 'cs_',                                 'n' => 'CloudScale',                's' => 'cloudscale',                                'c' => false ),
+			// ── WooCommerce family ────────────────────────────────────────────
+			array( 'p' => 'woocommerce_subscriptions_',          'n' => 'WC Subscriptions',          's' => 'woocommerce-subscriptions',                 'c' => false ),
+			array( 'p' => 'wc_bookings_',                        'n' => 'WC Bookings',               's' => 'woocommerce-bookings',                      'c' => false ),
+			array( 'p' => 'wc_stripe_',                          'n' => 'WC Stripe Gateway',         's' => 'woocommerce-gateway-stripe',                'c' => false ),
+			array( 'p' => 'woocommerce_',                        'n' => 'WooCommerce',               's' => 'woocommerce',                               'c' => false ),
+			array( 'p' => 'wcpay_',                              'n' => 'WooCommerce Payments',      's' => 'woocommerce-payments',                      'c' => false ),
+			array( 'p' => 'wcs_',                                'n' => 'WC Subscriptions',          's' => 'woocommerce-subscriptions',                 'c' => false ),
+			array( 'p' => 'wc_',                                 'n' => 'WooCommerce',               's' => 'woocommerce',                               'c' => false ),
+			// ── SEO ───────────────────────────────────────────────────────────
+			array( 'p' => 'wpseo',                               'n' => 'Yoast SEO',                 's' => 'wordpress-seo',                             'c' => false ),
+			array( 'p' => 'aioseo_',                             'n' => 'All in One SEO',            's' => 'all-in-one-seo-pack',                       'c' => false ),
+			array( 'p' => 'aioseop_',                            'n' => 'All in One SEO',            's' => 'all-in-one-seo-pack',                       'c' => false ),
+			array( 'p' => 'rank_math_',                          'n' => 'Rank Math SEO',             's' => 'seo-by-rank-math',                          'c' => false ),
+			array( 'p' => 'rankmath_',                           'n' => 'Rank Math SEO',             's' => 'seo-by-rank-math',                          'c' => false ),
+			array( 'p' => 'seopress_',                           'n' => 'SEOPress',                  's' => 'wp-seopress',                               'c' => false ),
+			array( 'p' => 'the_seo_framework_',                  'n' => 'The SEO Framework',         's' => 'autodescription',                           'c' => false ),
+			array( 'p' => 'slim_seo_',                           'n' => 'Slim SEO',                  's' => 'slim-seo',                                  'c' => false ),
+			array( 'p' => 'smartcrawl_',                         'n' => 'SmartCrawl SEO',            's' => 'smartcrawl-seo',                            'c' => false ),
+			// ── Security ──────────────────────────────────────────────────────
+			array( 'p' => 'wordfence',                           'n' => 'Wordfence Security',        's' => 'wordfence',                                 'c' => false ),
+			array( 'p' => 'wfls_',                               'n' => 'Wordfence Security',        's' => 'wordfence',                                 'c' => false ),
+			array( 'p' => 'itsec_',                              'n' => 'Solid Security',            's' => 'better-wp-security',                        'c' => false ),
+			array( 'p' => 'solid_security_',                     'n' => 'Solid Security',            's' => 'solid-security',                            'c' => false ),
+			array( 'p' => 'sucuriscan_',                         'n' => 'Sucuri Security',           's' => 'sucuri-scanner',                            'c' => false ),
+			array( 'p' => 'aio_wp_security_',                    'n' => 'All In One WP Security',    's' => 'all-in-one-wp-security-and-firewall',       'c' => false ),
+			array( 'p' => 'cerber_',                             'n' => 'WP Cerber Security',        's' => 'wp-cerber',                                 'c' => false ),
+			array( 'p' => 'wp_defender_',                        'n' => 'Defender Security',         's' => 'defender-security',                         'c' => false ),
+			array( 'p' => 'rsssl_',                              'n' => 'Really Simple SSL',         's' => 'really-simple-ssl',                         'c' => false ),
+			// ── Backup ────────────────────────────────────────────────────────
+			array( 'p' => 'updraftplus_',                        'n' => 'UpdraftPlus',               's' => 'updraftplus',                               'c' => false ),
+			array( 'p' => 'updraft_',                            'n' => 'UpdraftPlus',               's' => 'updraftplus',                               'c' => false ),
+			array( 'p' => 'backwpup_',                           'n' => 'BackWPup',                  's' => 'backwpup',                                  'c' => false ),
+			array( 'p' => 'duplicator_',                         'n' => 'Duplicator',                's' => 'duplicator',                                'c' => false ),
+			array( 'p' => 'it_backup_',                          'n' => 'BackupBuddy',               's' => 'backupbuddy',                               'c' => false ),
+			array( 'p' => 'it_storage_',                         'n' => 'BackupBuddy',               's' => 'backupbuddy',                               'c' => false ),
+			array( 'p' => 'vaultpress_',                         'n' => 'VaultPress / Jetpack',      's' => 'vaultpress',                                'c' => false ),
+			array( 'p' => 'as3cf_',                              'n' => 'WP Offload Media',          's' => 'amazon-s3-and-cloudfront',                  'c' => false ),
+			// ── Caching / Performance ─────────────────────────────────────────
+			array( 'p' => 'litespeed_',                          'n' => 'LiteSpeed Cache',           's' => 'litespeed-cache',                           'c' => false ),
+			array( 'p' => 'wphb_',                               'n' => 'Hummingbird',               's' => 'hummingbird-performance',                   'c' => false ),
+			array( 'p' => 'rocket_',                             'n' => 'WP Rocket',                 's' => 'wp-rocket',                                 'c' => false ),
+			array( 'p' => 'autoptimize_',                        'n' => 'Autoptimize',               's' => 'autoptimize',                               'c' => false ),
+			array( 'p' => 'wpfc_',                               'n' => 'WP Fastest Cache',          's' => 'wp-fastest-cache',                          'c' => false ),
+			array( 'p' => 'w3tc_',                               'n' => 'W3 Total Cache',            's' => 'w3-total-cache',                            'c' => false ),
+			array( 'p' => 'w3_',                                 'n' => 'W3 Total Cache',            's' => 'w3-total-cache',                            'c' => false ),
+			array( 'p' => 'wp_cache_',                           'n' => 'WP Super Cache',            's' => 'wp-super-cache',                            'c' => false ),
+			array( 'p' => 'rediscache_',                         'n' => 'Redis Object Cache',        's' => 'redis-cache',                               'c' => false ),
+			// ── Image Optimisation ────────────────────────────────────────────
+			array( 'p' => 'imagify_',                            'n' => 'Imagify',                   's' => 'imagify',                                   'c' => false ),
+			array( 'p' => 'ewww_image_',                         'n' => 'EWWW Image Optimizer',      's' => 'ewww-image-optimizer',                      'c' => false ),
+			array( 'p' => 'ewwwio_',                             'n' => 'EWWW Image Optimizer',      's' => 'ewww-image-optimizer',                      'c' => false ),
+			array( 'p' => 'shortpixel_',                         'n' => 'ShortPixel',                's' => 'shortpixel-image-optimiser',                'c' => false ),
+			array( 'p' => 'spai_',                               'n' => 'ShortPixel Adaptive Images','s' => 'shortpixel-adaptive-images',                'c' => false ),
+			array( 'p' => 'wp_smush_',                           'n' => 'Smush',                     's' => 'wp-smushit',                                'c' => false ),
+			array( 'p' => 'wdev_',                               'n' => 'WPMU Dev (shared logger)',  's' => 'wp-smushit',                                'c' => false ),
+			// ── Analytics ─────────────────────────────────────────────────────
+			array( 'p' => 'monsterinsights_',                    'n' => 'MonsterInsights',           's' => 'google-analytics-for-wordpress',            'c' => false ),
+			array( 'p' => 'exactmetrics_',                       'n' => 'ExactMetrics',              's' => 'exactmetrics',                              'c' => false ),
+			array( 'p' => 'googlesitekit_',                      'n' => 'Site Kit by Google',        's' => 'google-site-kit',                           'c' => false ),
+			array( 'p' => 'wp_statistics_',                      'n' => 'WP Statistics',             's' => 'wp-statistics',                             'c' => false ),
+			// ── Email / CRM ───────────────────────────────────────────────────
+			array( 'p' => 'wp_mail_smtp_',                       'n' => 'WP Mail SMTP',              's' => 'wp-mail-smtp',                              'c' => false ),
+			array( 'p' => 'postsmtp_',                           'n' => 'Post SMTP',                 's' => 'post-smtp',                                 'c' => false ),
+			array( 'p' => 'mailpoet_',                           'n' => 'MailPoet',                  's' => 'mailpoet',                                  'c' => false ),
+			array( 'p' => 'wysija_',                             'n' => 'MailPoet (legacy)',          's' => 'mailpoet',                                  'c' => false ),
+			array( 'p' => 'newsletter_',                         'n' => 'Newsletter',                's' => 'newsletter',                                'c' => false ),
+			array( 'p' => 'mc4wp_',                              'n' => 'Mailchimp for WP',          's' => 'mailchimp-for-wp',                          'c' => false ),
+			array( 'p' => 'fluentcrm_',                          'n' => 'FluentCRM',                 's' => 'fluent-crm',                                'c' => false ),
+			array( 'p' => 'sendinblue_',                         'n' => 'Brevo (Sendinblue)',         's' => 'mailin',                                    'c' => false ),
+			array( 'p' => 'sib_',                                'n' => 'Brevo (Sendinblue)',         's' => 'mailin',                                    'c' => false ),
+			array( 'p' => 'leadin_',                             'n' => 'HubSpot',                   's' => 'leadin',                                    'c' => false ),
+			array( 'p' => 'activecampaign_',                     'n' => 'ActiveCampaign',            's' => 'activecampaign-subscription-forms',         'c' => false ),
+			// ── Forms ─────────────────────────────────────────────────────────
+			array( 'p' => 'wpcf7_',                              'n' => 'Contact Form 7',            's' => 'contact-form-7',                            'c' => false ),
+			array( 'p' => 'wpforms_',                            'n' => 'WPForms',                   's' => 'wpforms-lite',                              'c' => false ),
+			array( 'p' => 'gform_',                              'n' => 'Gravity Forms',             's' => 'gravityforms',                              'c' => false ),
+			array( 'p' => 'ninja_forms_',                        'n' => 'Ninja Forms',               's' => 'ninja-forms',                               'c' => false ),
+			array( 'p' => 'frm_',                                'n' => 'Formidable Forms',          's' => 'formidable',                                'c' => false ),
+			array( 'p' => 'fluentform_',                         'n' => 'Fluent Forms',              's' => 'fluentform',                                'c' => false ),
+			array( 'p' => 'fluent_form_',                        'n' => 'Fluent Forms',              's' => 'fluentform',                                'c' => false ),
+			array( 'p' => 'forminator_',                         'n' => 'Forminator',                's' => 'forminator',                                'c' => false ),
+			// ── Page Builders ─────────────────────────────────────────────────
+			array( 'p' => 'elementor_',                          'n' => 'Elementor',                 's' => 'elementor',                                 'c' => false ),
+			array( 'p' => 'fl_',                                 'n' => 'Beaver Builder',            's' => 'beaver-builder-lite-version',               'c' => false ),
+			array( 'p' => 'vc_',                                 'n' => 'WPBakery Page Builder',     's' => 'js_composer',                               'c' => false ),
+			array( 'p' => 'gutenberg_',                          'n' => 'Gutenberg',                 's' => 'gutenberg',                                 'c' => false ),
+			// ── Membership / LMS ──────────────────────────────────────────────
+			array( 'p' => 'learndash_',                          'n' => 'LearnDash LMS',             's' => 'sfwd-lms',                                  'c' => false ),
+			array( 'p' => 'llms_',                               'n' => 'LifterLMS',                 's' => 'lifterlms',                                 'c' => false ),
+			array( 'p' => 'mepr_',                               'n' => 'MemberPress',               's' => 'memberpress',                               'c' => false ),
+			array( 'p' => 'rcp_',                                'n' => 'Restrict Content Pro',      's' => 'restrict-content',                          'c' => false ),
+			array( 'p' => 'affwp_',                              'n' => 'AffiliateWP',               's' => 'affiliatewp',                               'c' => false ),
+			array( 'p' => 'edd_',                                'n' => 'Easy Digital Downloads',    's' => 'easy-digital-downloads',                    'c' => false ),
+			// ── Community ─────────────────────────────────────────────────────
+			array( 'p' => 'bp_',                                 'n' => 'BuddyPress',                's' => 'buddypress',                                'c' => false ),
+			array( 'p' => 'bbp_',                                'n' => 'bbPress',                   's' => 'bbpress',                                   'c' => false ),
+			// ── Multilingual ──────────────────────────────────────────────────
+			array( 'p' => 'wpml_',                               'n' => 'WPML',                      's' => 'sitepress-multilingual-cms',                'c' => false ),
+			array( 'p' => 'icl_',                                'n' => 'WPML',                      's' => 'sitepress-multilingual-cms',                'c' => false ),
+			array( 'p' => 'pll_',                                'n' => 'Polylang',                  's' => 'polylang',                                  'c' => false ),
+			array( 'p' => 'trp_',                                'n' => 'TranslatePress',            's' => 'translatepress-multilingual',               'c' => false ),
+			array( 'p' => 'weglot_',                             'n' => 'Weglot',                    's' => 'weglot',                                    'c' => false ),
+			array( 'p' => 'loco_',                               'n' => 'Loco Translate',            's' => 'loco-translate',                            'c' => false ),
+			// ── Events ────────────────────────────────────────────────────────
+			array( 'p' => 'tribe_',                              'n' => 'The Events Calendar',       's' => 'the-events-calendar',                       'c' => false ),
+			// ── Jetpack ───────────────────────────────────────────────────────
+			array( 'p' => 'jetpack_',                            'n' => 'Jetpack',                   's' => 'jetpack',                                   'c' => false ),
+			array( 'p' => 'akismet_',                            'n' => 'Akismet',                   's' => 'akismet',                                   'c' => false ),
+			// ── Misc popular ──────────────────────────────────────────────────
+			array( 'p' => 'blc_',                                'n' => 'Broken Link Checker',       's' => 'broken-link-checker',                       'c' => false ),
+			array( 'p' => 'wplnst_',                             'n' => 'Broken Link Checker',       's' => 'broken-link-checker',                       'c' => false ),
+			array( 'p' => 'redirection_',                        'n' => 'Redirection',               's' => 'redirection',                               'c' => false ),
+			array( 'p' => 'acf_',                                'n' => 'Advanced Custom Fields',    's' => 'advanced-custom-fields',                    'c' => false ),
+			array( 'p' => 'tablepress_',                         'n' => 'TablePress',                's' => 'tablepress',                                'c' => false ),
+			array( 'p' => 'pum_',                                'n' => 'Popup Maker',               's' => 'popup-maker',                               'c' => false ),
+			array( 'p' => 'mainwp_',                             'n' => 'MainWP',                    's' => 'mainwp',                                    'c' => false ),
+			array( 'p' => 'wpmdb_',                              'n' => 'WP Migrate DB',             's' => 'wp-migrate-db',                             'c' => false ),
+			array( 'p' => 'pmxi_',                               'n' => 'WP All Import',             's' => 'wp-all-import',                             'c' => false ),
+			array( 'p' => 'crontrol_',                           'n' => 'WP Crontrol',               's' => 'wp-crontrol',                               'c' => false ),
+			array( 'p' => 'optinmonster_',                       'n' => 'OptinMonster',              's' => 'optinmonster',                              'c' => false ),
+			array( 'p' => 'optin_monster_',                      'n' => 'OptinMonster',              's' => 'optinmonster',                              'c' => false ),
+			array( 'p' => 'surecart_',                           'n' => 'SureCart',                  's' => 'surecart',                                  'c' => false ),
+			array( 'p' => 'sureforms_',                          'n' => 'SureForms',                 's' => 'sureforms',                                 'c' => false ),
+			array( 'p' => 'action_scheduler_',                   'n' => 'Action Scheduler',          's' => 'action-scheduler',                          'c' => false ),
+			array( 'p' => 'jet_',                                'n' => 'Crocoblock / JetPlugins',   's' => 'jet-engine',                                'c' => false ),
+			array( 'p' => 'et_',                                 'n' => 'Divi / Elegant Themes',     's' => 'Divi',                                      'c' => false ),
+			array( 'p' => 'wp_fusion_',                          'n' => 'WP Fusion',                 's' => 'wp-fusion-lite',                            'c' => false ),
+			array( 'p' => 'ld_',                                 'n' => 'LearnDash LMS',             's' => 'sfwd-lms',                                  'c' => false ),
+		);
+		// Sort by prefix length DESC so most-specific prefix wins
+		usort(
+			$raw,
+			function ( $a, $b ) { return strlen( $b['p'] ) - strlen( $a['p'] ); }
+		);
+		$rules = $raw;
+	}
+
+	foreach ( $rules as $r ) {
+		if ( 0 === strncmp( $hook, $r['p'], strlen( $r['p'] ) ) ) {
+			return $r;
+		}
+	}
+	return null;
+}
+
+/**
+ * Returns 'core', 'active', 'inactive', or 'not_installed' for a plugin slug.
+ *
+ * @since 2.5.23
+ * @param string $slug Plugin directory slug.
+ * @param bool   $core Whether this is a WordPress Core entry.
+ * @return string
+ */
+function csc_cron_plugin_status( $slug, $core = false ) {
+	if ( $core ) {
+		return 'core';
+	}
+	if ( empty( $slug ) ) {
+		return 'unknown';
+	}
+	if ( ! is_dir( WP_PLUGIN_DIR . '/' . $slug ) ) {
+		return 'not_installed';
+	}
+	$active = (array) get_option( 'active_plugins', array() );
+	foreach ( $active as $plugin_file ) {
+		if ( 0 === strncmp( $plugin_file, $slug . '/', strlen( $slug ) + 1 ) ) {
+			return 'active';
+		}
+	}
+	// Also check network-active plugins on multisite
+	if ( is_multisite() ) {
+		$network_active = (array) get_site_option( 'active_sitewide_plugins', array() );
+		foreach ( array_keys( $network_active ) as $plugin_file ) {
+			if ( 0 === strncmp( $plugin_file, $slug . '/', strlen( $slug ) + 1 ) ) {
+				return 'active';
+			}
+		}
+	}
+	return 'inactive';
+}
+
 add_action( 'wp_ajax_csc_cron_status', 'csc_ajax_cron_status' );
 /**
  * Returns all scheduled cron events with 24-hour projection and congestion analysis.
@@ -4478,6 +4904,57 @@ function csc_ajax_cron_status() {
 		}
 	);
 
+	// Annotate each event with registered callbacks and origin plugin.
+	foreach ( $events as &$ev ) {
+		// Resolve registered callbacks for this hook from the global $wp_filter.
+		global $wp_filter;
+		$callbacks = array();
+		if ( isset( $wp_filter[ $ev['hook'] ] ) ) {
+			foreach ( $wp_filter[ $ev['hook'] ]->callbacks as $priority => $cbs ) {
+				foreach ( $cbs as $cb ) {
+					$fn = $cb['function'];
+					if ( is_string( $fn ) ) {
+						$callbacks[] = $fn . '()';
+					} elseif ( is_array( $fn ) && count( $fn ) === 2 ) {
+						$class  = is_object( $fn[0] ) ? get_class( $fn[0] ) : (string) $fn[0];
+						$callbacks[] = $class . '::' . $fn[1] . '()';
+					} elseif ( $fn instanceof Closure ) {
+						$ref  = new ReflectionFunction( $fn );
+						$file = basename( $ref->getFileName() );
+						$callbacks[] = 'Closure in ' . $file . ':' . $ref->getStartLine();
+					} else {
+						$callbacks[] = '{callable}';
+					}
+				}
+			}
+		}
+		$ev['callbacks'] = $callbacks;
+
+		$plugin = csc_resolve_cron_hook_plugin( $ev['hook'] );
+		if ( $plugin ) {
+			$ev['plugin_name'] = $plugin['n'];
+
+			if ( $plugin['c'] ) {
+				// WordPress Core hooks are always "active".
+				$ev['plugin_status'] = 'core';
+			} elseif ( ! empty( $callbacks ) ) {
+				// Callbacks are registered in $wp_filter — the plugin is loaded and active.
+				$ev['plugin_status'] = 'active';
+			} elseif ( ! empty( $plugin['s'] ) && is_dir( WP_PLUGIN_DIR . '/' . $plugin['s'] ) ) {
+				// Directory exists but no callbacks — installed but inactive or deactivated.
+				$ev['plugin_status'] = 'inactive';
+			} else {
+				// No callbacks, no matching directory — orphaned cron entry (plugin removed).
+				$ev['plugin_status'] = 'not_installed';
+			}
+		} else {
+			$ev['plugin_name']   = null;
+			// Unknown plugin: use callbacks as the signal.
+			$ev['plugin_status'] = ! empty( $callbacks ) ? 'active' : 'not_installed';
+		}
+	}
+	unset( $ev );
+
 	// Congestion: group all occurrences into 5-minute buckets; flag buckets with 3+ jobs.
 	$buckets = array();
 	foreach ( $events as $ev ) {
@@ -4517,6 +4994,8 @@ function csc_ajax_cron_status() {
 			'overdue_count'    => $overdue_count,
 			'congestion'       => $congestion,
 			'wp_cron_url'      => site_url( '/wp-cron.php?doing_wp_cron' ),
+			'run_log'          => get_option( 'csc_cron_run_log', array() ),
+			'recycle_bin'      => array_values( (array) get_option( 'csc_cron_recycle_bin', array() ) ),
 		)
 	);
 }
@@ -4565,15 +5044,15 @@ function csc_ajax_cron_run_now() {
  * @param string $color Background colour for the button (CSS colour string).
  * @return void
  */
-function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.755,2.5.1.2)' ): void {
+function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.2355,2.5.1.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
     ?>
     <button type="button" id="<?php echo esc_attr( $btn_id ); ?>"
         data-color="<?php echo esc_attr( $color ); ?>"
         onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='flex'"
-        style="background:<?php echo esc_attr( $color ); ?>!important;border:1px solid rgba(2.5.755,2.5.1.5)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:600!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:none!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
-        Explain...
+        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(255,255,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
+        Explain&hellip;
     </button>
     <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
         <div class="csc-modal" style="max-width:640px;max-height:88vh;overflow-y:auto">
@@ -4634,7 +5113,7 @@ function csc_render_page() {
             <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
-            <button class="csc-tab" data-tab="settings">Settings</button>
+            <button class="csc-tab" data-tab="cron">Cron</button>
         </div>
 
         <!-- ═══ Database Cleanup ═══ -->
@@ -4836,11 +5315,11 @@ function csc_render_page() {
                     $orphan_bin_count = count( $orphan_bin );
                     ?>
                     <?php $bin_has = $orphan_bin_count > 0; ?>
-                    <div id="orphan-bin-bar" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:<?php echo $bin_has ? '#fff3e0' : '#f5f5f5'; ?>;border:1px solid <?php echo $bin_has ? '#ffb74d' : '#ddd'; ?>;border-radius:6px;font-size:12px">
-                        <span id="orphan-bin-label">♻️ Recycle Bin: <strong><?php echo esc_html( $orphan_bin_count ); ?></strong> item<?php echo $orphan_bin_count === 1 ? '' : 's'; ?></span>
-                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-view-bin" style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>View</button>
-                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-undo"     style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>↩ Restore All</button>
-                        <button class="csc-btn csc-btn-danger"    id="btn-orphan-empty"    style="font-size:11px;padding:3px 10px"<?php echo ! $bin_has ? ' disabled' : ''; ?>>🗑 Empty Bin</button>
+                    <div id="orphan-bin-bar" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:<?php echo esc_attr( $bin_has ? '#fff3e0' : '#f5f5f5' ); ?>;border:1px solid <?php echo esc_attr( $bin_has ? '#ffb74d' : '#ddd' ); ?>;border-radius:6px;font-size:12px">
+                        <span id="orphan-bin-label">♻️ Recycle Bin: <strong><?php echo esc_html( $orphan_bin_count ); ?></strong> item<?php echo esc_html( $orphan_bin_count === 1 ? '' : 's' ); ?></span>
+                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-view-bin" style="font-size:11px;padding:3px 10px"<?php echo esc_attr( ! $bin_has ? ' disabled' : '' ); ?>>View</button>
+                        <button class="csc-btn csc-btn-secondary" id="btn-orphan-undo"     style="font-size:11px;padding:3px 10px"<?php echo esc_attr( ! $bin_has ? ' disabled' : '' ); ?>>↩ Restore All</button>
+                        <button class="csc-btn csc-btn-danger"    id="btn-orphan-empty"    style="font-size:11px;padding:3px 10px"<?php echo esc_attr( ! $bin_has ? ' disabled' : '' ); ?>>🗑 Empty Bin</button>
                     </div>
                     <div id="orphan-bin-list" style="margin-top:8px;display:none"></div>
                     <div id="orphan-results" style="margin-top:12px"></div>
@@ -4887,7 +5366,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.755,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.755,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.755,2.5.1.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
@@ -4913,7 +5392,7 @@ function csc_render_page() {
             '#00e5ff'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Finds media library attachments not referenced in any post, page, featured image, widget, or theme setting. These are registered in WordPress but nothing links to them. Moves are chunked at <?php echo CSC_CHUNK_IMAGES; ?> per request with a live progress bar.</p>
+                        <p>Finds media library attachments not referenced in any post, page, featured image, widget, or theme setting. These are registered in WordPress but nothing links to them. Moves are chunked at <?php echo (int) CSC_CHUNK_IMAGES; ?> per request with a live progress bar.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-img">🔍 Dry Run — Preview</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-run-img">♻️ Move to Recycle</button>
@@ -5054,7 +5533,7 @@ function csc_render_page() {
                     $last_img_sched = get_option( 'csc_last_scheduled_img_cleanup', '' );
                     ?>
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(255,109,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.239,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
@@ -5085,7 +5564,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.755,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.755,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.755,2.5.1.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
@@ -5111,7 +5590,7 @@ function csc_render_page() {
             '#ff1744'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Resizes oversized originals and recompresses JPEGs to the configured quality target. Processes <?php echo CSC_CHUNK_OPTIMISE; ?> images per request — chunked to stay well within any server's PHP timeout limit regardless of media library size. All WordPress thumbnail sizes are regenerated after each image is processed.</p>
+                        <p>Resizes oversized originals and recompresses JPEGs to the configured quality target. Processes <?php echo (int) CSC_CHUNK_OPTIMISE; ?> images per request — chunked to stay well within any server's PHP timeout limit regardless of media library size. All WordPress thumbnail sizes are regenerated after each image is processed.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-optimise">🔍 Dry Run — Preview Savings</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-run-optimise">⚡ Optimise Images Now</button>
@@ -5151,7 +5630,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.755,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.755,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.755,2.5.1.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
@@ -5217,7 +5696,7 @@ function csc_render_page() {
                                 <option value="1024x768">XGA — 1024 × 768</option>
                                 <option value="800x600">SVGA — 800 × 600</option>
                                 <option value="640x480">VGA — 640 × 480</option>
-                                <option value="512.5.7">Square — 512 × 512</option>
+                                <option value="512.5.23">Square — 512 × 512</option>
                                 <option value="256x256">Square — 256 × 256</option>
                                 <option value="custom">Custom…</option>
                             </select>
@@ -5268,9 +5747,9 @@ function csc_render_page() {
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #ce93d8;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#ce93d8;color:#1a0533;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">📷 Converter Console</span>
                         <span style="margin-left:auto;display:flex;gap:6px">
-                            <button id="cspj-debug-copy" style="background:rgba(2.5.755,2.5.1.15);border:1px solid rgba(2.5.755,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
-                            <button id="cspj-debug-clear" style="background:rgba(2.5.755,2.5.1.15);border:1px solid rgba(2.5.755,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
-                            <button id="cspj-debug-toggle" style="background:rgba(2.5.755,2.5.1.15);border:1px solid rgba(2.5.755,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
+                            <button id="cspj-debug-copy" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
+                            <button id="cspj-debug-clear" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
+                            <button id="cspj-debug-toggle" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
                         </span>
                     </div>
                     <div id="cspj-debug-env" style="padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--csc-border);font-size:11px;color:var(--csc-muted);font-family:monospace;line-height:1.7"></div>
@@ -5444,13 +5923,11 @@ function csc_render_page() {
             </div>
         </div>
 
-        <!-- ═══ Settings ═══ -->
-        <div class="csc-tab-content" id="tab-settings">
+        <!-- ═══ Cron ═══ -->
+        <div class="csc-tab-content" id="tab-cron">
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-blue">About CloudScale Cleanup</div>
                 <div class="csc-card-body csc-about">
-                    <p><strong>CloudScale Cleanup</strong> is a free, open source WordPress plugin by <a href="https://terraclaim.org" target="_blank">Andrew Baker</a> — part of the TerraClaim suite of precision tools for WordPress infrastructure.</p>
-                    <p>No accounts. No API keys. No subscriptions. No data leaves your server. All processing uses standard WordPress APIs.</p>
                     <div class="csc-stats-grid" style="grid-template-columns:repeat(5,1fr)">
                         <div class="csc-stat-box">
                             <div class="csc-stat-label">Last DB Cleanup</div>
@@ -5479,6 +5956,32 @@ function csc_render_page() {
             <div class="csc-card" id="csc-cron-management">
                 <div class="csc-card-header csc-card-header-teal">
                     <span>Cron Management</span>
+                    <?php csc_explain_btn(
+                        'cron-management',
+                        'Cron Management — What is this?',
+                        array(
+                            array(
+                                'name' => 'WordPress Pseudo-Cron (WP-Cron)',
+                                'rec'  => 'Info',
+                                'desc' => "WordPress has no real scheduler — it simulates cron by piggy-backing on page visits. When a visitor loads a page, WordPress checks if any scheduled jobs are due and fires them inline. On low-traffic sites this means jobs can run late or not at all.",
+                            ),
+                            array(
+                                'name' => 'Real Server Cron',
+                                'rec'  => 'Recommended',
+                                'desc' => "A real server cron (crontab entry) calls wp-cron.php on a fixed schedule regardless of traffic. Set DISABLE_WP_CRON=true in wp-config.php once a server cron is in place to stop the pseudo-cron fallback.",
+                            ),
+                            array(
+                                'name' => 'Cron Congestion',
+                                'rec'  => 'Watch out',
+                                'desc' => "When 3 or more jobs fire within the same 5-minute window they compete for CPU, memory and database connections. This can slow page loads or trigger PHP timeouts. Stagger recurring jobs or move heavy tasks to off-peak hours.",
+                            ),
+                            array(
+                                'name' => 'Orphaned Cron Jobs',
+                                'rec'  => 'Clean up',
+                                'desc' => "When a plugin is deactivated or deleted its cron entries are often left behind in the database. These fire on schedule, find no callback, and waste resources. Use the recycle bin to remove them safely.",
+                            ),
+                        )
+                    ); ?>
                 </div>
                 <div class="csc-card-body">
 
@@ -5499,27 +6002,107 @@ function csc_render_page() {
                     </div>
 
                     <!-- 24-hour timeline -->
-                    <div class="csc-cron-section-title">24-Hour Job Timeline</div>
-                    <p class="csc-note" style="margin:0 0 8px">Each dot marks a scheduled execution. Red bands = Cron Congestion — 3 or more jobs firing within the same 5-minute window.</p>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                        <div class="csc-cron-section-title" style="margin-bottom:0">24-Hour Job Timeline</div>
+                        <?php csc_explain_btn(
+                            'cron-timeline',
+                            '24-Hour Job Timeline — How to read this',
+                            array(
+                                array(
+                                    'name' => 'What the bars show',
+                                    'rec'  => 'Info',
+                                    'desc' => "Each bar represents one scheduled firing of a cron job. The bar's horizontal position is when it runs; its width is proportional to the estimated execution time (half the interval, capped at 5 minutes). Bars that visually overlap mean the jobs run at the same time.",
+                                ),
+                                array(
+                                    'name' => 'X-axis (time)',
+                                    'rec'  => 'Info',
+                                    'desc' => "The timeline spans 24 hours from Now (left edge). Gridlines are snapped to clock hours in your local time zone. The \"Now\" marker shows the current moment.",
+                                ),
+                                array(
+                                    'name' => 'Red congestion bands',
+                                    'rec'  => 'Watch out',
+                                    'desc' => "A red band highlights any 5-minute window where 3 or more jobs are scheduled to fire. Concurrent jobs compete for CPU and database connections and can slow the site or cause timeouts.",
+                                ),
+                                array(
+                                    'name' => 'Plugin column & status dot',
+                                    'rec'  => 'Info',
+                                    'desc' => "The coloured dot next to each job name indicates its plugin's status:\n● Green — plugin active\n● Orange — installed but inactive\n● Red — not installed (orphaned hook)\n● Blue — WordPress Core",
+                                ),
+                                array(
+                                    'name' => 'Trash icon',
+                                    'rec'  => 'Optional',
+                                    'desc' => "Click the bin icon next to any job to move it to the Cron Recycle Bin. It is not permanently deleted — you can restore it from the bin section below.",
+                                ),
+                            )
+                        ); ?>
+                    </div>
+                    <p class="csc-note" style="margin:0 0 8px">Each bar marks a scheduled execution (width = estimated run time). Red bands = Cron Congestion — 3 or more jobs firing within the same 5-minute window.</p>
                     <div id="csc-cron-timeline-wrap" class="csc-cron-timeline-wrap">
+                        <div id="csc-cron-timeline-labels" class="csc-cron-timeline-labels"></div>
                         <canvas id="csc-cron-timeline"></canvas>
                     </div>
                     <div id="csc-cron-congestion-warn" class="csc-cron-congestion-alert" style="display:none"></div>
 
-                    <!-- All scheduled events table -->
-                    <div class="csc-cron-section-title" style="margin-top:20px">All Scheduled Events</div>
+                    <!-- Cron job queue table -->
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:20px;margin-bottom:6px">
+                        <div class="csc-cron-section-title" style="margin-bottom:0">Cron Job Queue</div>
+                        <?php csc_explain_btn(
+                            'cron-events',
+                            'Cron Job Queue — What is this?',
+                            array(
+                                array(
+                                    'name' => 'What is the Cron Job Queue?',
+                                    'rec'  => 'Info',
+                                    'desc' => "This is the complete list of background tasks that WordPress and your plugins have scheduled to run automatically. Every plugin that needs to do something on a timer — send emails, clean up files, check for updates, sync data — registers a job here. WordPress fires them in the background when a visitor loads a page (pseudo-cron) or when a real server cron calls wp-cron.php.",
+                                ),
+                                array(
+                                    'name' => 'Hook',
+                                    'rec'  => 'Info',
+                                    'desc' => "The internal action name WordPress calls when the job fires. This is what you would search for in plugin code to find where the job is defined.",
+                                ),
+                                array(
+                                    'name' => 'Plugin',
+                                    'rec'  => 'Info',
+                                    'desc' => "The plugin that registered this hook, resolved by matching the hook name prefix against a list of 200+ known plugins. The status badge shows whether the plugin is Active, Installed (inactive), Not installed (orphaned), or WordPress Core.",
+                                ),
+                                array(
+                                    'name' => 'Schedule',
+                                    'rec'  => 'Info',
+                                    'desc' => "How often the job repeats — e.g. hourly, twicedaily, daily. \"one-time\" means it fires once and does not recur.",
+                                ),
+                                array(
+                                    'name' => 'Next Run',
+                                    'rec'  => 'Info',
+                                    'desc' => "How long until the job fires next. \"Overdue\" means it was due in the past and has not fired yet — usually because there was no page visit to trigger pseudo-cron.",
+                                ),
+                                array(
+                                    'name' => 'Last Run',
+                                    'rec'  => 'Info',
+                                    'desc' => "How long the job took the last time it ran, and how long ago that was. This data is collected by CloudScale Cleanup's lightweight timing hooks and only appears after the job has run at least once since activation.",
+                                ),
+                                array(
+                                    'name' => 'Orphaned jobs (Not installed)',
+                                    'rec'  => 'Clean up',
+                                    'desc' => "If a plugin was deleted without being deactivated first, its cron entries remain in the database. They fire on schedule, find no callback, and waste resources. Use the bin icon to move them to the recycle bin.",
+                                ),
+                            )
+                        ); ?>
+                    </div>
                     <div id="csc-cron-events-wrap" style="overflow-x:auto">
                         <table class="csc-cron-events-table">
                             <thead>
                                 <tr>
                                     <th>Hook</th>
+                                    <th>Plugin</th>
                                     <th>Schedule</th>
                                     <th>Next Run</th>
+                                    <th>Last Run</th>
                                     <th>Status</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="csc-cron-events-body">
-                                <tr><td colspan="4" style="text-align:center;padding:12px;color:#666">Loading&hellip;</td></tr>
+                                <tr><td colspan="7" style="text-align:center;padding:12px;color:#666">Loading&hellip;</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -5533,6 +6116,27 @@ function csc_render_page() {
                         <button type="button" id="btn-cron-run-img" class="csc-btn csc-btn-secondary" data-hook="csc_scheduled_img_cleanup">&#9654; Run Media Cleanup Now</button>
                     </div>
                     <div id="csc-cron-run-result" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:5px"></div>
+
+                    <!-- Cron Recycle Bin -->
+                    <div class="csc-cron-section-title" style="margin-top:24px">&#128465; Cron Recycle Bin</div>
+                    <p class="csc-note" style="margin:0 0 8px">Deleted cron jobs. Restore to re-schedule, or permanently delete.</p>
+                    <div id="csc-cron-recycle-wrap" style="overflow-x:auto">
+                        <table class="csc-cron-events-table">
+                            <thead>
+                                <tr>
+                                    <th>Hook</th>
+                                    <th>Schedule</th>
+                                    <th>Was Due</th>
+                                    <th>Deleted</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="csc-cron-recycle-body">
+                                <tr><td colspan="5" style="text-align:center;padding:12px;color:#aaa;font-style:italic">Recycle bin is empty.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="csc-cron-recycle-result" style="display:none;margin-top:8px;font-size:13px;padding:8px 12px;border-radius:5px"></div>
 
                 </div>
             </div>

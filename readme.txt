@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.4.38
+Stable tag: 2.5.23
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -115,6 +115,15 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
+= 2.5.1 =
+* NEW: Cron Management section in Settings tab
+* NEW: 24-hour cron job timeline — canvas graph showing every scheduled job's fire times, coloured by hook
+* NEW: Cron Congestion detection — highlights 5-minute windows where 3 or more jobs fire simultaneously
+* NEW: All Scheduled Events table (all WP cron events, not just CSC) with overdue flagging and Refresh button
+* NEW: Manual Triggers — fire DB Cleanup or Media Cleanup immediately without waiting for schedule
+* NEW: Server Cron Setup card with copy-ready crontab command prefilled with site URL
+* NEW: WP-Cron health banner with RAG status (OK / Warning / Congestion detected)
+
 = 2.4.38 =
 * PCP compliance: removed inline script blocks, added wp_unslash(), replaced date() with gmdate(), escaped all output variables
 * Table overhead RAG thresholds updated: amber 12–28 MB, red > 28 MB
@@ -160,8 +169,8 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Upgrade Notice ==
 
-= 2.4.38 =
-Recommended update. PCP compliance fixes, table repair threshold improvements, and UI display fixes.
+= 2.5.1 =
+New: Cron Management section with 24-hour timeline graph, Cron Congestion detection, scheduled events table, manual triggers, and server cron setup guide.
 
 == Privacy Policy ==
 

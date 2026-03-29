@@ -6,7 +6,7 @@ WordPress database and media library cleanup plugin. Removes accumulated junk (r
 
 No subscriptions. No external services. No calls home.
 
-> Full write up with screenshots: [WordPress Space Cleanup: A Free WordPress Database and Media Library Cleanup Plugin](https://andrewbaker.ninja/2026/02/25/wordpress-space-cleanup-a-free-wordpress-database-and-media-library-cleanup-plugin/)
+> Full write up with screenshots: [WordPress Space Cleanup: A Free WordPress Database and Media Library Cleanup Plugin](https://terraclaim.org/2026/02/25/wordpress-space-cleanup-a-free-wordpress-database-and-media-library-cleanup-plugin/)
 
 ## Features
 
@@ -81,4 +81,4 @@ GPLv2 or later. See [LICENSE](LICENSE) for the full text.
 
 ## Author
 
-[Andrew Baker](https://andrewbaker.ninja/) - CIO at Capitec Bank, South Africa.
+[Andrew Baker](https://terraclaim.org/) — TerraCllaim suite of precision tools for WordPress infrastructure.

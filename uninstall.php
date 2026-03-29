@@ -47,6 +47,9 @@ $options = [
     'csc_total_png_conversions',
     'csc_health_hourly_metrics',
     'csc_health_weekly_snapshots',
+    // Cron management data.
+    'csc_cron_run_log',
+    'csc_cron_recycle_bin',
 ];
 
 foreach ( $options as $option ) {

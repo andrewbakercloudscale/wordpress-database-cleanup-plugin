@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TerraCllaim — Precision Tools for WordPress Infrastructure</title>
+<meta name="description" content="TerraCllaim builds free, open-source WordPress plugins that keep your site clean, fast, and healthy. No subscriptions. No accounts. No data leaves your server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #060d1a;
+    --bg2:       #0b1425;
+    --bg3:       #101d31;
+    --border:    rgba(255,255,255,0.07);
+    --blue:      #4a9eff;
+    --purple:    #7c5cfc;
+    --green:     #00d68f;
+    --amber:     #f5a623;
+    --red:       #ff4d6a;
+    --text:      #e8edf8;
+    --muted:     #7a8aaa;
+    --card-bg:   rgba(255,255,255,0.035);
+    --card-hover:rgba(255,255,255,0.06);
+    --radius:    12px;
+    --radius-lg: 20px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Background mesh ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(74,158,255,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(124,92,252,0.10) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 50% 50%, rgba(0,214,143,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── Grid overlay ─── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  section, nav, footer { position: relative; z-index: 1; }
+
+  /* ─── Nav ─── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    height: 64px;
+    background: rgba(6,13,26,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .nav-logo-mark {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 8px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+  .nav-cta {
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: #fff !important;
+    font-weight: 600;
+    padding: 7px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    transition: opacity 0.15s, transform 0.15s;
+  }
+
+  .nav-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  /* ─── Hero ─── */
+  .hero {
+    padding: 120px 40px 100px;
+    max-width: 1100px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(74,158,255,0.1);
+    border: 1px solid rgba(74,158,255,0.25);
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+    letter-spacing: 0.3px;
+  }
+
+  .hero-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 6vw, 76px);
+    font-weight: 900;
+    letter-spacing: -2px;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #ffffff 30%, rgba(255,255,255,0.55) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: 20px;
+    color: var(--muted);
+    max-width: 620px;
+    margin: 0 auto 40px;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 28px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(74,158,255,0.35);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(74,158,255,0.45);
+  }
+
+  .btn-ghost {
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover {
+    background: var(--card-hover);
+    border-color: rgba(255,255,255,0.14);
+    transform: translateY(-1px);
+  }
+
+  /* ─── Stats strip ─── */
+  .stats-strip {
+    max-width: 900px;
+    margin: 60px auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .stat-item {
+    background: var(--bg2);
+    padding: 24px 32px;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -1px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ─── Section wrapper ─── */
+  .section {
+    padding: 80px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--blue);
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+
+  .section-sub {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.65;
+    margin-bottom: 52px;
+  }
+
+  /* ─── Products ─── */
+  .products-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 740px) { .products-grid { grid-template-columns: 1fr; } }
+
+  .product-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    text-decoration: none;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .product-card:hover {
+    background: var(--card-hover);
+    border-color: rgba(74,158,255,0.25);
+    transform: translateY(-3px);
+  }
+
+  .product-card.coming-soon {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .product-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .icon-blue   { background: rgba(74,158,255,0.15);  }
+  .icon-purple { background: rgba(124,92,252,0.15);  }
+  .icon-green  { background: rgba(0,214,143,0.15);   }
+  .icon-amber  { background: rgba(245,166,35,0.15);  }
+
+  .product-name {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .product-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.65;
+    flex: 1;
+  }
+
+  .product-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.2px;
+  }
+
+  .tag-blue   { background: rgba(74,158,255,0.12);  color: var(--blue);   border: 1px solid rgba(74,158,255,0.2);  }
+  .tag-purple { background: rgba(124,92,252,0.12); color: var(--purple); border: 1px solid rgba(124,92,252,0.2); }
+  .tag-green  { background: rgba(0,214,143,0.12);  color: var(--green);  border: 1px solid rgba(0,214,143,0.2);  }
+  .tag-grey   { background: rgba(255,255,255,0.05); color: var(--muted);  border: 1px solid var(--border); }
+
+  .product-link-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    margin-top: 4px;
+  }
+
+  /* ─── Features ─── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 900px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .features-grid { grid-template-columns: 1fr; } }
+
+  .feature-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .feature-card:hover {
+    background: var(--card-hover);
+    border-color: rgba(255,255,255,0.12);
+  }
+
+  .feature-icon {
+    font-size: 24px;
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  .feature-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .feature-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+
+  /* ─── How it works ─── */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    position: relative;
+  }
+
+  @media (max-width: 760px) {
+    .steps { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .steps::after { display: none; }
+  }
+
+  .steps::after {
+    content: '';
+    position: absolute;
+    top: 28px;
+    left: calc(12.5% + 16px);
+    right: calc(12.5% + 16px);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--blue), var(--purple), transparent);
+    z-index: 0;
+  }
+
+  .step {
+    text-align: center;
+    padding: 0 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .step-num {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0 auto 16px;
+    background: var(--bg2);
+    border: 2px solid var(--border);
+    position: relative;
+  }
+
+  .step:nth-child(1) .step-num { border-color: var(--blue);   color: var(--blue);   }
+  .step:nth-child(2) .step-num { border-color: var(--purple); color: var(--purple); }
+  .step:nth-child(3) .step-num { border-color: var(--green);  color: var(--green);  }
+  .step:nth-child(4) .step-num { border-color: var(--amber);  color: var(--amber);  }
+
+  .step-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .step-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ─── Open source banner ─── */
+  .oss-banner {
+    margin: 0 40px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, rgba(74,158,255,0.08) 0%, rgba(124,92,252,0.08) 100%);
+    border: 1px solid rgba(74,158,255,0.18);
+    padding: 52px 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .oss-text h2 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+  }
+
+  .oss-text p { font-size: 15px; color: var(--muted); max-width: 480px; line-height: 1.65; }
+
+  .oss-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .oss-badge {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ─── Terminal block ─── */
+  .terminal {
+    background: #0a0f1e;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    min-width: 340px;
+  }
+
+  .terminal-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .t-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .t-red    { background: #ff5f57; }
+  .t-amber  { background: #febc2e; }
+  .t-green  { background: #28c840; }
+
+  .t-line   { color: var(--muted); }
+  .t-cmd    { color: var(--blue); }
+  .t-ok     { color: var(--green); }
+  .t-info   { color: var(--purple); }
+  .t-dim    { color: #3a4a66; }
+
+  /* ─── Footer ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    max-width: 1100px;
+    margin: 60px auto 0;
+  }
+
+  .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .footer-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.15s;
+  }
+
+  .footer-links a:hover { color: var(--text); }
+
+  .footer-copy { color: var(--muted); font-size: 13px; }
+
+  /* ─── Animations ─── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── Divider ─── */
+  .divider {
+    max-width: 1100px;
+    margin: 0 auto;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── Responsive nav ─── */
+  @media (max-width: 640px) {
+    nav { padding: 0 20px; }
+    .nav-links .nav-link:not(.nav-cta) { display: none; }
+    .hero { padding: 80px 20px 60px; }
+    .section { padding: 60px 20px; }
+    .oss-banner { padding: 36px 28px; margin: 0 20px; }
+    .stats-strip { grid-template-columns: 1fr; }
+    footer { padding: 32px 20px; }
+    .terminal { min-width: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Nav ─── -->
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="nav-logo-mark">&#127759;</div>
+    TerraCllaim
+  </a>
+  <div class="nav-links">
+    <a href="#products" class="nav-link">Products</a>
+    <a href="#features" class="nav-link">Features</a>
+    <a href="https://github.com/andrewbaker-uk/wordpress-database-cleanup-plugin" target="_blank" rel="noopener" class="nav-link">GitHub</a>
+    <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip" class="nav-cta">Download Free</a>
+  </div>
+</nav>
+
+<!-- ─── Hero ─── -->
+<section class="hero">
+  <div class="hero-badge fade-up">
+    <span class="hero-badge-dot"></span>
+    Free &amp; Open Source &middot; No Subscriptions
+  </div>
+
+  <h1 class="fade-up">
+    Clean Stack.<br>
+    <span>Clear Runway.</span>
+  </h1>
+
+  <p class="hero-sub fade-up">
+    Precision WordPress plugins built for developers, sysadmins, and anyone who treats their server infrastructure seriously.
+  </p>
+
+  <div class="hero-actions fade-up">
+    <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M4 7l4 4 4-4M2 13h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Download CloudScale Cleanup
+    </a>
+    <a href="https://github.com/andrewbaker-uk/wordpress-database-cleanup-plugin" target="_blank" rel="noopener" class="btn btn-ghost">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+
+  <div class="stats-strip fade-up">
+    <div class="stat-item">
+      <div class="stat-num">0</div>
+      <div class="stat-label">Subscriptions Required</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">0</div>
+      <div class="stat-label">External API Calls</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">GPL</div>
+      <div class="stat-label">Open Source License</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── Products ─── -->
+<section class="section" id="products">
+  <div class="section-label fade-up">Products</div>
+  <h2 class="section-title fade-up">The CloudScale Suite</h2>
+  <p class="section-sub fade-up">Each plugin does one job and does it well. Dry-run preview before anything is deleted. Chunked processing so large sites never time out.</p>
+
+  <div class="products-grid">
+
+    <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip" class="product-card fade-up">
+      <div class="product-icon icon-blue">&#9889;</div>
+      <div>
+        <div class="product-name">CloudScale Cleanup</div>
+        <div class="product-desc">
+          Full database and media library cleanup with dry-run preview, per-category toggle controls, chunked processing engine, image optimisation, PNG-to-JPEG conversion, cron management, and a site health panel.
+        </div>
+      </div>
+      <div class="product-tags">
+        <span class="tag tag-blue">Database</span>
+        <span class="tag tag-blue">Media Library</span>
+        <span class="tag tag-green">Image Optimisation</span>
+        <span class="tag tag-purple">Cron Management</span>
+        <span class="tag tag-grey">Free</span>
+      </div>
+      <div class="product-link-row">
+        Download free
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </a>
+
+    <div class="product-card coming-soon fade-up">
+      <div class="product-icon icon-purple">&#128274;</div>
+      <div>
+        <div class="product-name">CloudScale Backup <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:8px">Coming Soon</span></div>
+        <div class="product-desc">
+          Scheduled database and file backups with S3 storage integration, encryption, and one-click restore. Designed for sites that can't afford downtime.
+        </div>
+      </div>
+      <div class="product-tags">
+        <span class="tag tag-purple">Backups</span>
+        <span class="tag tag-grey">S3</span>
+        <span class="tag tag-grey">Scheduled</span>
+      </div>
+    </div>
+
+    <div class="product-card coming-soon fade-up">
+      <div class="product-icon icon-green">&#128202;</div>
+      <div>
+        <div class="product-name">CloudScale SEO <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:8px">Coming Soon</span></div>
+        <div class="product-desc">
+          Lightweight on-page SEO analysis and schema generation. No bloated dashboards, no rank-tracking subscriptions — just the technical fundamentals done right.
+        </div>
+      </div>
+      <div class="product-tags">
+        <span class="tag tag-green">SEO</span>
+        <span class="tag tag-grey">Schema</span>
+        <span class="tag tag-grey">Sitemap</span>
+      </div>
+    </div>
+
+    <div class="product-card coming-soon fade-up">
+      <div class="product-icon icon-amber">&#128736;</div>
+      <div>
+        <div class="product-name">CloudScale Monitor <span style="font-size:11px;color:var(--muted);font-weight:500;margin-left:8px">Coming Soon</span></div>
+        <div class="product-desc">
+          Real-time server health monitoring — CPU, memory, disk growth trends, and storage runway estimates. No external SaaS required.
+        </div>
+      </div>
+      <div class="product-tags">
+        <span class="tag tag-amber">Monitoring</span>
+        <span class="tag tag-grey">Server Health</span>
+        <span class="tag tag-grey">Disk Runway</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── Features ─── -->
+<section class="section" id="features">
+  <div class="section-label fade-up">Why TerraCllaim</div>
+  <h2 class="section-title fade-up">Built for production, not demos</h2>
+  <p class="section-sub fade-up">Every feature is designed around real-world constraints — sites with millions of rows, shared hosting CPU limits, and admins who can't afford surprises.</p>
+
+  <div class="features-grid">
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#128269;</span>
+      <div class="feature-title">Dry-Run Preview First</div>
+      <div class="feature-desc">Every cleanup operation shows you exactly what it will touch — row counts, post titles, dates, and file paths — before a single byte is deleted.</div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#9889;</span>
+      <div class="feature-title">Chunked Processing</div>
+      <div class="feature-desc">A three-phase engine (start → chunk → finish) processes large datasets in small batches. No bulk DELETEs that lock tables. No PHP timeouts. No site downtime.</div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#127826;</span>
+      <div class="feature-title">Cron Congestion Detection</div>
+      <div class="feature-desc">Visualise every scheduled WordPress cron job on a 24-hour timeline. Red bands flag Cron Congestion — when 3 or more jobs fire in the same 5-minute window.</div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#127922;</span>
+      <div class="feature-title">Toggle Controls</div>
+      <div class="feature-desc">Each cleanup category has an independent on/off toggle. Green = included, grey = skipped. Categories you never want touched can be permanently disabled.</div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#128247;</span>
+      <div class="feature-title">Image Optimisation</div>
+      <div class="feature-desc">Resize and recompress JPEG and PNG images exceeding configurable max dimensions or quality thresholds. Bulk convert PNGs to JPEG with preview before commit.</div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <span class="feature-icon">&#128274;</span>
+      <div class="feature-title">Zero Data Exfiltration</div>
+      <div class="feature-desc">No telemetry. No analytics. No external API calls of any kind. All processing runs entirely within your WordPress installation. Your data stays on your server.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── How it works ─── -->
+<section class="section">
+  <div class="section-label fade-up">How it works</div>
+  <h2 class="section-title fade-up">Four steps from install to clean</h2>
+  <p class="section-sub fade-up">No configuration wizard. No account creation. No payment details.</p>
+
+  <div class="steps">
+    <div class="step fade-up">
+      <div class="step-num">1</div>
+      <div class="step-title">Install</div>
+      <div class="step-desc">Download the zip, upload via Plugins &rarr; Add New, activate. Done.</div>
+    </div>
+    <div class="step fade-up">
+      <div class="step-num">2</div>
+      <div class="step-title">Configure</div>
+      <div class="step-desc">Toggle which categories you want to clean. Set age thresholds. Takes 30 seconds.</div>
+    </div>
+    <div class="step fade-up">
+      <div class="step-num">3</div>
+      <div class="step-title">Dry Run</div>
+      <div class="step-desc">See exactly what will be removed — counts, IDs, titles — before committing to anything.</div>
+    </div>
+    <div class="step fade-up">
+      <div class="step-num">4</div>
+      <div class="step-title">Clean</div>
+      <div class="step-desc">Confirm and watch the chunked engine process your site safely, batch by batch.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── Open Source banner ─── -->
+<div class="oss-banner">
+  <div class="oss-text fade-up">
+    <h2>Free. Forever. Open Source.</h2>
+    <p>TerraCllaim plugins are released under the GPL-2.0-or-later licence. The full source is on GitHub. No freemium tiers. No feature locks. No recurring billing. Everything works out of the box.</p>
+    <div class="oss-badges">
+      <span class="oss-badge">GPL-2.0-or-later</span>
+      <span class="oss-badge">PHP 7.4+</span>
+      <span class="oss-badge">WordPress 6.0+</span>
+      <span class="oss-badge">No composer required</span>
+    </div>
+  </div>
+  <div class="fade-up">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="t-dot t-red"></div>
+        <div class="t-dot t-amber"></div>
+        <div class="t-dot t-green"></div>
+      </div>
+      <div class="t-line"><span class="t-dim">$ </span><span class="t-cmd">wp plugin install cloudscale-cleanup</span></div>
+      <div class="t-line"><span class="t-ok">&#10003;</span> Plugin installed successfully.</div>
+      <div class="t-line"><span class="t-dim">$ </span><span class="t-cmd">wp plugin activate cloudscale-cleanup</span></div>
+      <div class="t-line"><span class="t-ok">&#10003;</span> Plugin activated.</div>
+      <div class="t-line"><span class="t-dim">$ </span><span class="t-cmd">wp eval 'do_action("csc_scheduled_db_cleanup");'</span></div>
+      <div class="t-line"><span class="t-info">&#8594;</span> Cleanup complete. 847 rows removed.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Footer ─── -->
+<footer>
+  <a href="/" class="footer-logo">
+    <div class="nav-logo-mark" style="width:24px;height:24px;font-size:12px">&#127759;</div>
+    TerraCllaim
+  </a>
+  <div class="footer-links">
+    <a href="#products">Products</a>
+    <a href="https://github.com/andrewbaker-uk/wordpress-database-cleanup-plugin" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip">Download</a>
+    <a href="mailto:hello@terraclaim.org">Contact</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 TerraCllaim. GPL-2.0-or-later.</div>
+</footer>
+
+<script>
+  // Intersection Observer for fade-up animations
+  (function() {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    // Stagger children within each grid/row
+    document.querySelectorAll('.fade-up').forEach(function(el, i) {
+      el.style.transitionDelay = (i % 6) * 0.07 + 's';
+      observer.observe(el);
+    });
+
+    // Immediately reveal anything already in view on load
+    setTimeout(function() {
+      document.querySelectorAll('.fade-up:not(.visible)').forEach(function(el) {
+        var rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight) {
+          el.classList.add('visible');
+        }
+      });
+    }, 100);
+  })();
+</script>
+</body>
+</html>

@@ -2041,32 +2041,73 @@ function cscOrphanToggle(el, type) {
         '#3F51B5','#8BC34A','#FF5722','#FFC107','#673AB7'
     ];
 
+
     /**
-     * Render the 24-hour cron timeline onto the canvas.
+     * Render the 24-hour cron timeline.
+     * Labels are HTML (selectable text + trash buttons); canvas draws chart only.
      * @param {Array}  events     - event objects from AJAX response
      * @param {number} serverTime - Unix timestamp for "now"
      * @param {Array}  congestion - congestion bucket objects
      */
+    function cscFmtDuration(ms) {
+        if (ms >= 60000) { return Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's'; }
+        if (ms >= 1000)  { return (ms / 1000).toFixed(1) + 's'; }
+        return ms + 'ms';
+    }
+
     function cscRenderCronTimeline(events, serverTime, congestion) {
-        var canvas = document.getElementById('csc-cron-timeline');
+        var canvas   = document.getElementById('csc-cron-timeline');
+        var labelsEl = document.getElementById('csc-cron-timeline-labels');
         if (!canvas || !canvas.getContext) { return; }
 
         // Filter to events that actually fire in the next 24h
         var visible = events.filter(function(e) { return e.occurrences && e.occurrences.length > 0; });
         if (visible.length === 0) {
-            canvas.style.display = 'none';
+            canvas.style.display  = 'none';
+            if (labelsEl) { labelsEl.style.display = 'none'; }
             return;
         }
         canvas.style.display = 'block';
+        if (labelsEl) { labelsEl.style.display = ''; }
 
-        var dpr       = window.devicePixelRatio || 1;
-        var LABEL_W   = 210;
-        var HEADER_H  = 30;
-        var ROW_H     = 26;
-        var FOOT_H    = 4;
-        var cssW      = canvas.parentElement.clientWidth || 700;
-        var cssH      = HEADER_H + visible.length * ROW_H + FOOT_H;
+        var dpr        = window.devicePixelRatio || 1;
+        var LABEL_W    = 260;
+        var hasPlugins = visible.some(function(e) { return e.plugin_name; });
+        var HEADER_H   = 30;
+        var ROW_H      = hasPlugins ? 36 : 26;
+        var FOOT_H     = 4;
+        var wrap       = canvas.parentElement;
+        var totalW     = wrap.clientWidth || 700;
+        var cssW       = Math.max(totalW - LABEL_W, 200); // canvas = chart area only
+        var cssH       = HEADER_H + visible.length * ROW_H + FOOT_H;
 
+        // ── HTML Labels div ─────────────────────────────────────────────────
+        if (labelsEl) {
+            var dotColorMap = { core: '#1976d2', active: '#2e7d32', inactive: '#e65100', not_installed: '#b71c1c', unknown: '#78909c' };
+            var rows = '<div class="csc-tl-header"></div>';
+            visible.forEach(function(ev, i) {
+                var bg = i % 2 === 0 ? 'rgba(0,0,0,0.025)' : 'transparent';
+                var dotColor = dotColorMap[ev.plugin_status] || dotColorMap.unknown;
+                var plugLine = '';
+                if (hasPlugins) {
+                    plugLine = '<div class="csc-tl-plugin">'
+                        + '<span class="csc-tl-dot" style="background:' + dotColor + '"></span>'
+                        + $('<span>').text(ev.plugin_name || 'Unknown').html()
+                        + '</div>';
+                }
+                var hookEsc = $('<span>').text(ev.hook).html();
+                rows += '<div class="csc-tl-row" style="height:' + ROW_H + 'px;background:' + bg + '">'
+                    + '<div class="csc-tl-row-text">'
+                    +   '<div class="csc-tl-hook" title="' + hookEsc + '">' + hookEsc + '</div>'
+                    +   plugLine
+                    + '</div>'
+                    + '<button class="csc-cron-del-btn" data-hook="' + hookEsc + '" title="Move to recycle bin">&#128465;</button>'
+                    + '</div>';
+            });
+            labelsEl.innerHTML = rows;
+        }
+
+        // ── Canvas (chart area only, x=0 is left edge of chart) ────────────
         canvas.width  = cssW * dpr;
         canvas.height = cssH * dpr;
         canvas.style.width  = cssW + 'px';
@@ -2075,9 +2116,9 @@ function cscOrphanToggle(el, type) {
         var ctx   = canvas.getContext('2d');
         ctx.scale(dpr, dpr);
 
-        var chartW    = cssW - LABEL_W;
+        var chartW    = cssW;
         var nowTs     = serverTime;
-        var windowSec = 86400; // 24h in seconds
+        var windowSec = 86400;
 
         // Background
         ctx.fillStyle = '#fff';
@@ -2085,35 +2126,47 @@ function cscOrphanToggle(el, type) {
 
         // Congestion zone highlights
         congestion.forEach(function(zone) {
-            var x = LABEL_W + (zone.offset_seconds / windowSec) * chartW;
+            var x = (zone.offset_seconds / windowSec) * chartW;
             var w = Math.max((300 / windowSec) * chartW, 4);
             ctx.fillStyle = 'rgba(220, 53, 69, 0.13)';
             ctx.fillRect(x - w * 0.5, HEADER_H, w * 2, cssH - HEADER_H);
         });
 
-        // Hour grid lines + header labels
+        // "Now" marker at x=0 — line only, no label (avoids clash with first hour tick)
         ctx.textBaseline = 'middle';
-        for (var h = 0; h <= 24; h++) {
-            var gx = LABEL_W + (h / 24) * chartW;
-            ctx.strokeStyle = h === 0 ? '#ccc' : '#ebebeb';
-            ctx.lineWidth   = h === 0 ? 1.5 : 1;
+        ctx.strokeStyle  = '#bbb';
+        ctx.lineWidth    = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, HEADER_H - 6);
+        ctx.lineTo(0, cssH);
+        ctx.stroke();
+
+        // Hour grid lines snapped to clock hours (HH:00)
+        var firstHourTs = Math.ceil(nowTs / 3600) * 3600; // next whole hour >= now
+        for (var h = 0; ; h++) {
+            var hourTs = firstHourTs + h * 3600;
+            if (hourTs > nowTs + windowSec) { break; }
+            var gx = ((hourTs - nowTs) / windowSec) * chartW;
+            ctx.strokeStyle = '#ebebeb';
+            ctx.lineWidth   = 1;
             ctx.beginPath();
             ctx.moveTo(gx, HEADER_H - 6);
             ctx.lineTo(gx, cssH);
             ctx.stroke();
 
-            ctx.fillStyle  = '#888';
-            ctx.font       = '10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
-            ctx.textAlign  = 'center';
-            var lbl = h === 0 ? 'Now' : ('+' + h + 'h');
-            ctx.fillText(lbl, gx, HEADER_H / 2);
+            ctx.fillStyle = '#888';
+            ctx.font      = '10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+            ctx.textAlign = 'center';
+            var tickDate  = new Date(hourTs * 1000);
+            var hh = tickDate.getHours();
+            ctx.fillText((hh < 10 ? '0' : '') + hh + ':00', gx, HEADER_H / 2);
         }
 
-        // Separator line below header
+        // Separator below header
         ctx.strokeStyle = '#ddd';
         ctx.lineWidth   = 1;
         ctx.beginPath();
-        ctx.moveTo(LABEL_W, HEADER_H - 0.5);
+        ctx.moveTo(0, HEADER_H - 0.5);
         ctx.lineTo(cssW, HEADER_H - 0.5);
         ctx.stroke();
 
@@ -2122,6 +2175,7 @@ function cscOrphanToggle(el, type) {
             var rowY  = HEADER_H + i * ROW_H;
             var midY  = rowY + ROW_H / 2;
             var color = ROW_COLORS[i % ROW_COLORS.length];
+            var occs  = ev.occurrences;
 
             // Alternating row bg
             if (i % 2 === 0) {
@@ -2129,26 +2183,17 @@ function cscOrphanToggle(el, type) {
                 ctx.fillRect(0, rowY, cssW, ROW_H);
             }
 
-            // Label — truncate to fit
-            ctx.fillStyle  = '#1d2327';
-            ctx.font       = '11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
-            ctx.textAlign  = 'left';
-            ctx.textBaseline = 'middle';
-            var maxLabelPx = LABEL_W - 10;
-            var labelText  = ev.hook;
-            // Truncate until it fits
-            while (ctx.measureText(labelText).width > maxLabelPx && labelText.length > 4) {
-                labelText = labelText.slice(0, -4) + '\u2026';
-            }
-            ctx.fillText(labelText, 6, midY);
+            // Duration bars
+            var BAR_H  = ROW_H * 0.55;
+            var estSec = ev.interval > 0 ? Math.min(ev.interval / 2, 300) : 60;
+            var barW   = Math.max((estSec / windowSec) * chartW, 8);
 
-            // Dashed connecting line between first and last dot
-            var occs = ev.occurrences;
+            // Dashed spine
             if (occs.length > 1) {
-                var x0 = LABEL_W + ((occs[0] - nowTs) / windowSec) * chartW;
-                var x1 = LABEL_W + ((occs[occs.length - 1] - nowTs) / windowSec) * chartW;
+                var x0 = ((occs[0] - nowTs) / windowSec) * chartW;
+                var x1 = ((occs[occs.length - 1] - nowTs) / windowSec) * chartW;
                 ctx.strokeStyle = color;
-                ctx.globalAlpha = 0.3;
+                ctx.globalAlpha = 0.25;
                 ctx.lineWidth   = 1;
                 ctx.setLineDash([3, 3]);
                 ctx.beginPath();
@@ -2159,13 +2204,23 @@ function cscOrphanToggle(el, type) {
                 ctx.globalAlpha = 1;
             }
 
-            // Occurrence dots
             occs.forEach(function(t) {
-                var dx = LABEL_W + ((t - nowTs) / windowSec) * chartW;
-                ctx.fillStyle = color;
-                ctx.globalAlpha = 0.9;
+                var bx  = ((t - nowTs) / windowSec) * chartW;
+                var r   = 3;
+                var bx0 = bx - barW / 2, by0 = midY - BAR_H / 2, bw = barW, bh = BAR_H;
+                ctx.fillStyle   = color;
+                ctx.globalAlpha = 0.75;
                 ctx.beginPath();
-                ctx.arc(dx, midY, 4, 0, Math.PI * 2);
+                ctx.moveTo(bx0 + r, by0);
+                ctx.lineTo(bx0 + bw - r, by0);
+                ctx.arcTo(bx0 + bw, by0, bx0 + bw, by0 + r, r);
+                ctx.lineTo(bx0 + bw, by0 + bh - r);
+                ctx.arcTo(bx0 + bw, by0 + bh, bx0 + bw - r, by0 + bh, r);
+                ctx.lineTo(bx0 + r, by0 + bh);
+                ctx.arcTo(bx0, by0 + bh, bx0, by0 + bh - r, r);
+                ctx.lineTo(bx0, by0 + r);
+                ctx.arcTo(bx0, by0, bx0 + r, by0, r);
+                ctx.closePath();
                 ctx.fill();
                 ctx.globalAlpha = 1;
             });
@@ -2199,11 +2254,37 @@ function cscOrphanToggle(el, type) {
 
     /**
      * Populate the events table from the AJAX response.
+     * @param {Array}  events  - cron event objects
+     * @param {number} now     - server Unix timestamp
+     * @param {Object} runLog  - map of hook => {last_run, duration_ms}
      */
-    function cscRenderCronTable(events, now) {
+    // Plugin status config
+    var PLUGIN_STATUS = {
+        'core':          { label: 'Core',          color: '#1976d2', bg: '#e3f2fd' },
+        'active':        { label: 'Active',         color: '#2e7d32', bg: '#e8f5e9' },
+        'inactive':      { label: 'Installed',      color: '#e65100', bg: '#fff3e0' },
+        'not_installed': { label: 'Not installed',  color: '#b71c1c', bg: '#ffebee' },
+        'unknown':       { label: '?',              color: '#78909c', bg: '#f5f5f5' }
+    };
+
+    function cscPluginBadge(name, status) {
+        var cfg = PLUGIN_STATUS[status] || PLUGIN_STATUS['unknown'];
+        var dot = '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + cfg.color + ';margin-right:4px;vertical-align:middle"></span>';
+        var badge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + cfg.bg + ';color:' + cfg.color + ';white-space:nowrap">' + cfg.label + '</span>';
+        if (!name) { return '<span style="color:#aaa;font-size:11px">&mdash;</span>'; }
+        return '<span style="font-size:11px">' + dot + $('<span>').text(name).html() + '</span><br>' + badge;
+    }
+
+    /**
+     * Populate the events table from the AJAX response.
+     * @param {Array}  events  - cron event objects
+     * @param {number} now     - server Unix timestamp
+     * @param {Object} runLog  - map of hook => {last_run, duration_ms}
+     */
+    function cscRenderCronTable(events, now, runLog) {
         var $tbody = $('#csc-cron-events-body');
         if (!events || events.length === 0) {
-            $tbody.html('<tr><td colspan="4" style="text-align:center;padding:12px;color:#666">No scheduled events found.</td></tr>');
+            $tbody.html('<tr><td colspan="7" style="text-align:center;padding:12px;color:#666">No scheduled events found.</td></tr>');
             return;
         }
         var rows = events.map(function(ev) {
@@ -2212,11 +2293,33 @@ function cscOrphanToggle(el, type) {
                 ? '<span class="csc-cron-badge csc-cron-badge-red">Overdue</span>'
                 : '<span class="csc-cron-badge csc-cron-badge-green">OK</span>';
             var timeHtml = cscFmtCronTime(ev.next_run, now);
+
+            var lastRunHtml = '&mdash;';
+            if (runLog && runLog[ev.hook]) {
+                var lr = runLog[ev.hook];
+                var ms = lr.duration_ms;
+                var durStr = ms >= 60000
+                    ? Math.round(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's'
+                    : ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms';
+                var diffSec = now - lr.last_run;
+                var agoStr = diffSec < 3600
+                    ? Math.round(diffSec / 60) + 'm ago'
+                    : diffSec < 86400 ? Math.round(diffSec / 3600) + 'h ago'
+                    : Math.round(diffSec / 86400) + 'd ago';
+                lastRunHtml = '<span title="Last ran ' + agoStr + '" style="font-size:11px">' + durStr + '<br><span style="color:#888;font-size:10px">' + agoStr + '</span></span>';
+            }
+
+            var hookHtml  = $('<span>').text(ev.hook).html();
+            var pluginHtml = cscPluginBadge(ev.plugin_name || null, ev.plugin_status || 'unknown');
+            var deleteBtn  = '<button class="csc-cron-del-btn" data-hook="' + hookHtml + '" title="Move to recycle bin">&#128465;</button>';
             return '<tr class="' + overdueCls + '">'
-                + '<td class="csc-cron-hook-cell">' + $('<span>').text(ev.hook).html() + '</td>'
+                + '<td class="csc-cron-hook-cell">' + hookHtml + '</td>'
+                + '<td style="white-space:nowrap">' + pluginHtml + '</td>'
                 + '<td>' + $('<span>').text(ev.schedule).html() + '</td>'
                 + '<td>' + timeHtml + '</td>'
+                + '<td>' + lastRunHtml + '</td>'
                 + '<td>' + statusHtml + '</td>'
+                + '<td style="text-align:center">' + deleteBtn + '</td>'
                 + '</tr>';
         });
         $tbody.html(rows.join(''));
@@ -2262,10 +2365,11 @@ function cscOrphanToggle(el, type) {
             return;
         }
         var lines = congestion.map(function(zone) {
-            var offsetMin = Math.round(zone.offset_seconds / 60);
-            var timeLabel = offsetMin < 1 ? 'now' : 'in ~' + offsetMin + ' min';
+            var zoneDate = new Date((now + zone.offset_seconds) * 1000);
+            var hh = zoneDate.getHours(), mm = zoneDate.getMinutes();
+            var timeLabel = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
             var hooks = zone.hooks.slice(0, 4).join(', ') + (zone.hooks.length > 4 ? ', ...' : '');
-            return '<li><strong>' + zone.count + ' jobs</strong> firing ' + timeLabel + ': ' + hooks + '</li>';
+            return '<li><strong>' + zone.count + ' jobs</strong> at ' + timeLabel + ': ' + hooks + '</li>';
         });
         $warn.html(
             '<strong>&#9888; Cron Congestion Detected</strong> — multiple jobs firing in the same 5-minute window may cause CPU spikes and slow page responses.' +
@@ -2288,8 +2392,9 @@ function cscOrphanToggle(el, type) {
             }
             var d = resp.data;
             cscRenderCronHealth(d);
-            cscRenderCronTable(d.events, d.server_time);
+            cscRenderCronTable(d.events, d.server_time, d.run_log || {});
             cscRenderCongestion(d.congestion, d.server_time);
+            cscRenderRecycleBin(d.recycle_bin || []);
             // Slight delay to ensure the card is visible and has rendered width
             setTimeout(function() {
                 cscRenderCronTimeline(d.events, d.server_time, d.congestion);
@@ -2299,14 +2404,14 @@ function cscOrphanToggle(el, type) {
         });
     }
 
-    // Load when Settings tab is shown
+    // Load when Cron tab is shown
     var cronLoaded = false;
-    $(document).on('click', '.csc-tab[data-tab="settings"]', function() {
+    $(document).on('click', '.csc-tab[data-tab="cron"]', function() {
         if (!cronLoaded) { cscLoadCronStatus(); cronLoaded = true; }
     });
-    // Also load if Settings is the active tab on page load
-    if ($('.csc-tab[data-tab="settings"]').hasClass('csc-tab-active') ||
-        window.location.search.indexOf('tab=settings') !== -1) {
+    // Also load if Cron is the active tab on page load
+    if ($('.csc-tab[data-tab="cron"]').hasClass('csc-tab-active') ||
+        window.location.search.indexOf('tab=cron') !== -1) {
         cscLoadCronStatus(); cronLoaded = true;
     }
 
@@ -2338,7 +2443,8 @@ function cscOrphanToggle(el, type) {
             if (!cronLoaded) { return; }
             $.post(CSC.ajax_url, { action: 'csc_cron_status', nonce: CSC.nonce }, function(resp) {
                 if (resp.success) {
-                    cscRenderCronTimeline(resp.data.events, resp.data.server_time, resp.data.congestion);
+                    var d = resp.data;
+                    cscRenderCronTimeline(d.events, d.server_time, d.congestion);
                 }
             });
         }, 250);
@@ -2373,6 +2479,98 @@ function cscOrphanToggle(el, type) {
             $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
                 .html('&#10007; Network error.').show();
             setTimeout(function() { $res.hide(); }, 4000);
+        });
+    });
+
+    /**
+     * Render the recycle bin table.
+     * @param {Array} bin - array of recycle bin entry objects
+     */
+    function cscRenderRecycleBin(bin) {
+        var $tbody = $('#csc-cron-recycle-body');
+        if (!bin || bin.length === 0) {
+            $tbody.html('<tr><td colspan="5" style="text-align:center;padding:12px;color:#aaa;font-style:italic">Recycle bin is empty.</td></tr>');
+            return;
+        }
+        var rows = bin.map(function(entry) {
+            var hookHtml    = $('<span>').text(entry.hook).html();
+            var schedHtml   = $('<span>').text(entry.schedule || 'one-time').html();
+            var wasDue      = entry.next_run ? new Date(entry.next_run * 1000).toLocaleString() : '&mdash;';
+            var deletedAt   = entry.deleted_at ? new Date(entry.deleted_at * 1000).toLocaleString() : '&mdash;';
+            var id          = $('<span>').text(entry.id).html();
+            return '<tr>'
+                + '<td class="csc-cron-hook-cell">' + hookHtml + '</td>'
+                + '<td>' + schedHtml + '</td>'
+                + '<td style="white-space:nowrap;font-size:11px">' + wasDue + '</td>'
+                + '<td style="white-space:nowrap;font-size:11px">' + deletedAt + '</td>'
+                + '<td style="white-space:nowrap;text-align:right">'
+                +   '<button class="csc-btn csc-btn-secondary csc-btn-sm csc-cron-restore-btn" data-id="' + id + '" style="margin-right:4px">&#10226; Restore</button>'
+                +   '<button class="csc-btn csc-btn-sm csc-cron-purge-btn" data-id="' + id + '" style="background:#c62828;color:#fff;border-color:#c62828">&#128465; Delete Forever</button>'
+                + '</td>'
+                + '</tr>';
+        });
+        $tbody.html(rows.join(''));
+    }
+
+    /** Send delete-to-bin request for a cron hook. */
+    function cscDeleteCronJob(hook) {
+        if (!hook) { return; }
+        if (!window.confirm('Move "' + hook + '" to the cron recycle bin?\n\nYou can restore it from the bin below.')) { return; }
+        $.post(CSC.ajax_url, { action: 'csc_cron_delete', nonce: CSC.nonce, hook: hook }, function(resp) {
+            if (resp.success) {
+                cronLoaded = false;
+                cscLoadCronStatus();
+                cronLoaded = true;
+            } else {
+                alert('Could not delete: ' + (resp.data || 'Unknown error'));
+            }
+        }).fail(function() { alert('Network error deleting cron job.'); });
+    }
+
+    // Delete button in the events table
+    $(document).on('click', '.csc-cron-del-btn', function() {
+        cscDeleteCronJob($(this).data('hook'));
+    });
+
+    // Restore button in recycle bin
+    $(document).on('click', '.csc-cron-restore-btn', function() {
+        var id   = $(this).data('id');
+        var $res = $('#csc-cron-recycle-result');
+        $.post(CSC.ajax_url, { action: 'csc_cron_restore', nonce: CSC.nonce, id: id }, function(resp) {
+            if (resp.success) {
+                cronLoaded = false;
+                cscLoadCronStatus();
+                cronLoaded = true;
+                $res.css({ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534' })
+                    .html('&#10003; Restored <code>' + resp.data.restored + '</code>.').show();
+                setTimeout(function() { $res.hide(); }, 4000);
+            } else {
+                $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                    .html('&#10007; ' + (resp.data || 'Restore failed.')).show();
+            }
+        }).fail(function() {
+            $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                .html('&#10007; Network error.').show();
+        });
+    });
+
+    // Permanently delete button in recycle bin
+    $(document).on('click', '.csc-cron-purge-btn', function() {
+        if (!window.confirm('Permanently delete this cron job? This cannot be undone.')) { return; }
+        var id   = $(this).data('id');
+        var $res = $('#csc-cron-recycle-result');
+        $.post(CSC.ajax_url, { action: 'csc_cron_purge_bin', nonce: CSC.nonce, id: id }, function(resp) {
+            if (resp.success) {
+                cronLoaded = false;
+                cscLoadCronStatus();
+                cronLoaded = true;
+            } else {
+                $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                    .html('&#10007; ' + (resp.data || 'Delete failed.')).show();
+            }
+        }).fail(function() {
+            $res.css({ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b' })
+                .html('&#10007; Network error.').show();
         });
     });
 
