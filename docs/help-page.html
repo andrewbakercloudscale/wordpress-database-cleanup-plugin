@@ -8,9 +8,14 @@
 .cs-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0e6b8f 100%);color:#fff;border-radius:12px;padding:48px 40px;margin-bottom:40px;position:relative;overflow:hidden;}
 .cs-hero h1{font-size:2.2em;font-weight:800;margin:0 0 12px;letter-spacing:-.02em;color:#fff;}
 .cs-hero p{font-size:1.1em;margin:0;opacity:.85;max-width:680px;}
-.cs-hero .cs-badge{display:inline-block;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 14px;font-size:.8em;font-weight:600;margin-bottom:16px;letter-spacing:.05em;text-transform:uppercase;}
-.cs-download-btn{display:inline-block;background:#22c55e;color:#000!important;padding:10px 22px;border-radius:8px;text-decoration:none!important;font-size:1em;font-weight:700;letter-spacing:.01em;}
-.cs-wporg-btn{display:inline-block;background:#3858e9;color:#fff!important;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:1em;font-weight:700;letter-spacing:.01em;}
+.cs-hero .cs-badge{display:inline-block;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 14px;font-size:.8em;font-weight:600;margin-bottom:16px;letter-spacing:.05em;text-transform:uppercase;transition:transform .15s ease,box-shadow .15s ease,background .15s ease;}
+.cs-hero a.cs-badge:hover{transform:translateY(-4px) scale(1.06);box-shadow:0 12px 28px rgba(0,0,0,.45);background:rgba(255,255,255,.3);color:#fff!important;text-decoration:none!important;}
+.cs-download-btn{display:inline-block;background:#16a34a;color:#fff!important;padding:12px 26px;border-radius:8px;text-decoration:none!important;font-size:1em;font-weight:700;letter-spacing:.01em;transition:transform .15s ease,box-shadow .15s ease;}
+.cs-download-btn:hover{transform:translateY(-6px) scale(1.04);box-shadow:0 20px 48px rgba(0,0,0,.55);color:#fff!important;text-decoration:none!important;}
+.cs-wporg-btn{display:inline-block;background:#3858e9;color:#fff!important;padding:12px 26px;border-radius:8px;text-decoration:none!important;font-size:1em;font-weight:700;letter-spacing:.01em;transition:transform .15s ease,box-shadow .15s ease;}
+.cs-wporg-btn:hover{transform:translateY(-6px) scale(1.04);box-shadow:0 20px 48px rgba(0,0,0,.55);color:#fff!important;text-decoration:none!important;}
+.cs-github-btn{display:inline-block;background:#24292f;color:#fff!important;padding:12px 26px;border-radius:8px;text-decoration:none!important;font-size:1em;font-weight:700;letter-spacing:.01em;transition:transform .15s ease,box-shadow .15s ease;}
+.cs-github-btn:hover{transform:translateY(-6px) scale(1.04);box-shadow:0 20px 48px rgba(0,0,0,.55);color:#fff!important;text-decoration:none!important;}
 .cs-toc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:28px 36px;margin:32px 0;}
 .cs-toc-title{font-size:1em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin:0 0 16px;}
 .cs-toc ol{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px;margin:0;padding-left:24px;}
@@ -19,8 +24,8 @@
 .cs-tab-heading{font-size:2em;font-weight:800;color:#0f172a;padding:0 0 16px;border-bottom:3px solid #0e6b8f;margin:0 0 8px;}
 .cs-tab-intro{color:#475569;font-size:1.05em;margin:10px 0 32px;}
 .cs-panel-section{margin:36px 0 0;}
-.cs-panel-heading{font-size:1.45em;font-weight:700;color:#1e293b;margin:0 0 16px;padding:0 0 10px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
-.cs-panel-heading::before{content:"";display:inline-block;width:4px;height:1.2em;background:#0e6b8f;border-radius:2px;flex-shrink:0;}
+.cs-panel-heading{font-size:1.45em!important;font-weight:700!important;color:#1e293b!important;margin:0 0 16px!important;padding:0 0 10px!important;border-bottom:2px solid #e2e8f0!important;border-left:none!important;border-top:none!important;border-right:none!important;display:flex!important;align-items:center!important;gap:10px!important;background:transparent!important;}
+.cs-panel-heading::before{content:""!important;display:inline-block!important;width:4px!important;height:1.2em!important;background:#0e6b8f!important;border-radius:2px!important;flex-shrink:0!important;}
 .cs-screenshot{margin:20px 0 24px;}
 .cs-screenshot img{max-width:100%;border-radius:8px;border:1px solid #d1d5db;box-shadow:0 4px 20px rgba(0,0,0,.10);display:block;}
 .cs-panel-body{color:#334155;}
@@ -32,11 +37,15 @@
 </style>
 <div class="cs-help-docs" style="max-width:900px;margin:0 auto;">
 <div class="cs-hero">
-<div class="cs-badge">Free &amp; Open Source</div>
-
-<h1>CloudScale Cleanup</h1>
+<div style="display:flex;align-items:center;gap:20px;margin-bottom:16px;">
+<div style="flex:1;min-width:0;">
+<a class="cs-badge" href="https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;">Free &amp; Open Source</a>
+<h1 style="margin-bottom:0;">CloudScale Cleanup</h1>
+</div>
+<img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/cloudscale-cleanup-icon.jpg" alt="CloudScale Cleanup icon" style="flex-shrink:0;width:96px;height:96px;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.4);object-fit:cover;">
+</div>
 <p>WP-Optimize and Advanced Database Cleaner charge $39–$99/year for features that are straightforward to implement. CloudScale Cleanup gives you full database cleanup, media library orphan removal, image optimisation, PNG-to-JPEG conversion, and a live cron management console — with a dry-run preview so you never delete anything by accident. Completely free, open source, no subscriptions, no premium tier.</p>
-<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:20px;"><a class="cs-download-btn" href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip" style="color:#000!important;text-decoration:none!important">⬇ Download Latest Version (.zip)</a></div>
+<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:20px;"><a class="cs-download-btn" href="https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip">⬇ Download Latest Version (.zip)</a><a class="cs-github-btn" href="https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle;margin-right:6px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> View on GitHub</a></div>
 </div>
 
 <div class="cs-toc">
@@ -54,7 +63,7 @@
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="site-health">Site Health</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-site-health-2.jpg" alt="Site Health" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-site-health.jpg" alt="Site Health" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Site Health</strong> tab is a live server metrics dashboard. It collects disk storage, CPU, and memory data automatically in the background and presents it as a RAG (Red/Amber/Green) status indicator so you can spot problems before they affect your site.</p>
 
@@ -129,7 +138,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="db-cleanup">Database Cleanup</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-db-cleanup-2.jpg" alt="Database Cleanup" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-db-cleanup.jpg" alt="Database Cleanup" /></figure>
 <div class="cs-panel-body">
 <div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
 <h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Cleanup?</h2>
@@ -211,7 +220,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="img-cleanup">Media Library Cleanup</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-cleanup-2.jpg" alt="Media Library Cleanup" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-img-cleanup.jpg" alt="Media Library Cleanup" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Media Library Cleanup</strong> tab identifies and safely removes media attachments and upload files that are no longer used, freeing disk space and reducing backup sizes. All removal operations use a recycle bin — nothing is permanently deleted until you explicitly choose to empty it.</p>
 
@@ -261,7 +270,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="img-optimise">Image Optimisation</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-img-optimise-2.jpg" alt="Image Optimisation" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-img-optimise.jpg" alt="Image Optimisation" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Image Optimisation</strong> tab reduces the on-disk file size of images already in your media library using PHP's GD or Imagick library. No external service, API key, or data transfer is involved — all processing runs locally on your server.</p>
 
@@ -301,7 +310,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="png-to-jpeg">PNG to JPEG Converter</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-png-to-jpeg-2.jpg" alt="PNG to JPEG Converter" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-png-to-jpeg.jpg" alt="PNG to JPEG Converter" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>PNG to JPEG</strong> tab is a standalone drag-and-drop converter that takes PNG files from your local computer, converts them to JPEG server-side, and optionally saves the result directly into your WordPress media library — without modifying any existing media library files.</p>
 <p>This is intended for pre-processing new images before uploading them, not for batch-converting your existing library (use the Image Optimisation tab for that).</p>
@@ -341,7 +350,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <div class="cs-panel-section">
 <h3 class="cs-panel-heading" id="cron">Cron</h3>
-<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/03/panel-settings-2.jpg" alt="Cron" /></figure>
+<figure class="cs-screenshot"><img src="https://andrewbaker.ninja/wp-content/uploads/2026/04/panel-settings-1.jpg" alt="Cron" /></figure>
 <div class="cs-panel-body">
 <p>The <strong>Cron</strong> tab is a full cron management console for your WordPress installation. It shows every background job registered in the WordPress scheduler, visualises when they fire, detects scheduling conflicts, identifies which plugin owns each job, and lets you delete orphaned or unwanted jobs safely via a recycle bin.</p>
 
