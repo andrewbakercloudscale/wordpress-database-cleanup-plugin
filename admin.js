@@ -1260,6 +1260,130 @@ function cscOrphanToggle(el, type) {
         });
     });
 
+    // ── Generate Missing Thumbnails ───────────────────────────────────────────
+
+    var regenThumbTotal = 0;
+
+    $('#btn-scan-regen-thumb').on('click', function () {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('⏳ Scanning…');
+        $('#btn-run-regen-thumb').hide();
+        $('#regen-thumb-summary').hide();
+        $('#regen-thumb-results').hide().html('');
+        $('#regen-thumb-progress-outer').hide();
+
+        $.post(CSC.ajax_url, { action: 'csc_regen_thumb_scan', nonce: CSC.nonce }, function (resp) {
+            $btn.prop('disabled', false).html('🔍 Scan for Missing Sizes');
+            if (!resp.success) {
+                $('#regen-thumb-msg').text('Scan failed: ' + (resp.data || 'Unknown error'));
+                $('#regen-thumb-summary').show();
+                return;
+            }
+            var d = resp.data;
+            regenThumbTotal = d.total;
+
+            if (d.missing === 0) {
+                $('#regen-thumb-msg').text('✔ All ' + d.total + ' images have their thumbnail sizes — nothing to regenerate.');
+                $('#regen-thumb-summary').css('border-left-color', '#2e7d32').show();
+                $('#btn-run-regen-thumb').hide();
+                return;
+            }
+
+            // Show summary banner
+            $('#regen-thumb-msg').text('⚠ ' + d.missing + ' of ' + d.total + ' images are missing one or more thumbnail sizes.');
+            $('#regen-thumb-summary').css('border-left-color', '#e65100').css('background', '#fff3e0').show();
+            $('#btn-run-regen-thumb').show();
+
+            // Build results list: featured images first, others after
+            var used   = d.images.filter(function (i) { return i.used; });
+            var other  = d.images.filter(function (i) { return !i.used; });
+            var html   = '';
+
+            if (used.length) {
+                html += '<div style="font-weight:700;color:#8c2020;margin-bottom:4px">⚠ Active featured images (' + used.length + ') — these affect article display right now:</div>';
+                html += '<div style="margin-bottom:10px">' + used.map(function (i) {
+                    return '<span style="display:inline-block;background:#fdf0f0;border:1px solid #f5c6c6;border-radius:4px;padding:2px 8px;margin:2px;font-size:11px">'
+                        + '<strong style="color:#8c2020">[Featured]</strong> ' + esc(i.title || 'ID ' + i.id) + '</span>';
+                }).join('') + '</div>';
+            }
+            if (other.length) {
+                var showOther = other.slice(0, 30);
+                html += '<div style="color:#555;margin-bottom:4px">Other images with missing sizes (' + other.length + '):</div>';
+                html += '<div>' + showOther.map(function (i) {
+                    return '<span style="display:inline-block;background:#f6f7f7;border:1px solid #ddd;border-radius:4px;padding:2px 8px;margin:2px;font-size:11px">'
+                        + esc(i.title || 'ID ' + i.id) + '</span>';
+                }).join('') + (other.length > 30 ? '<span style="font-size:11px;color:#888"> … and ' + (other.length - 30) + ' more</span>' : '') + '</div>';
+            }
+
+            $('#regen-thumb-results').html(html).show();
+        }).fail(function () {
+            $btn.prop('disabled', false).html('🔍 Scan for Missing Sizes');
+            $('#regen-thumb-msg').text('Network error. Check your connection.');
+            $('#regen-thumb-summary').show();
+        });
+    });
+
+    $('#btn-run-regen-thumb').on('click', function () {
+        var $btn = $(this);
+        if (!confirm('This will regenerate missing thumbnail sizes for all affected images. It may take a minute or two. Continue?')) { return; }
+
+        $btn.prop('disabled', true).html('⚙️ Regenerating…');
+        $('#btn-scan-regen-thumb').prop('disabled', true);
+        showProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label', 'Starting…');
+        $('#regen-thumb-summary').hide();
+
+        var processed    = 0;
+        var regenerated  = 0;
+        var errors       = 0;
+        var totalImages  = regenThumbTotal || 0;
+
+        function runBatch(offset) {
+            $.post(CSC.ajax_url, { action: 'csc_regen_thumb_batch', nonce: CSC.nonce, offset: offset, total: totalImages }, function (resp) {
+                if (!resp.success) {
+                    $btn.prop('disabled', false).html('⚙️ Regenerate All Missing');
+                    $('#btn-scan-regen-thumb').prop('disabled', false);
+                    finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label', '✗ Error');
+                    $('#regen-thumb-msg').text('Error: ' + (resp.data || 'Unknown'));
+                    $('#regen-thumb-summary').css('border-left-color', '#d32f2f').css('background', '#fdf0f0').show();
+                    return;
+                }
+                var d = resp.data;
+                if (!totalImages && d.total) { totalImages = d.total; }
+
+                $.each(d.batch || [], function (_, item) {
+                    processed++;
+                    if (item.regenerated) { regenerated++; }
+                    else if (!item.ok)    { errors++; }
+                });
+
+                updateProgress('regen-thumb-progress-fill', 'regen-thumb-progress-label', processed, totalImages,
+                    regenerated + ' regenerated' + (errors ? ', ' + errors + ' errors' : ''));
+
+                if (d.has_more) {
+                    runBatch(d.next_offset);
+                } else {
+                    $btn.prop('disabled', false).html('⚙️ Regenerate All Missing').hide();
+                    $('#btn-scan-regen-thumb').prop('disabled', false);
+                    finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label',
+                        '✔ Done — ' + regenerated + ' images regenerated');
+                    var doneMsg = '✔ Done — ' + regenerated + ' thumbnail size' + (regenerated === 1 ? '' : 's') + ' regenerated.';
+                    if (regenerated > 0) { doneMsg += ' Refresh the page or view a post to confirm the article images display correctly.'; }
+                    if (errors)          { doneMsg += ' ' + errors + ' image(s) could not be processed (file missing on disk).'; }
+                    $('#regen-thumb-msg').text(doneMsg);
+                    $('#regen-thumb-summary').css('border-left-color', '#2e7d32').css('background', '#e8f5e9').show();
+                    // Re-scan to confirm.
+                    setTimeout(function () { $('#btn-scan-regen-thumb').trigger('click'); }, 1200);
+                }
+            }).fail(function () {
+                $btn.prop('disabled', false).html('⚙️ Regenerate All Missing');
+                $('#btn-scan-regen-thumb').prop('disabled', false);
+                finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label', '✗ Network error');
+            });
+        }
+
+        runBatch(0);
+    });
+
     // ═══════════════════════════════════════════════════════════════════════════
     // RECYCLE BIN BROWSER
     // ═══════════════════════════════════════════════════════════════════════════
