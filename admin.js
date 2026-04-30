@@ -1336,52 +1336,65 @@ function cscOrphanToggle(el, type) {
         var regenerated  = 0;
         var errors       = 0;
         var totalImages  = regenThumbTotal || 0;
+        var nextOffset   = 0;
+        var inFlight     = 0;
+        var BATCH        = 5;
+        var THREADS      = 2;
 
-        function runBatch(offset) {
-            $.post(CSC.ajax_url, { action: 'csc_regen_thumb_batch', nonce: CSC.nonce, offset: offset, total: totalImages }, function (resp) {
-                if (!resp.success) {
-                    $btn.prop('disabled', false).html('⚙️ Regenerate All Missing');
-                    $('#btn-scan-regen-thumb').prop('disabled', false);
-                    finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label', '✗ Error');
-                    $('#regen-thumb-msg').text('Error: ' + (resp.data || 'Unknown'));
-                    $('#regen-thumb-summary').css('border-left-color', '#d32f2f').css('background', '#fdf0f0').show();
-                    return;
-                }
-                var d = resp.data;
-                if (!totalImages && d.total) { totalImages = d.total; }
-
-                $.each(d.batch || [], function (_, item) {
-                    processed++;
-                    if (item.regenerated) { regenerated++; }
-                    else if (!item.ok)    { errors++; }
-                });
-
-                updateProgress('regen-thumb-progress-fill', 'regen-thumb-progress-label', processed, totalImages,
-                    regenerated + ' regenerated' + (errors ? ', ' + errors + ' errors' : ''));
-
-                if (d.has_more) {
-                    runBatch(d.next_offset);
-                } else {
-                    $btn.prop('disabled', false).html('⚙️ Regenerate All Missing').hide();
-                    $('#btn-scan-regen-thumb').prop('disabled', false);
-                    finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label',
-                        '✔ Done — ' + regenerated + ' images regenerated');
-                    var doneMsg = '✔ Done — ' + regenerated + ' thumbnail size' + (regenerated === 1 ? '' : 's') + ' regenerated.';
-                    if (regenerated > 0) { doneMsg += ' Refresh the page or view a post to confirm the article images display correctly.'; }
-                    if (errors)          { doneMsg += ' ' + errors + ' image(s) could not be processed (file missing on disk).'; }
-                    $('#regen-thumb-msg').text(doneMsg);
-                    $('#regen-thumb-summary').css('border-left-color', '#2e7d32').css('background', '#e8f5e9').show();
-                    // Re-scan to confirm.
-                    setTimeout(function () { $('#btn-scan-regen-thumb').trigger('click'); }, 1200);
-                }
-            }).fail(function () {
-                $btn.prop('disabled', false).html('⚙️ Regenerate All Missing');
-                $('#btn-scan-regen-thumb').prop('disabled', false);
-                finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label', '✗ Network error');
-            });
+        function onAllDone() {
+            $btn.prop('disabled', false).html('⚙️ Regenerate All Missing').hide();
+            $('#btn-scan-regen-thumb').prop('disabled', false);
+            finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label',
+                '✔ Done — ' + regenerated + ' images regenerated');
+            var doneMsg = '✔ Done — ' + regenerated + ' thumbnail size' + (regenerated === 1 ? '' : 's') + ' regenerated.';
+            if (regenerated > 0) { doneMsg += ' Refresh the page or view a post to confirm the article images display correctly.'; }
+            if (errors)          { doneMsg += ' ' + errors + ' image(s) could not be processed (file missing on disk).'; }
+            $('#regen-thumb-msg').text(doneMsg);
+            $('#regen-thumb-summary').css('border-left-color', '#2e7d32').css('background', '#e8f5e9').show();
+            setTimeout(function () { $('#btn-scan-regen-thumb').trigger('click'); }, 1200);
         }
 
-        runBatch(0);
+        function dispatch() {
+            while (inFlight < THREADS) {
+                if (totalImages > 0 && nextOffset >= totalImages) { break; }
+                var offset = nextOffset;
+                nextOffset += BATCH;
+                inFlight++;
+                (function (off) {
+                    $.post(CSC.ajax_url, { action: 'csc_regen_thumb_batch', nonce: CSC.nonce, offset: off, total: totalImages }, function (resp) {
+                        inFlight--;
+                        if (!resp.success) {
+                            errors++;
+                        } else {
+                            var d = resp.data;
+                            if (!totalImages && d.total) { totalImages = d.total; }
+                            $.each(d.batch || [], function (_, item) {
+                                processed++;
+                                if (item.regenerated) { regenerated++; }
+                                else if (!item.ok)    { errors++; }
+                            });
+                            updateProgress('regen-thumb-progress-fill', 'regen-thumb-progress-label', processed, totalImages,
+                                regenerated + ' regenerated' + (errors ? ', ' + errors + ' errors' : ''));
+                        }
+                        if (inFlight === 0 && totalImages > 0 && nextOffset >= totalImages) {
+                            onAllDone();
+                        } else {
+                            dispatch();
+                        }
+                    }).fail(function () {
+                        inFlight--;
+                        errors++;
+                        if (inFlight === 0 && totalImages > 0 && nextOffset >= totalImages) {
+                            onAllDone();
+                        } else {
+                            dispatch();
+                        }
+                    });
+                }(offset));
+            }
+        }
+
+        dispatch();
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
