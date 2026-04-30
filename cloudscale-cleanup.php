@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.23
+ * Version:     2.5.28
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.23' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.28' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -348,7 +348,7 @@ function csc_render_dashboard_widget() {
     $fmt = function ( $val ) {
         return $val
             ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' ) . '</span>'
-            : '<span style="font-size:12px;font-weight:700;color:rgba(2.5.2355,2.5.1.5)">Not yet run</span>';
+            : '<span style="font-size:12px;font-weight:700;color:rgba(2.5.2855,2.5.1.5)">Not yet run</span>';
     };
 
     // Health data
@@ -378,19 +378,19 @@ function csc_render_dashboard_widget() {
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
             <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2855,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
                 <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2855,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
                 <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2855,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
                 <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </a>
             <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:<?php echo esc_attr( $rag_info['bg'] ); ?>;box-shadow:0 2px 6px <?php echo esc_attr( $rag_info['shadow'] ); ?>" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2355,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.2855,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
                 <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
             </a>
         </div>
@@ -412,7 +412,7 @@ function csc_render_dashboard_widget() {
             <?php
             $wks_bg    = $health['disk_rag'] === 'red' ? '#c62828' : ( $health['disk_rag'] === 'amber' ? '#e65100' : '#f0f2f5' );
             $wks_color = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? '#fff' : '#263238';
-            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(2.5.2355,2.5.1.8)' : '#78909c';
+            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(2.5.2855,2.5.1.8)' : '#78909c';
             ?>
             <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
@@ -423,7 +423,7 @@ function csc_render_dashboard_widget() {
             $al_rag   = csc_autoload_rag( $al_bytes );
             $al_bg    = $al_rag === 'red' ? '#c62828' : ( $al_rag === 'amber' ? '#e65100' : '#2e7d32' );
             $al_color = '#fff';
-            $al_label = 'rgba(255,255,255,0.8)';
+            $al_label = 'rgba(2.5.285,255,0.8)';
             ?>
             <div style="background:<?php echo esc_attr( $al_bg ); ?>;border-radius:6px;padding:6px 4px">
                 <div style="color:<?php echo esc_attr( $al_label ); ?>;font-weight:600;margin-bottom:2px">Autoload Size</div>
@@ -1864,6 +1864,17 @@ function csc_ajax_scan_images() {
 
 // ─── Media Recycle Bin helpers ────────────────────────────────────────────────
 
+/**
+ * Resolve the physical stored path (relative to files/) for a manifest entry's file.
+ * New entries use stored_map; old entries fall back to the original relative path.
+ */
+function csc_media_recycle_stored_rel( array $entry, string $original_rel ): string {
+    if ( ! empty( $entry['stored_map'] ) && isset( $entry['stored_map'][ $original_rel ] ) ) {
+        return $entry['stored_map'][ $original_rel ];
+    }
+    return $original_rel;
+}
+
 function csc_media_recycle_dir(): string {
     return trailingslashit( wp_upload_dir()['basedir'] ) . '.csc-media-recycle/';
 }
@@ -1889,6 +1900,24 @@ function csc_media_recycle_ensure_dir(): bool {
         error_log( '[CSC] Cannot create media recycle directory: ' . $dir ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
         return false;
     }
+    // Pre-create the files/ subdirectory so individual file moves don't need to create it
+    $files_dir = $dir . 'files/';
+    if ( ! wp_mkdir_p( $files_dir ) ) {
+        error_log( '[CSC] Cannot create media recycle files directory: ' . $files_dir ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
+        return false;
+    }
+    // Verify files/ is actually writable — a write-test catches permission issues early
+    $test_path = $files_dir . '.write-test';
+    if ( false === @file_put_contents( $test_path, '' ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- write test, no WP_Filesystem equivalent
+        // Attempt chmod in case the dir was created by a different process/user
+        @chmod( $dir, 0755 );
+        @chmod( $files_dir, 0755 );
+        if ( false === @file_put_contents( $test_path, '' ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- write test after chmod
+            error_log( '[CSC] Media recycle files directory is not writable (chmod attempted): ' . $files_dir ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
+            return false;
+        }
+    }
+    @unlink( $test_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- cleanup of write-test file
     // Prevent directory listing and direct file access
     $htaccess = $dir . '.htaccess';
     if ( ! file_exists( $htaccess ) ) {
@@ -2027,23 +2056,36 @@ function csc_media_recycle_save_attachment( int $id ): array {
 
     $all_files = array_unique( $all_files );
 
+    // stored_map: original_rel -> stored_rel (physical path within files/)
+    // Using files/{id}/{basename} avoids stale nested date-dirs with wrong permissions.
+    $stored_map = array();
+
     // Move each file to recycle dir
     foreach ( $all_files as $src_path ) {
-        $rel  = str_replace( $base, '', $src_path );
-        $dest = $recycle . $rel;
+        $rel        = str_replace( $base, '', $src_path );
+        // Store under files/{id}/ to avoid date-subdirectory permission issues
+        $stored_rel = $id . '/' . basename( $src_path );
+        $dest       = $recycle . $stored_rel;
         if ( ! wp_mkdir_p( dirname( $dest ) ) ) {
             $errors[] = 'Cannot create dir for: ' . $rel;
             continue;
         }
         if ( @rename( $src_path, $dest ) ) {
-            $files_moved[] = $rel;
+            $files_moved[]        = $rel;
+            $stored_map[ $rel ]   = $stored_rel;
+        } elseif ( @copy( $src_path, $dest ) ) {
+            // copy succeeded; best-effort remove source (non-fatal if unlink fails)
+            @unlink( $src_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
+            $files_moved[]        = $rel;
+            $stored_map[ $rel ]   = $stored_rel;
         } else {
-            // Try copy+delete as fallback (cross-device move)
-            if ( copy( $src_path, $dest ) && unlink( $src_path ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
-                $files_moved[] = $rel;
-            } else {
-                $errors[] = 'Failed to move: ' . $rel;
-            }
+            // Both rename and copy failed — include path diagnostics to aid debugging
+            $src_ok   = file_exists( $src_path ) ? 'Y' : 'N';
+            $dest_dir = dirname( $dest );
+            $dir_ok   = is_dir( $dest_dir ) ? 'Y' : 'N';
+            $dir_w    = is_writable( $dest_dir ) ? 'Y' : 'N';
+            $errors[] = 'Failed to move: ' . $rel . ' [src=' . $src_ok . ',dir=' . $dir_ok . ',w=' . $dir_w . ']';
+            error_log( '[CSC] Cannot move: ' . $src_path . ' -> ' . $dest . ' src=' . $src_ok . ' dir=' . $dir_ok . ' writable=' . $dir_w ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem diagnostic logging
         }
     }
 
@@ -2052,6 +2094,7 @@ function csc_media_recycle_save_attachment( int $id ): array {
         'post'        => $post,
         'meta'        => $meta,
         'files_moved' => $files_moved,
+        'stored_map'  => $stored_map,
         'errors'      => $errors,
     );
 }
@@ -2084,6 +2127,7 @@ function csc_ajax_img_start() {
 // Step 2: process a chunk — move to recycle instead of deleting
 add_action( 'wp_ajax_csc_img_chunk', 'csc_ajax_img_chunk' );
 function csc_ajax_img_chunk() {
+    global $wpdb;
     check_ajax_referer( 'csc_nonce', 'nonce' );
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
@@ -2119,6 +2163,7 @@ function csc_ajax_img_chunk() {
                 'post'        => $result['post'],
                 'meta'        => $result['meta'],
                 'files_moved' => $result['files_moved'],
+                'stored_map'  => $result['stored_map'],
                 'recycled_at' => current_time( 'mysql' ),
             );
 
@@ -2202,7 +2247,7 @@ function csc_ajax_media_recycle_browse() {
         $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'Untitled';
         $size  = 0;
         foreach ( $entry['files_moved'] as $rel ) {
-            $path = $recycle . $rel;
+            $path = $recycle . csc_media_recycle_stored_rel( $entry, $rel );
             if ( file_exists( $path ) ) { $size += filesize( $path ); }
         }
         $total_size += $size;
@@ -2254,8 +2299,9 @@ function csc_ajax_media_restore() {
             // 1. Move files back
             $file_errors = array();
             foreach ( $entry['files_moved'] as $rel ) {
-                $src  = $recycle . $rel;
-                $dest = $base . $rel;
+                $stored = csc_media_recycle_stored_rel( $entry, $rel );
+                $src    = $recycle . $stored;
+                $dest   = $base . $rel;
                 if ( ! file_exists( $src ) ) {
                     $file_errors[] = 'Missing: ' . $rel;
                     continue;
@@ -2347,8 +2393,9 @@ function csc_ajax_media_restore_single() {
     try {
         // Move files back
         foreach ( $entry['files_moved'] as $rel ) {
-            $src  = $recycle . $rel;
-            $dest = $base . $rel;
+            $stored = csc_media_recycle_stored_rel( $entry, $rel );
+            $src    = $recycle . $stored;
+            $dest   = $base . $rel;
             if ( file_exists( $src ) ) {
                 wp_mkdir_p( dirname( $dest ) );
                 if ( ! @rename( $src, $dest ) ) {
@@ -2424,7 +2471,8 @@ function csc_ajax_media_purge() {
             $title = isset( $entry['post']['post_title'] ) ? $entry['post']['post_title'] : 'ID ' . $att_id;
             $file_deleted = 0;
             foreach ( $entry['files_moved'] as $rel ) {
-                $path = $recycle . $rel;
+                $stored = csc_media_recycle_stored_rel( $entry, $rel );
+                $path   = $recycle . $stored;
                 if ( file_exists( $path ) ) {
                     $freed += filesize( $path );
                     if ( unlink( $path ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
@@ -4418,7 +4466,7 @@ add_action( 'init', 'csc_cron_register_timing_hooks' );
  * During a real cron run, add before/after hooks to every scheduled job
  * so we can record how long each one took.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_cron_register_timing_hooks() {
@@ -4444,7 +4492,7 @@ function csc_cron_register_timing_hooks() {
 /**
  * Records the start time for a cron hook execution.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_cron_time_start() {
@@ -4454,7 +4502,7 @@ function csc_cron_time_start() {
 /**
  * Records duration for a cron hook execution and persists to the run log.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_cron_time_end() {
@@ -4481,7 +4529,7 @@ add_action( 'wp_ajax_csc_cron_delete', 'csc_ajax_cron_delete' );
 /**
  * Moves all instances of a scheduled cron hook into the recycle bin.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_ajax_cron_delete() {
@@ -4536,7 +4584,7 @@ add_action( 'wp_ajax_csc_cron_restore', 'csc_ajax_cron_restore' );
 /**
  * Restores a cron entry from the recycle bin back into the WP cron schedule.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_ajax_cron_restore() {
@@ -4582,7 +4630,7 @@ add_action( 'wp_ajax_csc_cron_purge_bin', 'csc_ajax_cron_purge_bin' );
 /**
  * Permanently removes a single entry from the cron recycle bin.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @return void
  */
 function csc_ajax_cron_purge_bin() {
@@ -4622,7 +4670,7 @@ function csc_ajax_cron_purge_bin() {
  * Maps a cron hook name to its origin plugin via prefix matching.
  * Rules are sorted longest-prefix-first so more specific entries win.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @param string $hook Cron hook name.
  * @return array|null ['n' => name, 's' => slug, 'c' => is_core] or null.
  */
@@ -4804,7 +4852,7 @@ function csc_resolve_cron_hook_plugin( $hook ) {
 /**
  * Returns 'core', 'active', 'inactive', or 'not_installed' for a plugin slug.
  *
- * @since 2.5.23
+ * @since 2.5.28
  * @param string $slug Plugin directory slug.
  * @param bool   $core Whether this is a WordPress Core entry.
  * @return string
@@ -5044,14 +5092,14 @@ function csc_ajax_cron_run_now() {
  * @param string $color Background colour for the button (CSS colour string).
  * @return void
  */
-function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.2355,2.5.1.2)' ): void {
+function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.2855,2.5.1.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
     ?>
     <button type="button" id="<?php echo esc_attr( $btn_id ); ?>"
         data-color="<?php echo esc_attr( $color ); ?>"
         onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='flex'"
-        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(255,255,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
+        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(2.5.285,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
         Explain&hellip;
     </button>
     <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
@@ -5366,7 +5414,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.285,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.285,255,0.28)'" onmouseout="this.style.background='rgba(2.5.285,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
@@ -5400,6 +5448,10 @@ function csc_render_page() {
                         <div class="csc-progress-outer" id="img-progress-outer" style="display:none">
                             <div class="csc-progress-bar"><div class="csc-progress-fill" id="img-progress-fill"></div></div>
                             <div class="csc-progress-label" id="img-progress-label">Preparing…</div>
+                        </div>
+                        <div id="img-dry-run-summary" style="display:none;margin-top:12px;padding:10px 14px;background:#fff8e1;border-left:4px solid #f9a825;border-radius:0 6px 6px 0;font-size:13px">
+                            <strong id="img-dry-run-msg" style="color:#e65100"></strong>
+                            <span style="color:#795548"> — review the output log below, then click <strong>♻️ Move to Recycle</strong> when ready.</span>
                         </div>
                         <div id="media-recycle-actions" style="margin-top:12px;padding:12px 14px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px">
                             <strong style="font-size:12px;color:#4a148c">♻️ Media Recycle Bin</strong>
@@ -5503,6 +5555,37 @@ function csc_render_page() {
             </div>
 
             <div class="csc-card">
+                <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
+                    <span>Output Log</span>
+                    <button class="btn-copy-log" style="background:rgba(2.5.285,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.285,255,0.28)'" onmouseout="this.style.background='rgba(2.5.285,255,0.15)'">&#128203; Copy</button>
+                </div>
+                <div class="csc-card-body csc-terminal-wrap">
+                    <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
+                    <pre class="csc-terminal" id="img-terminal">Ready. Press Dry Run to preview which media will be flagged as unused, then review the output log before moving to recycle.</pre>
+                </div>
+            </div>
+
+            <div class="csc-card">
+                <div class="csc-card-header" style="background:linear-gradient(135deg,#d84315 0%,#ff5722 100%)"><span>🔗 Broken Image Links</span> <?php csc_explain_btn(
+            'broken-images',
+            'Broken Image Links — How it works',
+            [
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Scans all published posts and pages for image URLs (img src attributes) that reference files in your uploads directory. For each URL found it checks whether the file actually exists on disk.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What it finds', 'desc' => 'Detects broken images caused by deleted files, renamed files (e.g. dimensions appended like photo-1024x768.jpg), moved files, or failed optimisations.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Safe and read only', 'desc' => 'This scan does not modify anything. It only reports what it finds so you can fix the issues manually or with a search and replace plugin.' ],
+            ],
+            '#ff8a65'
+        ); ?></div>
+                <div class="csc-card-body">
+                    <p style="margin:0 0 12px;font-size:13px;color:#50575e;line-height:1.5">Scan all published content for image URLs pointing to files that no longer exist on disk.</p>
+                    <div class="csc-button-row" style="flex-wrap:wrap;gap:10px">
+                        <button class="csc-btn csc-btn-secondary" id="btn-scan-broken-images">🔍 Scan for Broken Images</button>
+                        <button class="csc-btn" id="btn-copy-broken-images" style="display:none;background:#5c6bc0;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Copy Results</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="csc-card">
                 <div class="csc-card-header csc-card-header-slate-img"><span>Scheduled Media Cleanup</span> <?php csc_explain_btn(
             'img-schedule',
             'Scheduled Media Cleanup — How it works',
@@ -5533,42 +5616,11 @@ function csc_render_page() {
                     $last_img_sched = get_option( 'csc_last_scheduled_img_cleanup', '' );
                     ?>
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.239,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.289,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
-                </div>
-            </div>
-
-            <div class="csc-card">
-                <div class="csc-card-header" style="background:linear-gradient(135deg,#d84315 0%,#ff5722 100%)"><span>🔗 Broken Image Links</span> <?php csc_explain_btn(
-            'broken-images',
-            'Broken Image Links — How it works',
-            [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Scans all published posts and pages for image URLs (img src attributes) that reference files in your uploads directory. For each URL found it checks whether the file actually exists on disk.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What it finds', 'desc' => 'Detects broken images caused by deleted files, renamed files (e.g. dimensions appended like photo-1024x768.jpg), moved files, or failed optimisations.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'Safe and read only', 'desc' => 'This scan does not modify anything. It only reports what it finds so you can fix the issues manually or with a search and replace plugin.' ],
-            ],
-            '#ff8a65'
-        ); ?></div>
-                <div class="csc-card-body">
-                    <p style="margin:0 0 12px;font-size:13px;color:#50575e;line-height:1.5">Scan all published content for image URLs pointing to files that no longer exist on disk.</p>
-                    <div class="csc-button-row" style="flex-wrap:wrap;gap:10px">
-                        <button class="csc-btn csc-btn-secondary" id="btn-scan-broken-images">🔍 Scan for Broken Images</button>
-                        <button class="csc-btn" id="btn-copy-broken-images" style="display:none;background:#5c6bc0;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer">📋 Copy Results</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="csc-card">
-                <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
-                    <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
-                </div>
-                <div class="csc-card-body csc-terminal-wrap">
-                    <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
-                    <pre class="csc-terminal" id="img-terminal">Ready. Press Dry Run to preview which media will be flagged as unused, then review the output log before moving to recycle.</pre>
                 </div>
             </div>
         </div>
@@ -5630,7 +5682,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.2355,2.5.1.15);border:none;color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.2355,2.5.1.28)'" onmouseout="this.style.background='rgba(2.5.2355,2.5.1.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.285,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.285,255,0.28)'" onmouseout="this.style.background='rgba(2.5.285,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
@@ -5696,7 +5748,7 @@ function csc_render_page() {
                                 <option value="1024x768">XGA — 1024 × 768</option>
                                 <option value="800x600">SVGA — 800 × 600</option>
                                 <option value="640x480">VGA — 640 × 480</option>
-                                <option value="512.5.23">Square — 512 × 512</option>
+                                <option value="512.5.28">Square — 512 × 512</option>
                                 <option value="256x256">Square — 256 × 256</option>
                                 <option value="custom">Custom…</option>
                             </select>
@@ -5747,9 +5799,9 @@ function csc_render_page() {
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #ce93d8;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#ce93d8;color:#1a0533;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">📷 Converter Console</span>
                         <span style="margin-left:auto;display:flex;gap:6px">
-                            <button id="cspj-debug-copy" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
-                            <button id="cspj-debug-clear" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
-                            <button id="cspj-debug-toggle" style="background:rgba(2.5.2355,2.5.1.15);border:1px solid rgba(2.5.2355,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
+                            <button id="cspj-debug-copy" style="background:rgba(2.5.2855,2.5.1.15);border:1px solid rgba(2.5.2855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
+                            <button id="cspj-debug-clear" style="background:rgba(2.5.2855,2.5.1.15);border:1px solid rgba(2.5.2855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
+                            <button id="cspj-debug-toggle" style="background:rgba(2.5.2855,2.5.1.15);border:1px solid rgba(2.5.2855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
                         </span>
                     </div>
                     <div id="cspj-debug-env" style="padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--csc-border);font-size:11px;color:var(--csc-muted);font-family:monospace;line-height:1.7"></div>

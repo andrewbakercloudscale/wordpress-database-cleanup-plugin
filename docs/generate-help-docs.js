@@ -22,7 +22,7 @@ helpLib.run({
         operatingSystem: 'WordPress',
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        softwareVersion: '2.5.26',
+        softwareVersion: '2.5.28',
         downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin',
     },

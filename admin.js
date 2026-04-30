@@ -782,14 +782,15 @@ function cscOrphanToggle(el, type) {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('img-terminal');
+        $('#img-dry-run-summary').hide();
         appendLine('img-terminal', { type: 'section', text: '=== DRY RUN — Unused Media Scan ===' });
 
         $.post(CSC.ajax_url, { action: 'csc_scan_images', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('img-terminal', resp.data);
-                appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files moved or deleted. Review the output log above before moving to recycle.' });
-                // Extract unused count from the count line
+                appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files moved or deleted. Review the output log below before moving to recycle.' });
+                // Extract unused count and show summary banner
                 imgUnusedCount = 0;
                 $.each(resp.data, function (_, line) {
                     if (line.type === 'count') {
@@ -797,6 +798,14 @@ function cscOrphanToggle(el, type) {
                         if (m) { imgUnusedCount = parseInt(m[1], 10); }
                     }
                 });
+                var label = imgUnusedCount === 1 ? '1 unused attachment found' : imgUnusedCount + ' unused attachments found';
+                $('#img-dry-run-msg').text(label);
+                $('#img-dry-run-summary').show();
+                // Scroll to the output log
+                var $terminal = $('#img-terminal');
+                if ($terminal.length) {
+                    $('html,body').animate({ scrollTop: $terminal.offset().top - 80 }, 400);
+                }
             } else {
                 appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
@@ -821,6 +830,7 @@ function cscOrphanToggle(el, type) {
     });
     $('#btn-recycle-confirm').on('click', function () {
         $('#csc-img-move-modal').hide();
+        $('#img-dry-run-summary').hide();
         runChunked({
             startAction:   'csc_img_start',
             chunkAction:   'csc_img_chunk',
