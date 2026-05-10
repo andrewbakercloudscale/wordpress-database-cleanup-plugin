@@ -5,6 +5,16 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Guard against diverged history caused by parallel sessions on the same machine.
+if git -C "$SCRIPT_DIR" fetch origin main --quiet 2>/dev/null; then
+    LOCAL=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
+    REMOTE=$(git -C "$SCRIPT_DIR" rev-parse origin/main)
+    if [ "$LOCAL" != "$REMOTE" ] && git -C "$SCRIPT_DIR" merge-base --is-ancestor "$LOCAL" "$REMOTE" 2>/dev/null; then
+        echo "⚠ Remote is ahead of local — pulling before build to avoid drift..."
+        git -C "$SCRIPT_DIR" pull --ff-only origin main
+        echo "✓ Pulled. Continuing build."
+    fi
+fi
 
 # Load shared Claude model config
 GITHUB_DIR="$(dirname "$SCRIPT_DIR")"

@@ -1,5 +1,5 @@
 'use strict';
-const helpLib = require('REPO_BASE/shared-help-docs/help-lib.js');
+const helpLib = require('/Users/cp363412/Desktop/github/shared-help-docs/help-lib.js');
 
 helpLib.run({
     baseUrl:    process.env.WP_BASE_URL,
@@ -22,7 +22,7 @@ helpLib.run({
         operatingSystem: 'WordPress',
         applicationCategory: 'WebApplication',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        softwareVersion: '2.5.28',
+        softwareVersion: '2.5.38',
         downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip',
         url: 'https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin',
     },
@@ -47,7 +47,7 @@ helpLib.run({
         'site-health': `
 <p>The <strong>Site Health</strong> tab is a live server metrics dashboard. It collects disk storage, CPU, and memory data automatically in the background and presents it as a RAG (Red/Amber/Green) status indicator so you can spot problems before they affect your site.</p>
 
-<h3>Storage RAG indicator</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Storage RAG indicator</h3>
 <p>The coloured banner at the top of the tab summarises your storage runway:</p>
 <ul>
 <li><strong>Green</strong> — 6 or more months of disk space remaining at current growth rate.</li>
@@ -56,7 +56,7 @@ helpLib.run({
 <li><strong>Grey (Collecting)</strong> — fewer than two weekly snapshots have been recorded yet. The estimate requires at least two data points to calculate a growth rate.</li>
 </ul>
 
-<h3>Metric groups</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Metric groups</h3>
 <p><strong>Disk Storage</strong></p>
 <ul>
 <li><strong>Used</strong> — total disk space consumed by the entire server filesystem.</li>
@@ -81,7 +81,7 @@ helpLib.run({
 </ul>
 <p><strong>Autoload RAG</strong> — a separate indicator in the dashboard header tile shows the current WordPress autoload size (the data loaded from <code>wp_options</code> on every page request). Green = healthy, amber = elevated, red = excessive. This is a quick-glance signal to visit the Database Cleanup tab's Autoloaded Options panel.</p>
 
-<h3>Data collection</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Data collection</h3>
 <p>Metrics are collected automatically by two WordPress Cron jobs registered by the plugin:</p>
 <ul>
 <li><strong>Hourly</strong> (<code>csc_health_hourly_collect</code>) — records current CPU percentage and memory percentage. Up to 180 days of hourly samples are stored.</li>
@@ -89,14 +89,14 @@ helpLib.run({
 </ul>
 <p>All data is stored in <code>wp_options</code> with <code>autoload=no</code> so it does not add to the per-request payload. No data leaves your server.</p>
 
-<h3>Buttons</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Buttons</h3>
 <ul>
 <li><strong>Refresh</strong> — reloads the dashboard from stored data without running a new collection job.</li>
 <li><strong>Collect Metrics Now</strong> — immediately fires both the hourly and weekly collection jobs. Use this on a fresh install to seed the first data points instead of waiting for the scheduled cron to run. A confirmation modal explains what will happen.</li>
 <li><strong>Test Sysstat</strong> — runs a server-side check to determine whether the <code>sar</code> command from the <code>sysstat</code> package is installed, active, and returning data. Results are shown inline with colour-coded status and, where applicable, installation instructions.</li>
 </ul>
 
-<h3>sysstat (sar) — accurate CPU and memory peaks</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">sysstat (sar) — accurate CPU and memory peaks</h3>
 <p>Without sysstat, the plugin takes an instantaneous snapshot of the load average from <code>/proc/loadavg</code> and memory from <code>/proc/meminfo</code> at the exact moment the hourly cron job runs. On a quiet server these snapshots are often 0% because they capture a single idle second rather than the busiest period of the last hour.</p>
 <p><code>sysstat</code> samples the system continuously every 10 minutes and writes the data to <code>/var/log/sa/</code>. When it is installed and active, the plugin queries <code>sar</code> for the actual per-minute maximum over the past 60 minutes — a far more accurate representation of real CPU and memory usage.</p>
 
@@ -116,7 +116,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
         'db-cleanup': `
 <div style="background:#f0f9ff;border-left:4px solid #0e6b8f;padding:18px 22px;border-radius:0 8px 8px 0;margin-bottom:28px;">
-<h2 style="margin:0 0 10px;font-size:1.3em;color:#0f172a;">Why CloudScale Cleanup?</h2>
+<h2 style="margin:0 0 10px;font-size:1.3em;font-weight:700;color:#0f172a;background:transparent;">Why CloudScale Cleanup?</h2>
 <p style="margin:0 0 10px;">WordPress databases grow silently. Post revisions, expired transients, spam comments, orphaned metadata, and unused term relationships accumulate over months and years. On a busy site the database can balloon to 10× its necessary size, slowing every query and inflating every backup.</p>
 <p style="margin:0 0 10px;">WP-Optimize locks most of its cleanup options behind a $39/year paywall. Advanced Database Cleaner charges $49/year. CloudScale Cleanup does everything they do — and adds media library orphan detection, image optimisation, and cron management — at zero cost.</p>
 <p style="margin:0;"><strong>Every operation has a dry-run preview mode.</strong> You see exactly what will be deleted before anything is removed. No data leaves your server.</p>
@@ -124,7 +124,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <p>The <strong>Database Cleanup</strong> tab contains four panels, each targeting a different category of database bloat. Use the <strong>Explain…</strong> button in each panel header to get a description of every item type.</p>
 
-<h3>Main Cleanup</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Main Cleanup</h3>
 <p>Removes accumulated junk rows from your WordPress database that slow down queries and inflate backup sizes. On a WordPress site with 3–5 years of active editing, these items routinely account for 30–70% of total database size.</p>
 <p><strong>Always run Dry Run first.</strong> It shows exactly what will be deleted (with row counts per category) without making any changes. Cleanup then runs in batches of 50 rows per AJAX request, with the remaining queue stored in a transient between requests — so no single PHP request can time out regardless of how much data needs processing.</p>
 
@@ -143,7 +143,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <p>Each item type has an independent toggle — green means included in the next run, grey means skipped. Toggle states are saved and respected by both Dry Run and the actual cleanup. All output appears in the <strong>Database Console</strong>: a dark terminal panel at the bottom of the tab that logs every step with row counts. Use <strong>Copy</strong> to export the full log.</p>
 
-<h3>Cleanup Thresholds</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Cleanup Thresholds</h3>
 <p>Every time-based item type has a configurable age cutoff in days. Items newer than the threshold are never touched, even if their status would otherwise qualify them for deletion. Defaults are conservative:</p>
 <ul>
 <li>Post revisions: 30 days</li>
@@ -155,7 +155,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 </ul>
 <p>Adjust these to match your workflow, then click <strong>Save Settings</strong>.</p>
 
-<h3>Autoloaded Options</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Autoloaded Options</h3>
 <p>WordPress loads every row in <code>wp_options</code> marked <code>autoload = yes</code> on <strong>every page request</strong> — including pages that never use those values. Plugins add rows here for caching and configuration but often forget to clean up expired or stale entries. On a site with many installed plugins, autoloaded data can reach 500 KB–2 MB, adding measurable overhead to every single request.</p>
 <p>The panel shows the current autoload size with a RAG badge (green = healthy, amber = elevated, red = excessive) and lists the largest individual rows by size.</p>
 <p><strong>What the cleanup does:</strong></p>
@@ -165,7 +165,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 </ul>
 <p>This cleanup is non-destructive — no valid plugin data is removed or altered. Run <strong>Dry Run — Preview</strong> first to see the current size breakdown before applying.</p>
 
-<h3>Orphaned Plugin Options</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Orphaned Plugin Options</h3>
 <p>When a plugin is deleted without a proper uninstall routine, its configuration rows remain in <code>wp_options</code> forever — including autoloaded rows that bloat every page request. WordPress never removes these automatically.</p>
 <p>The Orphaned Plugin Options panel scans <code>wp_options</code> using prefix matching against a built-in list of known plugin slugs. Rows whose option name prefix matches a plugin that is no longer installed are flagged. Results appear as a checklist — rows matched by a known plugin prefix are pre-selected; unrecognised prefixes are unchecked for manual review.</p>
 <p><strong>Always review results carefully before deleting.</strong> Some plugins use option names that don't obviously match their slug. Uncheck anything you're unsure about. The panel uses a recycle bin so no deletion is permanent by default:</p>
@@ -177,12 +177,12 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <li><strong>Empty Bin</strong> — permanently removes all recycled rows. This cannot be undone.</li>
 </ul>
 
-<h3>Table Overhead Repair</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Table Overhead Repair</h3>
 <p>Every time WordPress deletes rows, MySQL/InnoDB marks that space as free but does not immediately return it to the filesystem. Over time, tables accumulate fragmented gaps that waste disk space and slow down full-table scans used by queries that don't have a covering index.</p>
 <p><code>OPTIMIZE TABLE</code> physically rewrites each table, reclaiming the free space. On InnoDB (the default MySQL storage engine for WordPress installations), this runs online on MySQL 5.6+ with no table locks and no downtime.</p>
 <p>The panel shows current total overhead across all tables with a RAG badge (green = negligible, amber = moderate, red = significant). Run <strong>Dry Run — Preview</strong> first to see a per-table breakdown before repairing.</p>
 
-<h3>Scheduled Database Cleanup</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Scheduled Database Cleanup</h3>
 <p>When enabled, the plugin registers a WordPress Cron job that runs the full database cleanup automatically on the selected days at the configured hour — without requiring you to log in.</p>
 <ul>
 <li><strong>Day selection</strong> — choose one or more days per week. Default: Monday, Wednesday, Friday.</li>
@@ -194,7 +194,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
         'img-cleanup': `
 <p>The <strong>Media Library Cleanup</strong> tab identifies and safely removes media attachments and upload files that are no longer used, freeing disk space and reducing backup sizes. All removal operations use a recycle bin — nothing is permanently deleted until you explicitly choose to empty it.</p>
 
-<h3>Unused Media</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Unused Media</h3>
 <p>Finds attachments that exist in the WordPress database but are not referenced anywhere on the site. The scan checks all of these locations for every attachment:</p>
 <ul>
 <li><strong>Post content</strong> (<code>wp_posts.post_content</code>) — direct <code>&lt;img&gt;</code> tags, Gutenberg block attributes, and shortcode references.</li>
@@ -218,7 +218,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 </ul>
 <p>The recycle bin persists between page loads. Items remain recycled until you either restore or permanently delete them.</p>
 
-<h3>Unregistered Files</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Unregistered Files</h3>
 <p>Finds files that exist physically on disk inside <code>wp-content/uploads</code> but have no corresponding record in the WordPress media library. These are different from unused media: unused media has a database record with no content references; unregistered files have no database record at all.</p>
 <p>Common causes:</p>
 <ul>
@@ -229,17 +229,17 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 </ul>
 <p>Use the file type filter pills — <strong>Images</strong>, <strong>Documents</strong>, <strong>Video</strong>, <strong>Audio</strong> — to include or exclude each category before scanning. The same Dry Run → Move to Recycle → Restore / Permanently Delete workflow applies as for Unused Media.</p>
 
-<h3>Broken Image Links</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Broken Image Links</h3>
 <p>A read-only scan that checks all published posts and pages for <code>&lt;img&gt;</code> tags referencing files in your uploads directory and verifies each file actually exists on disk. Detects broken images caused by deleted files, renamed files, failed optimisation runs, or incomplete migrations.</p>
 <p>Results show the post title, the missing file path, and the post edit URL so you can fix the content directly. Use <strong>Copy Results</strong> to export the full list for bulk repair.</p>
 
-<h3>Scheduled Media Cleanup</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Scheduled Media Cleanup</h3>
 <p>When enabled, automatically runs the unused media cleanup on the selected days at the configured hour. Flagged attachments are moved to the media recycle bin — not permanently deleted. The same detection logic as the manual scan is used; the site logo and site icon are always protected. After each run the next execution is automatically registered.</p>`,
 
         'img-optimise': `
 <p>The <strong>Image Optimisation</strong> tab reduces the on-disk file size of images already in your media library using PHP's GD or Imagick library. No external service, API key, or data transfer is involved — all processing runs locally on your server.</p>
 
-<h3>How it works</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">How it works</h3>
 <p>The optimiser processes original uploaded images in two passes:</p>
 <ol>
 <li><strong>Resize</strong> — any image whose width or height exceeds the configured maximum is scaled down proportionally. The aspect ratio is preserved. Smaller images are left untouched.</li>
@@ -252,7 +252,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 
 <p><strong>Important:</strong> this operation modifies original image files on disk. Take a full backup of your <code>wp-content/uploads</code> directory before running on a production site. WordPress 5.3+ automatically preserves a <code>-scaled</code> backup copy of very large originals, but this is not a full backup.</p>
 
-<h3>Optimisation Settings</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Optimisation Settings</h3>
 <ul>
 <li><strong>Maximum width (px)</strong> — any image wider than this value is scaled down proportionally. The height is recalculated to preserve aspect ratio. Default: 1920 px. If your theme never displays images wider than 1200 px, setting this to 1200 will produce better storage savings.</li>
 <li><strong>Maximum height (px)</strong> — any image taller than this value is scaled down. Default: 1080 px.</li>
@@ -260,10 +260,10 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <li><strong>Convert non-transparent PNGs to JPEG</strong> — when enabled, PNG files without an alpha-channel are converted to JPEG. PNG files with any transparency pixel are automatically detected and skipped to prevent white-box artefacts. Typical size reduction for photographic PNGs: 40–70%. WordPress attachment metadata (post record, URLs, thumbnail paths) is updated so all existing references continue to work. This setting lives on the Optimisation Settings panel on this tab.</li>
 </ul>
 
-<h3>Conversion Settings (PNG to JPEG inline conversion)</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Conversion Settings (PNG to JPEG inline conversion)</h3>
 <p>The same PNG-to-JPEG conversion setting available on the Image Optimisation tab also appears here as a toggle. When enabled it applies during every optimisation run — not only to newly uploaded images but to the entire media library.</p>
 
-<h3>Server requirements</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Server requirements</h3>
 <ul>
 <li>PHP 7.4+ with GD compiled with JPEG and PNG support, or the Imagick extension.</li>
 <li>Check with: <code>php -m | grep -i "gd\|imagick"</code></li>
@@ -275,7 +275,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <p>The <strong>PNG to JPEG</strong> tab is a standalone drag-and-drop converter that takes PNG files from your local computer, converts them to JPEG server-side, and optionally saves the result directly into your WordPress media library — without modifying any existing media library files.</p>
 <p>This is intended for pre-processing new images before uploading them, not for batch-converting your existing library (use the Image Optimisation tab for that).</p>
 
-<h3>How to use it</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">How to use it</h3>
 <ol>
 <li><strong>Configure settings</strong> — set your JPEG quality, choose an output size preset or enter custom dimensions, and adjust the chunk size if your server has strict upload limits.</li>
 <li><strong>Add files</strong> — drag one or more PNG files onto the upload area, or click <strong>Browse</strong>. Multiple files can be queued at once.</li>
@@ -284,7 +284,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 </ol>
 <p>PNG transparency is composited onto a white background before JPEG conversion, so no content is lost even if the source PNG uses an alpha channel.</p>
 
-<h3>Conversion Settings</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Conversion Settings</h3>
 <ul>
 <li><strong>JPEG Quality (1–100)</strong> — controls JPEG compression. 80–92 is recommended for web use. Default: 90. Use 95+ for print; 60–75 for web thumbnails where file size matters more than quality.</li>
 <li><strong>Output Size</strong> — choose a resolution preset:
@@ -296,7 +296,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <li><strong>Chunk Size (MB)</strong> — large PNG files are automatically split into chunks before uploading, each chunk staying within your server's request size limit. Default: 1.5 MB. The setting shows your current server request limit alongside the chunk size so you can keep the chunk below the limit. Allowed range: 0.25–1.95 MB.</li>
 </ul>
 
-<h3>Converter Console</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Converter Console</h3>
 <p>The dark terminal panel at the bottom of the tab logs all activity in real time:</p>
 <ul>
 <li>Server environment summary (PHP memory limit, upload limits, GD / Imagick availability).</li>
@@ -309,11 +309,11 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
         'cron': `
 <p>The <strong>Cron</strong> tab is a full cron management console for your WordPress installation. It shows every background job registered in the WordPress scheduler, visualises when they fire, detects scheduling conflicts, identifies which plugin owns each job, and lets you delete orphaned or unwanted jobs safely via a recycle bin.</p>
 
-<h3>What is WordPress Cron?</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">What is WordPress Cron?</h3>
 <p>WordPress has no connection to the operating system's real scheduler. Instead it simulates cron by checking a job queue on every page visit. When a visitor loads any page, WordPress checks whether any scheduled jobs are overdue and fires them inline during that request. This approach is called <strong>pseudo-cron</strong> or <strong>WP-Cron</strong>.</p>
 <p>The main limitation: on low-traffic sites, a job scheduled for 3 AM may not actually run until the first visitor arrives after that time — which could be hours later. On high-traffic sites this works reliably, but the extra processing on visitor page loads adds latency.</p>
 
-<h3>WP-Cron health banner</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">WP-Cron health banner</h3>
 <p>The coloured banner at the top of the tab summarises the cron system status:</p>
 <ul>
 <li><strong>Green — OK</strong>: WP-Cron is running normally with no overdue events.</li>
@@ -321,7 +321,7 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <li><strong>Blue — DISABLE_WP_CRON is set</strong>: pseudo-cron is disabled. This is the recommended state if you have a real server cron configured.</li>
 </ul>
 
-<h3>Real Server Cron Setup</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Real Server Cron Setup</h3>
 <p>For precise, clock-accurate job execution, disable WP-Cron and use a real server cron instead:</p>
 <ol>
 <li>Add this line to your server crontab (<code>crontab -e</code>):
@@ -333,7 +333,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 </ol>
 <p>This runs <code>wp-cron.php</code> every 5 minutes from a real OS-level scheduler — no visitor required, no page-load overhead.</p>
 
-<h3>24-Hour Job Timeline</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">24-Hour Job Timeline</h3>
 <p>A canvas chart plotting every scheduled WordPress cron job across the next 24 hours. The x-axis shows local clock time in your browser's timezone, snapped to clock hours. The left edge is "Now".</p>
 
 <p><strong>How to read it:</strong></p>
@@ -345,7 +345,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 <li><strong>Trash icon</strong> — click the bin icon next to any job to move it to the Cron Recycle Bin (see below). Nothing is permanently deleted immediately.</li>
 </ul>
 
-<h3>Plugin identification</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Plugin identification</h3>
 <p>Each job in both the timeline and the Cron Job Queue is matched against a built-in lookup table of 200+ WordPress plugins. The match uses the hook name prefix (e.g. <code>jetpack_</code>, <code>wpseo</code>, <code>updraftplus_</code>). The status badge next to each plugin name indicates:</p>
 <ul>
 <li><strong>Blue — Core</strong>: a built-in WordPress function; always present.</li>
@@ -354,7 +354,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 <li><strong>Red — Not installed</strong>: the plugin directory does not exist and there are no callbacks. This is an <strong>orphaned cron entry</strong> — a job left behind by a deleted plugin. These fire on schedule, consume server resources, do nothing, and should be removed.</li>
 </ul>
 
-<h3>Cron Congestion</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Cron Congestion</h3>
 <p>When 3 or more jobs fire within the same 5-minute window, they compete for CPU time, PHP memory, and database connections simultaneously. This can cause:</p>
 <ul>
 <li>Visible page slowdown for any visitors hitting the site during that window.</li>
@@ -363,7 +363,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 </ul>
 <p>The congestion warning box beneath the timeline lists each congested window with its local clock time and the names of the conflicting jobs. Consider staggering recurring jobs to different hours or disabling orphaned jobs that are contributing to congestion without doing any useful work.</p>
 
-<h3>Cron Job Queue</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Cron Job Queue</h3>
 <p>A complete table of every entry in the WordPress cron schedule — the authoritative source of what is registered, not just what fires in the next 24 hours. Columns:</p>
 <ul>
 <li><strong>Hook</strong> — the internal action name WordPress calls when the job fires. This is selectable text — you can copy it to search for its definition in plugin code.</li>
@@ -376,7 +376,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 </ul>
 <p>Click <strong>Refresh</strong> to reload the table and timeline from the current cron state.</p>
 
-<h3>Manual Triggers</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Manual Triggers</h3>
 <p>Fires a CSC scheduled job immediately without waiting for the next scheduled time:</p>
 <ul>
 <li><strong>Run DB Cleanup Now</strong> — fires <code>csc_scheduled_db_cleanup</code> using the currently saved cleanup settings.</li>
@@ -384,7 +384,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 </ul>
 <p>Useful for testing that scheduled jobs work correctly before relying on the scheduler, or for forcing an immediate run after changing settings.</p>
 
-<h3>Cron Recycle Bin</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Cron Recycle Bin</h3>
 <p>When you click the trash icon on a job (in either the timeline or the Cron Job Queue), the job is removed from the WordPress cron schedule and placed in the Cron Recycle Bin. The original hook name, schedule, recurrence interval, and scheduled time are all preserved so the job can be fully restored.</p>
 <p>Actions in the recycle bin:</p>
 <ul>
@@ -393,7 +393,7 @@ The crontab command is pre-filled with your site URL — click <strong>Copy</str
 </ul>
 <p>The recycle bin persists across page loads and is stored in <code>wp_options</code>. It holds up to 200 entries.</p>
 
-<h3>Plugin statistics</h3>
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Plugin statistics</h3>
 <p>The About card at the top of the Cron tab shows lifetime activity statistics:</p>
 <ul>
 <li><strong>Last DB Cleanup</strong> — date and time of the most recent database cleanup run (manual or scheduled).</li>

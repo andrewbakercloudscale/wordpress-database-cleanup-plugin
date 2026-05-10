@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.35
+ * Version:     2.5.38
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.35' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.38' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -345,110 +345,167 @@ function csc_render_dashboard_widget() {
     $last_img = get_option( 'csc_last_img_cleanup', null );
     $last_opt = get_option( 'csc_last_img_optimise', null );
 
-    $fmt = function ( $val ) {
-        return $val
-            ? '<span style="font-size:12px;font-weight:700;color:#fff">' . esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' ) . '</span>'
-            : '<span style="font-size:12px;font-weight:700;color:rgba(2.5.3555,2.5.1.5)">Not yet run</span>';
-    };
-
     // Health data
     $weekly = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
     $health = ( count( $weekly ) >= 2 && function_exists( 'csc_health_calculate' ) ) ? csc_health_calculate() : null;
-    $rag       = $health ? $health['disk_rag'] : 'grey';
-    $rag_map   = array(
-        'green' => array( 'label' => 'Healthy',    'bg' => 'linear-gradient(135deg,#2e7d32 0%,#43a047 100%)', 'shadow' => 'rgba(46,125,50,0.35)' ),
-        'amber' => array( 'label' => 'Warning',    'bg' => 'linear-gradient(135deg,#e65100 0%,#f57c00 100%)', 'shadow' => 'rgba(230,81,0,0.35)' ),
-        'red'   => array( 'label' => 'Critical',   'bg' => 'linear-gradient(135deg,#b71c1c 0%,#e53935 100%)', 'shadow' => 'rgba(183,28,28,0.35)' ),
-        'grey'  => array( 'label' => 'Collecting',  'bg' => 'linear-gradient(135deg,#546e7a 0%,#78909c 100%)', 'shadow' => 'rgba(84,110,122,0.35)' ),
-    );
-    $rag_info  = isset( $rag_map[ $rag ] ) ? $rag_map[ $rag ] : $rag_map['grey'];
+    $rag    = $health ? $health['disk_rag'] : 'grey';
 
+    // RAG palette: accent color, light bg tint, dark text
+    $rag_cfg = array(
+        'green' => array( 'label' => 'Healthy',    'color' => '#16a34a', 'bg' => '#dcfce7', 'text' => '#166534' ),
+        'amber' => array( 'label' => 'Warning',    'color' => '#d97706', 'bg' => '#fef3c7', 'text' => '#92400e' ),
+        'red'   => array( 'label' => 'Critical',   'color' => '#dc2626', 'bg' => '#fee2e2', 'text' => '#991b1b' ),
+        'grey'  => array( 'label' => 'Collecting', 'color' => '#64748b', 'bg' => '#f1f5f9', 'text' => '#334155' ),
+    );
+    $rc = isset( $rag_cfg[ $rag ] ) ? $rag_cfg[ $rag ] : $rag_cfg['grey'];
+
+    // URLs
     $db_url     = admin_url( 'tools.php?page=cloudscale-cleanup&tab=db-cleanup' );
     $img_url    = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-cleanup' );
     $opt_url    = admin_url( 'tools.php?page=cloudscale-cleanup&tab=img-optimise' );
     $health_url = admin_url( 'tools.php?page=cloudscale-cleanup&tab=site-health' );
-    $tile       = 'display:block;text-decoration:none;border-radius:8px;padding:10px 8px;text-align:center;transition:filter 0.15s,transform 0.15s;cursor:pointer';
-    $hover      = "onmouseover=\"this.style.filter='brightness(1.15)';this.style.transform='scale(1.03)'\" onmouseout=\"this.style.filter='';this.style.transform=''\"";
+    $png_url    = admin_url( 'tools.php?page=cloudscale-cleanup&tab=png-to-jpeg' );
+    $main_url   = admin_url( 'tools.php?page=cloudscale-cleanup' );
+
+    // Hover helper — hardcoded, no user input
+    $hov = "onmouseover=\"this.style.opacity='0.82'\" onmouseout=\"this.style.opacity='1'\"";
+
+    // Autoload RAG
+    $al_bytes = $health ? csc_get_autoload_size() : 0;
+    $al_rag   = $health ? csc_autoload_rag( $al_bytes ) : 'grey';
+    $al_clr   = array( 'red' => '#dc2626', 'amber' => '#d97706', 'green' => '#16a34a', 'grey' => '#64748b' );
+    $al_color = isset( $al_clr[ $al_rag ] ) ? $al_clr[ $al_rag ] : '#64748b';
+
+    // SVG donut chart
+    $r    = 30;
+    $circ = 2 * M_PI * $r;
+    if ( $health ) {
+        $disk_total = max( 1, $health['disk_used'] + $health['disk_free'] );
+        $used_frac  = $health['disk_used'] / $disk_total;
+        $used_len   = round( $circ * $used_frac, 2 );
+        $gap_len    = round( $circ - $used_len, 2 );
+        $pct_text   = round( $used_frac * 100 ) . '%';
+        $donut      = '<svg viewBox="0 0 80 80" width="76" height="76" style="display:block">'
+            . '<circle cx="40" cy="40" r="' . $r . '" fill="none" stroke="#e2e8f0" stroke-width="9"/>'
+            . '<circle cx="40" cy="40" r="' . $r . '" fill="none" stroke="' . esc_attr( $rc['color'] ) . '" stroke-width="9"'
+            . ' stroke-dasharray="' . esc_attr( (string) $used_len ) . ' ' . esc_attr( (string) $gap_len ) . '"'
+            . ' stroke-linecap="round" transform="rotate(-90,40,40)"/>'
+            . '<text x="40" y="38" text-anchor="middle" dominant-baseline="middle"'
+            . ' style="font-size:14px;font-weight:800;fill:' . esc_attr( $rc['color'] ) . ';font-family:-apple-system,sans-serif">'
+            . esc_html( $pct_text ) . '</text>'
+            . '<text x="40" y="53" text-anchor="middle"'
+            . ' style="font-size:7px;font-weight:700;fill:#94a3b8;font-family:-apple-system,sans-serif;letter-spacing:1px">USED</text>'
+            . '</svg>';
+    } else {
+        $donut = '<svg viewBox="0 0 80 80" width="76" height="76" style="display:block">'
+            . '<circle cx="40" cy="40" r="' . $r . '" fill="none" stroke="#e2e8f0" stroke-width="9"/>'
+            . '<text x="40" y="40" text-anchor="middle" dominant-baseline="middle"'
+            . ' style="font-size:11px;font-weight:700;fill:#94a3b8;font-family:-apple-system,sans-serif">—</text>'
+            . '</svg>';
+    }
+
+    // Time-ago helper
+    $ago = function( $val ) {
+        return $val
+            ? esc_html( human_time_diff( strtotime( $val ), current_time( 'timestamp' ) ) . ' ago' )
+            : 'Not run';
+    };
+
+    // Disk runway value + colour
+    $runway_txt = '—';
+    $runway_col = '#0f172a';
+    if ( $health && $health['weeks_remaining'] > 104 ) {
+        $runway_txt = '≫ 2 Yrs';
+        $runway_col = $rag === 'red' ? '#dc2626' : ( $rag === 'amber' ? '#d97706' : '#16a34a' );
+    } elseif ( $health && $health['weeks_remaining'] > 0 ) {
+        $runway_txt = round( $health['weeks_remaining'] ) . ' wks';
+        $runway_col = $rag === 'red' ? '#dc2626' : ( $rag === 'amber' ? '#d97706' : '#0f172a' );
+    }
     ?>
-    <div style="padding:4px 0 8px">
-        <p style="margin:0 0 14px;font-size:13px;color:#50575e;line-height:1.5">
-            CloudScale Cleanup is keeping your database and media library lean —
-            revisions, transients, unused media, and unregistered files all handled.
-        </p>
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;margin:-12px -12px 0;padding:0">
 
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
-            <a href="<?php echo esc_url( $db_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#1565c0 0%,#1976d2 100%);box-shadow:0 2px 6px rgba(21,101,192,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.3555,2.5.1.7);margin-bottom:5px">⚡ DB Cleanup</div>
-                <?php echo $fmt( $last_db ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </a>
-            <a href="<?php echo esc_url( $img_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#4527a0 0%,#5e35b1 100%);box-shadow:0 2px 6px rgba(69,39,160,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.3555,2.5.1.7);margin-bottom:5px">🖼 Unused Media</div>
-                <?php echo $fmt( $last_img ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </a>
-            <a href="<?php echo esc_url( $opt_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:linear-gradient(135deg,#00695c 0%,#00897b 100%);box-shadow:0 2px 6px rgba(0,105,92,0.35)" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.3555,2.5.1.7);margin-bottom:5px">✨ Img Optimise</div>
-                <?php echo $fmt( $last_opt ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </a>
-            <a href="<?php echo esc_url( $health_url ); ?>" style="<?php echo esc_attr( $tile ); ?>;background:<?php echo esc_attr( $rag_info['bg'] ); ?>;box-shadow:0 2px 6px <?php echo esc_attr( $rag_info['shadow'] ); ?>" <?php echo $hover; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded string, no user input ?>>
-                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(2.5.3555,2.5.1.7);margin-bottom:5px">📊 Site Health</div>
-                <span style="font-size:12px;font-weight:700;color:#fff"><?php echo esc_html( $rag_info['label'] ); ?></span>
-            </a>
+        <!-- Dark header band (full-bleed) -->
+        <div style="background:linear-gradient(135deg,#042f2e 0%,#134e4a 60%,#042f2e 100%);padding:14px 16px 12px;border-bottom:1px solid rgba(20,184,166,0.3)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:18px;line-height:1">🥷</span>
+                    <span style="color:#ccfbf1;font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">CloudScale Cleanup</span>
+                </div>
+                <a href="<?php echo esc_url( $health_url ); ?>"
+                   style="display:inline-flex;align-items:center;gap:5px;background:rgba(20,184,166,0.15);border:1px solid rgba(20,184,166,0.4);color:<?php echo esc_attr( $rc['color'] ); ?>;font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 8px;border-radius:20px;text-decoration:none;transition:opacity 0.15s"
+                   <?php echo $hov; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                    <span style="width:6px;height:6px;border-radius:50%;background:<?php echo esc_attr( $rc['color'] ); ?>;flex-shrink:0;display:inline-block"></span>
+                    <?php echo esc_html( $rc['label'] ); ?>
+                </a>
+            </div>
+            <p style="margin:0;font-size:11px;color:#5eead4;line-height:1.4">DB &amp; media lean · revisions · transients · unused files</p>
         </div>
 
-        <?php if ( $health ) : ?>
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;font-size:11px;text-align:center">
-            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
-                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Disk Used</div>
-                <div style="font-weight:700;color:#263238"><?php echo esc_html( size_format( $health['disk_used'], 1 ) ); ?></div>
+        <!-- Body -->
+        <div style="padding:12px 16px 4px;background:#fff">
+
+        <!-- Disk panel: donut chart + metric rows -->
+        <div style="display:flex;align-items:center;gap:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:11px">
+            <div style="flex-shrink:0"><?php echo $donut; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+            <div style="flex:1;min-width:0">
+                <?php if ( $health ) :
+                    $metrics = array(
+                        array( 'Disk Used',   esc_html( size_format( $health['disk_used'], 1 ) ),                                     '#0f172a' ),
+                        array( 'Disk Free',   esc_html( size_format( $health['disk_free'], 1 ) ),                                     '#0f172a' ),
+                        array( 'Growth / Wk', $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : '—', '#0f172a' ),
+                        array( 'Est. Runway', esc_html( $runway_txt ),                                                                $runway_col ),
+                        array( 'Autoload',    esc_html( size_format( $al_bytes, 1 ) ),                                                $al_color ),
+                    );
+                    $last_i = count( $metrics ) - 1;
+                    foreach ( $metrics as $i => $m ) :
+                        $sep = $i < $last_i ? 'border-bottom:1px solid #eef0f3;' : '';
+                    ?>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:2.5px 0;<?php echo esc_attr( $sep ); ?>">
+                        <span style="font-size:9.5px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px"><?php echo esc_html( $m[0] ); ?></span>
+                        <span style="font-size:12px;font-weight:700;color:<?php echo esc_attr( $m[2] ); ?>"><?php echo $m[1]; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- pre-escaped ?></span>
+                    </div>
+                    <?php endforeach;
+                else : ?>
+                    <p style="margin:0;font-size:10px;color:#94a3b8;padding:4px 0">Collecting — available after first weekly snapshot.</p>
+                <?php endif; ?>
             </div>
-            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
-                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Disk Free</div>
-                <div style="font-weight:700;color:#263238"><?php echo esc_html( size_format( $health['disk_free'], 1 ) ); ?></div>
-            </div>
-            <div style="background:#f0f2f5;border-radius:6px;padding:6px 4px">
-                <div style="color:#78909c;font-weight:600;margin-bottom:2px">Growth/Wk</div>
-                <div style="font-weight:700;color:#263238"><?php echo $health['growth_per_week'] > 0 ? esc_html( size_format( $health['growth_per_week'], 1 ) ) : esc_html( '—' ); ?></div>
-            </div>
+        </div>
+
+        <!-- Activity tiles: last-run times -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:11px">
             <?php
-            $wks_bg    = $health['disk_rag'] === 'red' ? '#c62828' : ( $health['disk_rag'] === 'amber' ? '#e65100' : '#f0f2f5' );
-            $wks_color = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? '#fff' : '#263238';
-            $wks_label = ( $health['disk_rag'] === 'red' || $health['disk_rag'] === 'amber' ) ? 'rgba(2.5.3555,2.5.1.8)' : '#78909c';
-            ?>
-            <div style="background:<?php echo esc_attr( $wks_bg ); ?>;border-radius:6px;padding:6px 4px">
-                <div style="color:<?php echo esc_attr( $wks_label ); ?>;font-weight:600;margin-bottom:2px">Est. Wks to Full</div>
-                <div style="font-weight:700;color:<?php echo esc_attr( $wks_color ); ?>"><?php echo $health['weeks_remaining'] > 104 ? esc_html( '>> 2 Yrs' ) : ( $health['weeks_remaining'] > 0 ? esc_html( round( $health['weeks_remaining'] ) ) . esc_html( ' wks' ) : esc_html( '—' ) ); ?></div>
-            </div>
-            <?php
-            $al_bytes = csc_get_autoload_size();
-            $al_rag   = csc_autoload_rag( $al_bytes );
-            $al_bg    = $al_rag === 'red' ? '#c62828' : ( $al_rag === 'amber' ? '#e65100' : '#2e7d32' );
-            $al_color = '#fff';
-            $al_label = 'rgba(2.5.355,255,0.8)';
-            ?>
-            <div style="background:<?php echo esc_attr( $al_bg ); ?>;border-radius:6px;padding:6px 4px">
-                <div style="color:<?php echo esc_attr( $al_label ); ?>;font-weight:600;margin-bottom:2px">Autoload Size</div>
-                <div style="font-weight:700;color:<?php echo esc_attr( $al_color ); ?>"><?php echo esc_html( size_format( $al_bytes, 1 ) ); ?></div>
-            </div>
+            $tiles = array(
+                array( $db_url,  '⚡', 'DB Cleanup',   $ago( $last_db ),  '#3b82f6' ),
+                array( $img_url, '🖼', 'Media Scan',   $ago( $last_img ), '#8b5cf6' ),
+                array( $opt_url, '✨', 'Img Optimise', $ago( $last_opt ), '#0d9488' ),
+            );
+            foreach ( $tiles as $t ) : ?>
+            <a href="<?php echo esc_url( $t[0] ); ?>"
+               style="display:block;text-decoration:none;background:#fff;border:1px solid #e2e8f0;border-top:3px solid <?php echo esc_attr( $t[4] ); ?>;border-radius:8px;padding:8px 5px 7px;text-align:center;transition:opacity 0.15s"
+               <?php echo $hov; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                <div style="font-size:15px;line-height:1;margin-bottom:4px"><?php echo $t[1]; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- emoji literal ?></div>
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:<?php echo esc_attr( $t[4] ); ?>;margin-bottom:4px"><?php echo esc_html( $t[2] ); ?></div>
+                <div style="font-size:10px;font-weight:600;color:#475569;line-height:1.2"><?php echo $t[3]; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- output of esc_html() ?></div>
+            </a>
+            <?php endforeach; ?>
         </div>
-        <?php else : ?>
-        <p style="margin:0 0 16px;font-size:11px;color:#90a4ae;text-align:center">📊 Health metrics collecting — summary available after first weekly snapshot.</p>
-        <?php endif; ?>
 
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup&tab=png-to-jpeg' ) ); ?>"
-               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#689f38 0%,#8bc34a 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(104,159,56,0.35);transition:filter 0.15s,transform 0.15s"
-               onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
-               onmouseout="this.style.filter='';this.style.transform=''">
-                <span style="font-size:15px">🖼</span> PNG to JPEG
+        <!-- CTA buttons -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <a href="<?php echo esc_url( $png_url ); ?>"
+               style="display:flex;align-items:center;justify-content:center;gap:5px;background:#fff;border:2px solid #d1d5db;color:#374151;font-weight:700;font-size:11.5px;padding:9px 6px;border-radius:8px;text-decoration:none;transition:opacity 0.15s"
+               <?php echo $hov; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                🖼 PNG → JPEG
             </a>
-            <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>"
-               style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#0ea5e9 0%,#0369a1 100%);color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:8px;text-decoration:none;box-shadow:0 3px 10px rgba(14,165,233,0.35);transition:filter 0.15s,transform 0.15s"
-               onmouseover="this.style.filter='brightness(1.15)';this.style.transform='scale(1.02)'"
-               onmouseout="this.style.filter='';this.style.transform=''">
-                <span style="font-size:15px">⚡</span> Open CloudScale Cleanup
+            <a href="<?php echo esc_url( $main_url ); ?>"
+               style="display:flex;align-items:center;justify-content:center;gap:5px;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);color:#fff;font-weight:700;font-size:11.5px;padding:9px 6px;border-radius:8px;text-decoration:none;box-shadow:0 2px 8px rgba(37,99,235,0.3);transition:opacity 0.15s"
+               <?php echo $hov; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                ⚡ Open Plugin
             </a>
         </div>
-    </div>
+
+        </div><!-- /body -->
+    </div><!-- /widget -->
     <?php
 }
 
@@ -4586,7 +4643,7 @@ add_action( 'init', 'csc_cron_register_timing_hooks' );
  * During a real cron run, add before/after hooks to every scheduled job
  * so we can record how long each one took.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_cron_register_timing_hooks() {
@@ -4612,7 +4669,7 @@ function csc_cron_register_timing_hooks() {
 /**
  * Records the start time for a cron hook execution.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_cron_time_start() {
@@ -4622,7 +4679,7 @@ function csc_cron_time_start() {
 /**
  * Records duration for a cron hook execution and persists to the run log.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_cron_time_end() {
@@ -4649,7 +4706,7 @@ add_action( 'wp_ajax_csc_cron_delete', 'csc_ajax_cron_delete' );
 /**
  * Moves all instances of a scheduled cron hook into the recycle bin.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_ajax_cron_delete() {
@@ -4704,7 +4761,7 @@ add_action( 'wp_ajax_csc_cron_restore', 'csc_ajax_cron_restore' );
 /**
  * Restores a cron entry from the recycle bin back into the WP cron schedule.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_ajax_cron_restore() {
@@ -4750,7 +4807,7 @@ add_action( 'wp_ajax_csc_cron_purge_bin', 'csc_ajax_cron_purge_bin' );
 /**
  * Permanently removes a single entry from the cron recycle bin.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @return void
  */
 function csc_ajax_cron_purge_bin() {
@@ -4790,7 +4847,7 @@ function csc_ajax_cron_purge_bin() {
  * Maps a cron hook name to its origin plugin via prefix matching.
  * Rules are sorted longest-prefix-first so more specific entries win.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @param string $hook Cron hook name.
  * @return array|null ['n' => name, 's' => slug, 'c' => is_core] or null.
  */
@@ -4972,7 +5029,7 @@ function csc_resolve_cron_hook_plugin( $hook ) {
 /**
  * Returns 'core', 'active', 'inactive', or 'not_installed' for a plugin slug.
  *
- * @since 2.5.35
+ * @since 2.5.38
  * @param string $slug Plugin directory slug.
  * @param bool   $core Whether this is a WordPress Core entry.
  * @return string
@@ -5212,14 +5269,14 @@ function csc_ajax_cron_run_now() {
  * @param string $color Background colour for the button (CSS colour string).
  * @return void
  */
-function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.3555,2.5.1.2)' ): void {
+function csc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.3855,2.5.1.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
     ?>
     <button type="button" id="<?php echo esc_attr( $btn_id ); ?>"
         data-color="<?php echo esc_attr( $color ); ?>"
         onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='flex'"
-        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(2.5.355,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
+        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(2.5.385,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
         Explain&hellip;
     </button>
     <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
@@ -5534,7 +5591,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.355,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.355,255,0.28)'" onmouseout="this.style.background='rgba(2.5.355,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.385,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.385,255,0.28)'" onmouseout="this.style.background='rgba(2.5.385,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
@@ -5677,7 +5734,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.355,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.355,255,0.28)'" onmouseout="this.style.background='rgba(2.5.355,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.385,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.385,255,0.28)'" onmouseout="this.style.background='rgba(2.5.385,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
@@ -5765,7 +5822,7 @@ function csc_render_page() {
                     $last_img_sched = get_option( 'csc_last_scheduled_img_cleanup', '' );
                     ?>
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.359,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.389,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
@@ -5831,7 +5888,7 @@ function csc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.355,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.355,255,0.28)'" onmouseout="this.style.background='rgba(2.5.355,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(2.5.385,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.385,255,0.28)'" onmouseout="this.style.background='rgba(2.5.385,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
@@ -5897,7 +5954,7 @@ function csc_render_page() {
                                 <option value="1024x768">XGA — 1024 × 768</option>
                                 <option value="800x600">SVGA — 800 × 600</option>
                                 <option value="640x480">VGA — 640 × 480</option>
-                                <option value="512.5.35">Square — 512 × 512</option>
+                                <option value="512.5.38">Square — 512 × 512</option>
                                 <option value="256x256">Square — 256 × 256</option>
                                 <option value="custom">Custom…</option>
                             </select>
@@ -5948,9 +6005,9 @@ function csc_render_page() {
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #ce93d8;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#ce93d8;color:#1a0533;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">📷 Converter Console</span>
                         <span style="margin-left:auto;display:flex;gap:6px">
-                            <button id="cspj-debug-copy" style="background:rgba(2.5.3555,2.5.1.15);border:1px solid rgba(2.5.3555,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
-                            <button id="cspj-debug-clear" style="background:rgba(2.5.3555,2.5.1.15);border:1px solid rgba(2.5.3555,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
-                            <button id="cspj-debug-toggle" style="background:rgba(2.5.3555,2.5.1.15);border:1px solid rgba(2.5.3555,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
+                            <button id="cspj-debug-copy" style="background:rgba(2.5.3855,2.5.1.15);border:1px solid rgba(2.5.3855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
+                            <button id="cspj-debug-clear" style="background:rgba(2.5.3855,2.5.1.15);border:1px solid rgba(2.5.3855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
+                            <button id="cspj-debug-toggle" style="background:rgba(2.5.3855,2.5.1.15);border:1px solid rgba(2.5.3855,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
                         </span>
                     </div>
                     <div id="cspj-debug-env" style="padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--csc-border);font-size:11px;color:var(--csc-muted);font-family:monospace;line-height:1.7"></div>
