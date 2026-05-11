@@ -68,6 +68,34 @@ if [ "$LINT_ERRORS" -ne 0 ]; then
 fi
 echo "PHP syntax: OK"
 echo ""
+# PHP runtime include test — catches TypeError/fatal that php -l misses.
+echo "Checking PHP runtime includes..."
+RUNTIME_ERRORS=0
+while IFS= read -r -d '' phpfile; do
+  basename=$(basename "$phpfile")
+  [[ "$basename" == "uninstall.php" ]] && continue
+  result=$(php -r "
+define('ABSPATH', '/tmp/');
+\$code = file_get_contents('$phpfile');
+if (strpos(\$code, 'class ') !== false || strpos(\$code, 'function ') !== false) {
+    if (strpos(\$code, 'require') === false && strpos(\$code, 'wp_') === false) {
+        @include '$phpfile';
+    }
+}
+" 2>&1 | grep -i "TypeError\|ParseError\|Fatal" || true)
+  if [ -n "$result" ]; then echo "  RUNTIME ERROR in $phpfile: $result"; RUNTIME_ERRORS=1; fi
+done < <(find "$(dirname "$0")/includes" -name "*.php" -print0 2>/dev/null)
+find "$(dirname "$0")" -maxdepth 1 -name "*.php" -print0 2>/dev/null | while IFS= read -r -d '' phpfile; do
+  basename=$(basename "$phpfile"); [[ "$basename" == "uninstall.php" ]] && continue
+  result=$(php -r "@include '$phpfile';" 2>&1 | grep -i "TypeError\|ParseError\|Fatal" || true)
+  if [ -n "$result" ]; then echo "  RUNTIME ERROR in $phpfile: $result"; RUNTIME_ERRORS=1; fi
+done
+if [ "$RUNTIME_ERRORS" -ne 0 ]; then
+  echo "ERROR: PHP runtime errors found — crashes on first HTTP request."; exit 1
+fi
+echo "PHP runtime: OK"
+echo ""
+echo ""
 
 
 # Create temp directory with plugin name as wrapper
