@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.39
+ * Version:     2.5.41
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.39' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.41' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -303,26 +303,14 @@ jQuery(function($) {
         $('#csc-sysstat-detail').text('').css('color','#1565c0');
         $('#csc-sysstat-instructions').hide();
         $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
-            $b.prop('disabled',false).html('\ud83d\udd27 Test Sysstat');
+            $b.prop('disabled',false).html('\ud83d\udd27 Test Metrics');
             $box.css(blue);
             if (!resp.success) { $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('Test failed'); return; }
             var d = resp.data;
-            if (!d.exec_available) {
-                $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('exec() disabled in php.ini');
-            } else if (!d.sar_installed) {
-                $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('sysstat not installed');
-                if (d.instructions) $('#csc-sysstat-detail').html('<code style="font-size:11px">'+d.instructions.replace(/Run: /, '')+'</code>');
-            } else if (!d.sysstat_active) {
-                $('#csc-sysstat-icon').text('\u26a0\ufe0f'); $('#csc-sysstat-label').text('sysstat installed but service inactive');
-                $('#csc-sysstat-detail').html(d.sar_version+' at '+d.sar_path+' &mdash; <code style="font-size:11px">sudo systemctl enable sysstat && sudo systemctl start sysstat</code>');
-            } else if (!d.sar_has_data) {
-                $('#csc-sysstat-icon').text('\ud83d\udd35'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' active, waiting for first samples');
-                $('#csc-sysstat-detail').text('Collects every 10 minutes. Refresh after 10 mins.');
-            } else {
-                $('#csc-sysstat-icon').text('\u2705'); $('#csc-sysstat-label').text('sysstat v'+d.sar_version+' working');
-                $('#csc-sysstat-detail').text(d.sar_samples+' samples/hr | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%');
-            }
-        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udd27 Test Sysstat'); $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('Network error'); });
+            $('#csc-sysstat-icon').text('\u2705');
+            $('#csc-sysstat-label').text('PHP snapshot metrics active');
+            $('#csc-sysstat-detail').text(d.cpu_count+' CPU core(s) | CPU '+d.cpu_pct_now+'% | Mem '+d.mem_pct_now+'%');
+        }).fail(function(){ $b.prop('disabled',false).html('\ud83d\udd27 Test Metrics'); $('#csc-sysstat-icon').text('\u274c'); $('#csc-sysstat-label').text('Network error'); });
     });
 });
 ENDJS;
@@ -731,67 +719,73 @@ function csc_next_run_timestamp( $days, $hour ) {
 // Cron handlers — run synchronously (no HTTP chunking needed in a cron context)
 add_action( 'csc_scheduled_db_cleanup', 'csc_cron_db_cleanup' );
 function csc_cron_db_cleanup() {
-    $ids = csc_build_db_id_list();
-    foreach ( $ids['revisions']      as $id ) { wp_delete_post( intval( $id ), true ); }
-    foreach ( $ids['drafts']         as $id ) { wp_delete_post( intval( $id ), true ); }
-    foreach ( $ids['trashed']        as $id ) { wp_delete_post( intval( $id ), true ); }
-    foreach ( $ids['autodrafts']     as $id ) { wp_delete_post( intval( $id ), true ); }
-    csc_delete_expired_transients();
-    csc_delete_orphaned_postmeta();
-    csc_delete_orphaned_usermeta();
-    foreach ( $ids['spam_comments']  as $id ) { wp_delete_comment( intval( $id ), true ); }
-    foreach ( $ids['trash_comments'] as $id ) { wp_delete_comment( intval( $id ), true ); }
-    update_option( 'csc_last_db_cleanup', current_time( 'mysql' ) );
-    update_option( 'csc_last_scheduled_db_cleanup', current_time( 'mysql' ) );
-    csc_schedule_crons();
+    try {
+        $ids = csc_build_db_id_list();
+        foreach ( $ids['revisions']      as $id ) { wp_delete_post( intval( $id ), true ); }
+        foreach ( $ids['drafts']         as $id ) { wp_delete_post( intval( $id ), true ); }
+        foreach ( $ids['trashed']        as $id ) { wp_delete_post( intval( $id ), true ); }
+        foreach ( $ids['autodrafts']     as $id ) { wp_delete_post( intval( $id ), true ); }
+        csc_delete_expired_transients();
+        csc_delete_orphaned_postmeta();
+        csc_delete_orphaned_usermeta();
+        foreach ( $ids['spam_comments']  as $id ) { wp_delete_comment( intval( $id ), true ); }
+        foreach ( $ids['trash_comments'] as $id ) { wp_delete_comment( intval( $id ), true ); }
+        update_option( 'csc_last_db_cleanup', current_time( 'mysql' ) );
+        update_option( 'csc_last_scheduled_db_cleanup', current_time( 'mysql' ) );
+        csc_schedule_crons();
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[CSC] cron "csc_scheduled_db_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+    }
 }
 
 add_action( 'csc_scheduled_img_cleanup', 'csc_cron_img_cleanup' );
 function csc_cron_img_cleanup() {
-    $used = csc_get_used_attachment_ids();
-    $all  = get_posts( array(
-        'post_type' => 'attachment', 'post_status' => 'inherit',
-        'posts_per_page' => -1, 'fields' => 'ids',
-    ) );
+    try {
+        $used = csc_get_used_attachment_ids();
+        $all  = get_posts( array(
+            'post_type' => 'attachment', 'post_status' => 'inherit',
+            'posts_per_page' => -1, 'fields' => 'ids',
+        ) );
 
-    // Load existing media recycle manifest
-    if ( ! csc_media_recycle_ensure_dir() ) {
-        return;
-    }
-    $manifest = csc_media_recycle_read_manifest();
-
-    $recycled = 0;
-    foreach ( $all as $id ) {
-        if ( isset( $used[ $id ] ) ) { continue; }
-        try {
-            $result = csc_media_recycle_save_attachment( intval( $id ) );
-            if ( ! empty( $result['error'] ) ) {
-                error_log( '[CSC] Cron recycle error for ID ' . $id . ': ' . $result['error'] ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-                continue;
-            }
-            $manifest[ (string) $id ] = array(
-                'post'        => $result['post'],
-                'meta'        => $result['meta'],
-                'files_moved' => $result['files_moved'],
-                'recycled_at' => current_time( 'mysql' ),
-            );
-            wp_delete_attachment( $id, true );
-            $recycled++;
-        } catch ( Exception $e ) {
-            error_log( '[CSC] Cron recycle exception for ID ' . $id . ': ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-        } catch ( Throwable $e ) {
-            error_log( '[CSC] Cron recycle fatal for ID ' . $id . ': ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+        // Load existing media recycle manifest
+        if ( ! csc_media_recycle_ensure_dir() ) {
+            return;
         }
-    }
+        $manifest = csc_media_recycle_read_manifest();
 
-    if ( ! csc_media_recycle_write_manifest( $manifest ) ) {
-        error_log( '[CSC] Cron: Failed to write media recycle manifest.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-    }
+        $recycled = 0;
+        foreach ( $all as $id ) {
+            if ( isset( $used[ $id ] ) ) { continue; }
+            try {
+                $result = csc_media_recycle_save_attachment( intval( $id ) );
+                if ( ! empty( $result['error'] ) ) {
+                    error_log( '[CSC] Cron recycle error for ID ' . $id . ': ' . $result['error'] ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+                    continue;
+                }
+                $manifest[ (string) $id ] = array(
+                    'post'        => $result['post'],
+                    'meta'        => $result['meta'],
+                    'files_moved' => $result['files_moved'],
+                    'recycled_at' => current_time( 'mysql' ),
+                );
+                wp_delete_attachment( $id, true );
+                $recycled++;
+            } catch ( \Throwable $e ) {
+                error_log( '[CSC] Cron recycle fatal for ID ' . $id . ': ' . $e->getMessage() ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+            }
+        }
 
-    error_log( '[CSC] Cron: Recycled ' . $recycled . ' unused attachment(s). Total in recycle bin: ' . count( $manifest ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-    update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
-    update_option( 'csc_last_scheduled_img_cleanup', current_time( 'mysql' ) );
-    csc_schedule_crons();
+        if ( ! csc_media_recycle_write_manifest( $manifest ) ) {
+            error_log( '[CSC] Cron: Failed to write media recycle manifest.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+        }
+
+        error_log( '[CSC] Cron: Recycled ' . $recycled . ' unused attachment(s). Total in recycle bin: ' . count( $manifest ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+        update_option( 'csc_last_img_cleanup', current_time( 'mysql' ) );
+        update_option( 'csc_last_scheduled_img_cleanup', current_time( 'mysql' ) );
+        csc_schedule_crons();
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[CSC] cron "csc_scheduled_img_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1763,7 +1757,7 @@ function csc_ajax_regen_thumb_scan() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    @set_time_limit( 120 );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- required to prevent PHP timeout on long-running image scans
 
     $sizes  = wp_get_registered_image_subsizes();
     $upload = wp_upload_dir();
@@ -1834,7 +1828,7 @@ function csc_ajax_regen_thumb_batch() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    @set_time_limit( 120 );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- required to prevent PHP timeout on long-running image scans
 
     $queue = get_transient( 'csc_regen_thumb_queue' );
     if ( ! is_array( $queue ) ) {
@@ -1979,7 +1973,7 @@ function csc_ajax_scan_images() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    @set_time_limit( 120 );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- required to prevent PHP timeout on long-running image scans
 
     $used = csc_get_used_attachment_ids();
     $all  = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -2284,7 +2278,7 @@ function csc_ajax_img_start() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    @set_time_limit( 120 );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- required to prevent PHP timeout on long-running image scans
 
     $used  = csc_get_used_attachment_ids();
     $all   = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'posts_per_page' => -1, 'fields' => 'ids' ) );
@@ -2309,7 +2303,7 @@ function csc_ajax_img_chunk() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_send_json_error( 'Insufficient permissions.' );
     }
-    @set_time_limit( 120 );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- required to prevent PHP timeout on long-running image scans
 
     $queue = get_transient( 'csc_img_queue' );
     if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
@@ -3612,13 +3606,31 @@ function csc_ajax_cspj_chunk_upload() {
         wp_send_json_error( 'Upload session not found (expired or invalid).' );
     }
 
+    // Verify session ownership and bound $index against declared total_chunks.
+    $meta_path = trailingslashit( $dir ) . 'meta.json';
+    if ( ! file_exists( $meta_path ) ) {
+        wp_send_json_error( 'Upload session metadata missing.' );
+    }
+    $meta = json_decode( file_get_contents( $meta_path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
+    if ( intval( $meta['user_id'] ?? 0 ) !== get_current_user_id() ) {
+        wp_send_json_error( 'Upload session owner mismatch.' );
+    }
+    $meta_total = intval( $meta['total_chunks'] ?? 0 );
+    if ( $meta_total <= 0 || $index >= $meta_total ) {
+        wp_send_json_error( 'Chunk index out of bounds.' );
+    }
+
     $chunk_mb    = csc_get_cspj_chunk_mb();
     $chunk_bytes = intval( floor( $chunk_mb * 1048576 ) );
     if ( $_FILES['chunk']['size'] > $chunk_bytes + 4096 ) {
         wp_send_json_error( 'Chunk exceeds configured chunk size of ' . $chunk_mb . ' MB.' );
     }
 
-    $part = trailingslashit( $dir ) . sprintf( 'chunk-%06d.part', $index );
+    $part     = trailingslashit( $dir ) . sprintf( 'chunk-%06d.part', $index );
+    $real_dir = realpath( $dir );
+    if ( $real_dir === false || strpos( realpath( dirname( $part ) ) . DIRECTORY_SEPARATOR, $real_dir . DIRECTORY_SEPARATOR ) !== 0 ) {
+        wp_send_json_error( 'Invalid chunk destination.' );
+    }
     if ( ! move_uploaded_file( $_FILES['chunk']['tmp_name'], $part ) ) {
         wp_send_json_error( 'Server failed to write chunk to disk.' );
     }
@@ -3875,16 +3887,20 @@ function csc_ajax_cspj_delete_converted() {
 // Cron: cleanup stale chunks
 add_action( 'cspj_cleanup_chunks', 'csc_cspj_cron_cleanup' );
 function csc_cspj_cron_cleanup() {
-    $root = csc_cspj_chunk_root_dir();
-    if ( ! file_exists( $root ) ) { return; }
-    $now     = time();
-    $max_age = 6 * 3600;
-    foreach ( glob( trailingslashit( $root ) . '*' ) as $dir ) {
-        if ( ! is_dir( $dir ) ) { continue; }
-        $meta    = trailingslashit( $dir ) . 'meta.json';
-        $created = file_exists( $meta ) ? intval( json_decode( file_get_contents( $meta ), true )['created'] ?? 0 ) : 0; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
-        $age     = $created > 0 ? ( $now - $created ) : ( $now - filemtime( $dir ) );
-        if ( $age > $max_age ) { csc_cspj_delete_dir( $dir ); }
+    try {
+        $root = csc_cspj_chunk_root_dir();
+        if ( ! file_exists( $root ) ) { return; }
+        $now     = time();
+        $max_age = 6 * 3600;
+        foreach ( glob( trailingslashit( $root ) . '*' ) as $dir ) {
+            if ( ! is_dir( $dir ) ) { continue; }
+            $meta    = trailingslashit( $dir ) . 'meta.json';
+            $created = file_exists( $meta ) ? intval( json_decode( file_get_contents( $meta ), true )['created'] ?? 0 ) : 0; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
+            $age     = $created > 0 ? ( $now - $created ) : ( $now - filemtime( $dir ) );
+            if ( $age > $max_age ) { csc_cspj_delete_dir( $dir ); }
+        }
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[CSC] cron "cspj_cleanup_chunks" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
     }
 }
 
@@ -3911,35 +3927,7 @@ define( 'CSC_HEALTH_MAX_AGE',     180 ); // days — expire data older than 6 mo
  * Falls back to du on the wp-content directory if available.
  */
 function csc_health_get_disk_usage_bytes(): int {
-    $wp_root = rtrim( ABSPATH, '/' );
-
-    // Try df for the partition containing WP (total used on partition)
-    // But for site-specific tracking, wp-content is more useful
-    $content_dir = WP_CONTENT_DIR;
-
-    // Try shell du first (most accurate)
-    if ( function_exists( 'exec' ) ) {
-        $output = array();
-        @exec( 'du -sb ' . escapeshellarg( $content_dir ) . ' 2>/dev/null', $output );
-        if ( ! empty( $output[0] ) ) {
-            $parts = preg_split( '/\s+/', trim( $output[0] ) );
-            if ( isset( $parts[0] ) && is_numeric( $parts[0] ) ) {
-                return intval( $parts[0] );
-            }
-        }
-        // macOS fallback: du -sk (kilobytes)
-        $output = array();
-        @exec( 'du -sk ' . escapeshellarg( $content_dir ) . ' 2>/dev/null', $output );
-        if ( ! empty( $output[0] ) ) {
-            $parts = preg_split( '/\s+/', trim( $output[0] ) );
-            if ( isset( $parts[0] ) && is_numeric( $parts[0] ) ) {
-                return intval( $parts[0] ) * 1024;
-            }
-        }
-    }
-
-    // Fallback: PHP recursive directory size (slower but always works)
-    return csc_health_dir_size( $content_dir );
+    return csc_health_dir_size( WP_CONTENT_DIR );
 }
 
 /**
@@ -4078,10 +4066,7 @@ function csc_health_system_time( string $fmt, int $ts = 0 ): string {
             if ( $link && preg_match( '#zoneinfo/(.+)$#', $link, $m ) ) {
                 $sys_tz = $m[1];
             } else {
-                // Fallback: ask the OS
-                $out = array();
-                @exec( 'date +%Z 2>/dev/null', $out );
-                $sys_tz = ! empty( $out[0] ) ? trim( $out[0] ) : 'UTC';
+                $sys_tz = 'UTC';
             }
         }
     }
@@ -4099,15 +4084,6 @@ function csc_health_find_sar(): string {
     foreach ( $paths as $p ) {
         if ( @is_executable( $p ) ) { $cached = $p; return $p; }
     }
-    // Last resort: try which
-    if ( function_exists( 'exec' ) ) {
-        $out = array();
-        @exec( 'which sar 2>/dev/null', $out );
-        if ( ! empty( $out[0] ) && @is_executable( trim( $out[0] ) ) ) {
-            $cached = trim( $out[0] );
-            return $cached;
-        }
-    }
     $cached = '';
     return '';
 }
@@ -4120,13 +4096,6 @@ function csc_health_get_cpu_count(): int {
         $raw = @file_get_contents( '/proc/cpuinfo' );
         if ( $raw !== false ) {
             return max( 1, substr_count( $raw, 'processor' ) );
-        }
-    }
-    if ( function_exists( 'exec' ) ) {
-        $output = array();
-        @exec( 'nproc 2>/dev/null', $output );
-        if ( ! empty( $output[0] ) && is_numeric( $output[0] ) ) {
-            return max( 1, intval( $output[0] ) );
         }
     }
     return 1;
@@ -4146,35 +4115,6 @@ function csc_health_get_cpu_count(): int {
  * CPU% = 100 - %idle
  */
 function csc_health_get_cpu_pct(): float {
-    $sar = csc_health_find_sar();
-    if ( $sar !== '' && function_exists( 'exec' ) ) {
-        // Try sar first: get last 60 minutes of CPU data
-        $output = array();
-        $end   = csc_health_system_time( 'H:i:s' );
-        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C ' . $sar . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
-
-        $max_cpu = -1;
-        foreach ( $output as $line ) {
-            $line = trim( $line );
-            // Skip headers, averages, and empty lines
-            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%idle' ) !== false || strpos( $line, 'Linux' ) !== false ) {
-                continue;
-            }
-            // Parse: HH:MM:SS  all  %user  %nice  %system  %iowait  %steal  %idle
-            $parts = preg_split( '/\s+/', $line );
-            if ( count( $parts ) >= 8 && is_numeric( $parts[7] ) ) {
-                $idle = floatval( $parts[7] );
-                $cpu  = round( 100 - $idle, 1 );
-                if ( $cpu > $max_cpu ) { $max_cpu = $cpu; }
-            }
-        }
-        if ( $max_cpu >= 0 ) {
-            return $max_cpu;
-        }
-    }
-
-    // Fallback: instantaneous load average to percentage
     $load = csc_health_get_cpu_load();
     if ( $load < 0 ) { return -1; }
     $cpus = csc_health_get_cpu_count();
@@ -4193,32 +4133,6 @@ function csc_health_get_cpu_pct(): float {
  * We use the %memused column directly.
  */
 function csc_health_get_mem_pct(): float {
-    $sar = csc_health_find_sar();
-    if ( $sar !== '' && function_exists( 'exec' ) ) {
-        $output = array();
-        $end   = csc_health_system_time( 'H:i:s' );
-        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C ' . $sar . ' -r -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>/dev/null', $output );
-
-        $max_mem = -1;
-        foreach ( $output as $line ) {
-            $line = trim( $line );
-            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%memused' ) !== false || strpos( $line, 'Linux' ) !== false ) {
-                continue;
-            }
-            // Parse: HH:MM:SS  kbmemfree  kbavail  %memused  kbbuffers  kbcached  ...
-            $parts = preg_split( '/\s+/', $line );
-            if ( count( $parts ) >= 5 && is_numeric( $parts[4] ) ) {
-                $mem_pct = floatval( $parts[4] );
-                if ( $mem_pct > $max_mem ) { $max_mem = $mem_pct; }
-            }
-        }
-        if ( $max_mem >= 0 ) {
-            return round( $max_mem, 1 );
-        }
-    }
-
-    // Fallback: instantaneous reading
     $used  = csc_health_get_memory_used_bytes();
     $total = csc_health_get_memory_total_bytes();
     if ( $used < 0 || $total <= 0 ) { return -1; }
@@ -4242,63 +4156,68 @@ function csc_health_get_db_size_bytes(): int {
 
 add_action( 'csc_health_hourly_collect', 'csc_health_collect_hourly' );
 function csc_health_collect_hourly() {
-    $metrics = get_option( CSC_HEALTH_HOURLY_KEY, array() );
+    try {
+        $metrics = get_option( CSC_HEALTH_HOURLY_KEY, array() );
 
-    $cpu_pct = csc_health_get_cpu_pct();
-    $mem_pct = csc_health_get_mem_pct();
-    $max_resource = max( $cpu_pct, $mem_pct );
+        $cpu_pct      = csc_health_get_cpu_pct();
+        $mem_pct      = csc_health_get_mem_pct();
+        $max_resource = max( $cpu_pct, $mem_pct );
 
-    // Record whether sar was used (true peak) or fallback (instantaneous)
-    $sar_available = ( csc_health_find_sar() !== '' );
+        $entry = array(
+            'ts'               => current_time( 'mysql' ),
+            'ts_unix'          => time(),
+            'disk_used'        => csc_health_get_disk_usage_bytes(),
+            'disk_free'        => csc_health_get_disk_free_bytes(),
+            'cpu_load'         => csc_health_get_cpu_load(),
+            'cpu_pct'          => $cpu_pct,
+            'mem_used'         => csc_health_get_memory_used_bytes(),
+            'mem_total'        => csc_health_get_memory_total_bytes(),
+            'mem_pct'          => $mem_pct,
+            'max_resource_pct' => $max_resource,
+            'source'           => 'snapshot',
+            'db_size'          => csc_health_get_db_size_bytes(),
+        );
 
-    $entry = array(
-        'ts'               => current_time( 'mysql' ),
-        'ts_unix'          => time(),
-        'disk_used'        => csc_health_get_disk_usage_bytes(),
-        'disk_free'        => csc_health_get_disk_free_bytes(),
-        'cpu_load'         => csc_health_get_cpu_load(),
-        'cpu_pct'          => $cpu_pct,
-        'mem_used'         => csc_health_get_memory_used_bytes(),
-        'mem_total'        => csc_health_get_memory_total_bytes(),
-        'mem_pct'          => $mem_pct,
-        'max_resource_pct' => $max_resource,
-        'source'           => $sar_available ? 'sar' : 'snapshot',
-        'db_size'          => csc_health_get_db_size_bytes(),
-    );
+        $metrics[] = $entry;
 
-    $metrics[] = $entry;
+        // Expire entries older than 6 months
+        $cutoff = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
+        $metrics = array_values( array_filter( $metrics, function( $m ) use ( $cutoff ) {
+            return isset( $m['ts_unix'] ) && $m['ts_unix'] >= $cutoff;
+        } ) );
 
-    // Expire entries older than 6 months
-    $cutoff = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
-    $metrics = array_values( array_filter( $metrics, function( $m ) use ( $cutoff ) {
-        return isset( $m['ts_unix'] ) && $m['ts_unix'] >= $cutoff;
-    } ) );
-
-    update_option( CSC_HEALTH_HOURLY_KEY, $metrics, false ); // autoload=false (can be large)
+        update_option( CSC_HEALTH_HOURLY_KEY, $metrics, false ); // autoload=false (can be large)
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[CSC] cron "csc_health_hourly_collect" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+    }
 }
 
 // ─── Weekly disk snapshot cron ───────────────────────────────────────────────
 
 add_action( 'csc_health_weekly_snapshot', 'csc_health_collect_weekly' );
 function csc_health_collect_weekly() {
-    $snapshots = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
+    try {
+        $snapshots = get_option( CSC_HEALTH_WEEKLY_KEY, array() );
 
-    $snapshots[] = array(
-        'ts'         => current_time( 'mysql' ),
-        'ts_unix'    => time(),
-        'disk_used'  => csc_health_get_disk_usage_bytes(),
-        'disk_free'  => csc_health_get_disk_free_bytes(),
-        'disk_total' => csc_health_get_disk_total_bytes(),
-        'db_size'    => csc_health_get_db_size_bytes(),
-    );
+        $snapshots[] = array(
+            'ts'         => current_time( 'mysql' ),
+            'ts_unix'    => time(),
+            'disk_used'  => csc_health_get_disk_usage_bytes(),
+            'disk_free'  => csc_health_get_disk_free_bytes(),
+            'disk_total' => csc_health_get_disk_total_bytes(),
+            'db_size'    => csc_health_get_db_size_bytes(),
+        );
 
-    // Expire entries older than 6 months
-    $cutoff = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
-    $snapshots = array_values( array_filter( $snapshots, function( $s ) use ( $cutoff ) {
-        return isset( $s['ts_unix'] ) && $s['ts_unix'] >= $cutoff;
-    } ) );
+        // Expire entries older than 6 months
+        $cutoff    = time() - ( CSC_HEALTH_MAX_AGE * DAY_IN_SECONDS );
+        $snapshots = array_values( array_filter( $snapshots, function( $s ) use ( $cutoff ) {
+            return isset( $s['ts_unix'] ) && $s['ts_unix'] >= $cutoff;
+        } ) );
 
-    update_option( CSC_HEALTH_WEEKLY_KEY, $snapshots, false );
+        update_option( CSC_HEALTH_WEEKLY_KEY, $snapshots, false );
+    } catch ( \Throwable $e ) {
+        error_log( sprintf( '[CSC] cron "csc_health_weekly_snapshot" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+    }
 }
 
 // ─── Schedule health crons on activation ─────────────────────────────────────
@@ -4549,89 +4468,12 @@ function csc_ajax_health_sysstat_test() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $result = array(
-        'exec_available' => function_exists( 'exec' ),
-        'sar_installed'  => false,
-        'sar_path'       => '',
-        'sar_version'    => '',
-        'sysstat_active' => false,
-        'sar_has_data'   => false,
-        'cpu_count'      => csc_health_get_cpu_count(),
-        'cpu_pct_now'    => csc_health_get_cpu_pct(),
-        'mem_pct_now'    => csc_health_get_mem_pct(),
-        'source'         => 'snapshot',
-        'instructions'   => '',
-    );
-
-    if ( ! function_exists( 'exec' ) ) {
-        $result['instructions'] = 'PHP exec() is disabled. Enable it in php.ini to allow sysstat metric collection.';
-        wp_send_json_success( $result );
-    }
-
-    // Check if sar is installed using full path detection
-    $sar_path = csc_health_find_sar();
-    if ( $sar_path !== '' ) {
-        $result['sar_installed'] = true;
-        $result['sar_path']     = $sar_path;
-
-        // Get version
-        $ver = array();
-        @exec( $sar_path . ' -V 2>&1', $ver );
-        if ( ! empty( $ver[0] ) ) {
-            $result['sar_version'] = trim( $ver[0] );
-        }
-
-        // Check if sysstat service is collecting data
-        $active = array();
-        @exec( 'systemctl is-active sysstat 2>/dev/null', $active );
-        $result['sysstat_active'] = ( ! empty( $active[0] ) && trim( $active[0] ) === 'active' );
-
-        // Try reading sar data to confirm it works
-        $test = array();
-        $end   = csc_health_system_time( 'H:i:s' );
-        $start = csc_health_system_time( 'H:i:s', time() - 3600 );
-        @exec( 'LC_ALL=C ' . $sar_path . ' -u -s ' . escapeshellarg( $start ) . ' -e ' . escapeshellarg( $end ) . ' 2>&1', $test );
-        $data_lines = 0;
-        foreach ( $test as $line ) {
-            $line = trim( $line );
-            if ( $line === '' || strpos( $line, 'Average' ) !== false || strpos( $line, '%idle' ) !== false || strpos( $line, 'Linux' ) !== false ) { continue; }
-            $parts = preg_split( '/\s+/', $line );
-            if ( count( $parts ) >= 8 && is_numeric( $parts[7] ) ) { $data_lines++; }
-        }
-        $result['sar_has_data']  = $data_lines > 0;
-        $result['sar_samples']   = $data_lines;
-        $result['source']        = $data_lines > 0 ? 'sar' : 'snapshot';
-        $result['sar_raw_output'] = implode( "\n", array_slice( $test, 0, 10 ) );
-
-        $enable_cmds = 'sudo systemctl enable sysstat && sudo systemctl start sysstat && sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer';
-        $kick_cmd    = 'sudo /usr/lib64/sa/sa1 1 1';
-        if ( ! $result['sysstat_active'] ) {
-            $result['instructions'] = 'Run: ' . $enable_cmds . ' && ' . $kick_cmd;
-        } elseif ( ! $result['sar_has_data'] ) {
-            $result['instructions'] = 'Enable collection timer: sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer && ' . $kick_cmd;
-        }
-    } else {
-        // Detect OS for install instructions
-        $os_info = array();
-        @exec( 'cat /etc/os-release 2>/dev/null | head -3', $os_info );
-        $os_str = implode( ' ', $os_info );
-        $enable_cmds = 'sudo systemctl enable sysstat && sudo systemctl start sysstat && sudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer && sudo /usr/lib64/sa/sa1 1 1';
-        if ( stripos( $os_str, 'Amazon' ) !== false || stripos( $os_str, 'rhel' ) !== false || stripos( $os_str, 'centos' ) !== false ) {
-            $result['instructions'] = 'sudo yum install sysstat -y && ' . $enable_cmds;
-        } elseif ( stripos( $os_str, 'ubuntu' ) !== false || stripos( $os_str, 'debian' ) !== false ) {
-            $result['instructions'] = 'sudo apt install sysstat -y && ' . $enable_cmds;
-        } else {
-            $result['instructions'] = 'Install sysstat with your package manager, then run: ' . $enable_cmds;
-        }
-    }
-
-    // Debug: timezone info for diagnosing sar time window mismatches
-    $result['debug_wp_tz']      = date_default_timezone_get();
-    $result['debug_sys_time']   = csc_health_system_time( 'H:i:s' );
-    $result['debug_php_time']   = gmdate( 'H:i:s' );
-    $result['debug_sar_window'] = csc_health_system_time( 'H:i:s', time() - 3600 ) . ' to ' . csc_health_system_time( 'H:i:s' );
-
-    wp_send_json_success( $result );
+    wp_send_json_success( array(
+        'source'      => 'snapshot',
+        'cpu_count'   => csc_health_get_cpu_count(),
+        'cpu_pct_now' => csc_health_get_cpu_pct(),
+        'mem_pct_now' => csc_health_get_mem_pct(),
+    ) );
 }
 
 // ─── Cron Management ─────────────────────────────────────────────────────────

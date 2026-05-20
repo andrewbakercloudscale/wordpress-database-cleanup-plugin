@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.40 — 2026-05-20
+- SECURITY: Removed all `exec()` calls (sysstat/sar disk-usage and CPU/memory metrics) — WordPress.org hard-rejects any `exec()` usage; metrics now use PHP-only fallbacks (`sys_getloadavg()`, `/proc/meminfo`, `RecursiveDirectoryIterator`)
+- SECURITY: Added `Throwable`-catching wrapper to all five WP-Cron callbacks (`csc_scheduled_db_cleanup`, `csc_scheduled_img_cleanup`, `cspj_cleanup_chunks`, `csc_health_hourly_collect`, `csc_health_weekly_snapshot`) to prevent PHP-FPM crash loops on uncaught exceptions
+- FIX: Added `phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged` on all five `set_time_limit()` calls to clear PCP errors
+- SECURITY (path traversal): Added `realpath()` path traversal guard, session ownership check, and index upper-bound check to `csc_ajax_cspj_chunk_upload()` — previously missing from active file while present in repo copy
+
 ## 2.5.2 — 2026-03-24
 - FIX: Bump version to 2.5.2 to force browser cache-bust on admin.js and admin.css after modal redesign
 
