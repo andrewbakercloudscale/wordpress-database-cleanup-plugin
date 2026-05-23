@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.43
+ * Version:     2.5.45
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.43' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.45' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -5153,14 +5153,173 @@ function csc_ajax_space_scan(): void {
 	$dir_total  = array_sum( array_column( $dirs,  'size' ) );
 	$file_total = array_sum( array_column( $files, 'size' ) );
 
+	$insights = ! $rel ? csc_space_insights( $real, $dirs ) : [];
+
+	// File type breakdown for the current level's direct files + recursive files when drilling in.
+	$type_breakdown = [];
+	if ( $rel ) {
+		$img_exts = [ 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' ];
+		$counts = [ 'scaled' => 0, 'original' => 0, 'other' => 0 ];
+		$ext_bytes = [];
+		try {
+			$all_iter = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $real, RecursiveDirectoryIterator::SKIP_DOTS )
+			);
+			foreach ( $all_iter as $f ) {
+				if ( ! $f->isFile() ) continue;
+				$ext = strtolower( $f->getExtension() );
+				$ext_bytes[ $ext ] = ( $ext_bytes[ $ext ] ?? 0 ) + $f->getSize();
+				if ( in_array( $ext, $img_exts, true ) ) {
+					if ( preg_match( '/-\d+x\d+\.[a-zA-Z]+$/', $f->getFilename() ) ) {
+						$counts['scaled']++;
+					} else {
+						$counts['original']++;
+					}
+				} else {
+					$counts['other']++;
+				}
+			}
+		} catch ( Exception $e ) {}
+
+		arsort( $ext_bytes );
+		$type_breakdown = [
+			'by_ext'  => array_slice( $ext_bytes, 0, 10, true ),
+			'scaled'  => $counts['scaled'],
+			'original'=> $counts['original'],
+		];
+	}
+
 	wp_send_json_success( [
-		'rel'        => $real === $base ? '' : ltrim( substr( $real, strlen( $base ) ), '/\\' ),
-		'dirs'       => $dirs,
-		'files'      => $files,
-		'dir_total'  => $dir_total,
-		'file_total' => $file_total,
-		'total'      => $dir_total + $file_total,
+		'rel'            => $real === $base ? '' : ltrim( substr( $real, strlen( $base ) ), '/\\' ),
+		'dirs'           => $dirs,
+		'files'          => $files,
+		'dir_total'      => $dir_total,
+		'file_total'     => $file_total,
+		'total'          => $dir_total + $file_total,
+		'insights'       => $insights,
+		'type_breakdown' => $type_breakdown,
 	] );
+}
+
+/**
+ * Analyse top-level dirs and return actionable insight objects.
+ * Only called at root level — one extra scan pass per category.
+ *
+ * @since 2.6.0
+ * @param  string $base  Absolute path to uploads root.
+ * @param  array  $dirs  Already-computed top-level dir entries.
+ * @return array<int,array<string,mixed>>
+ */
+function csc_space_insights( string $base, array $dirs ): array {
+	$insights = [];
+	$by_name  = [];
+	foreach ( $dirs as $d ) {
+		$by_name[ $d['name'] ] = $d;
+	}
+
+	// ── 1. Duplicate geo databases ────────────────────────────────────────────
+	$geo = array_values( array_filter( $dirs, static fn( $d ) =>
+		preg_match( '/(^|-|_)geo$/i', $d['name'] ) && $d['count'] > 0
+	) );
+	if ( count( $geo ) >= 2 ) {
+		$geo_total   = array_sum( array_column( $geo, 'size' ) );
+		$geo_min     = min( array_column( $geo, 'size' ) );
+		$geo_savings = $geo_total - $geo_min;
+		$geo_names   = implode( ', ', array_column( $geo, 'name' ) );
+		$insights[]  = [
+			'level'   => 'error',
+			'title'   => 'Duplicate Geo Databases',
+			'summary' => count( $geo ) . ' folders contain the same IP geolocation database — ' . csc_fmt_bytes( $geo_total ) . ' total, ' . csc_fmt_bytes( $geo_savings ) . ' is redundant.',
+			'detail'  => $geo_names . ' each store a copy of the same MMDB file. Only one copy is needed — the others can be deleted after confirming which plugin uses which folder.',
+			'savings' => $geo_savings,
+			'drills'  => array_map( static fn( $d ) => [ 'label' => $d['name'] . ' (' . csc_fmt_bytes( $d['size'] ) . ')', 'rel' => $d['rel'] ], $geo ),
+		];
+	}
+
+	// ── 2. Social formats .jpg + .jpeg duplication ────────────────────────────
+	if ( isset( $by_name['social-formats'] ) ) {
+		$sf_dir = $base . '/social-formats';
+		$sample = null;
+		try {
+			foreach ( new DirectoryIterator( $sf_dir ) as $item ) {
+				if ( ! $item->isDot() && $item->isDir() ) { $sample = $item->getPathname(); break; }
+			}
+		} catch ( Exception $e ) {}
+
+		if ( $sample ) {
+			$jpg_bases = $jpeg_bases = [];
+			try {
+				foreach ( new DirectoryIterator( $sample ) as $f ) {
+					if ( ! $f->isFile() ) continue;
+					$ext  = strtolower( $f->getExtension() );
+					$base_name = pathinfo( $f->getFilename(), PATHINFO_FILENAME );
+					if ( $ext === 'jpg' )  { $jpg_bases[]  = $base_name; }
+					if ( $ext === 'jpeg' ) { $jpeg_bases[] = $base_name; }
+				}
+			} catch ( Exception $e ) {}
+
+			if ( $jpg_bases && $jpeg_bases ) {
+				$sf      = $by_name['social-formats'];
+				$savings = intval( $sf['size'] / 2 );
+				$insights[] = [
+					'level'   => 'warning',
+					'title'   => 'Social Formats Duplication',
+					'summary' => 'social-formats/ stores both .jpg and .jpeg for every network image — roughly ' . csc_fmt_bytes( $savings ) . ' of duplicates.',
+					'detail'  => 'Each post folder contains ' . count( $jpg_bases ) . ' .jpg files AND ' . count( $jpeg_bases ) . ' .jpeg files for the same images (Facebook, Instagram, LinkedIn, Twitter, WhatsApp). One extension is entirely redundant. The social sharing plugin should be configured to generate only one format.',
+					'savings' => $savings,
+					'drills'  => [ [ 'label' => 'social-formats/ (' . csc_fmt_bytes( $sf['size'] ) . ')', 'rel' => $sf['rel'] ] ],
+				];
+			}
+		}
+	}
+
+	// ── 3. WordPress scaled image copies ─────────────────────────────────────
+	$year_dirs = array_values( array_filter( $dirs, static fn( $d ) => preg_match( '/^20\d\d$/', $d['name'] ) ) );
+	if ( $year_dirs ) {
+		usort( $year_dirs, static fn( $a, $b ) => $b['size'] <=> $a['size'] );
+		$biggest_year = $year_dirs[0];
+		$img_exts     = [ 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' ];
+		$total = $scaled = 0;
+		try {
+			$iter = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $base . '/' . $biggest_year['name'], RecursiveDirectoryIterator::SKIP_DOTS )
+			);
+			foreach ( $iter as $f ) {
+				if ( ! $f->isFile() || ! in_array( strtolower( $f->getExtension() ), $img_exts, true ) ) continue;
+				$total++;
+				if ( preg_match( '/-\d+x\d+\.[a-zA-Z]+$/', $f->getFilename() ) ) {
+					$scaled++;
+				}
+			}
+		} catch ( Exception $e ) {}
+
+		if ( $total > 10 && $scaled > 0 ) {
+			$pct = (int) round( $scaled / $total * 100 );
+			$all_years_total = array_sum( array_column( $year_dirs, 'size' ) );
+			$insights[] = [
+				'level'   => 'info',
+				'title'   => 'WordPress Scaled Copies',
+				'summary' => $pct . '% of images in ' . $biggest_year['name'] . '/ are auto-generated size variants (' . number_format( $scaled ) . ' of ' . number_format( $total ) . ' files, ' . csc_fmt_bytes( $all_years_total ) . ' across all years).',
+				'detail'  => 'WordPress creates multiple resized versions of every upload (thumbnail, medium, large, etc). If your theme registers sizes that are never rendered in templates, those copies are wasted. Use "Regenerate Thumbnails" after removing unused size registrations, or an image cleanup tool that targets specific sizes.',
+				'savings' => 0,
+				'drills'  => array_map( static fn( $d ) => [ 'label' => $d['name'] . ' (' . csc_fmt_bytes( $d['size'] ) . ')', 'rel' => $d['rel'] ], $year_dirs ),
+			];
+		}
+	}
+
+	return $insights;
+}
+
+/**
+ * Human-readable byte size (GB / MB / KB / B).
+ *
+ * @since 2.6.0
+ */
+function csc_fmt_bytes( int $bytes ): string {
+	if ( $bytes >= 1073741824 ) return round( $bytes / 1073741824, 2 ) . ' GB';
+	if ( $bytes >= 1048576 )    return round( $bytes / 1048576,    1 ) . ' MB';
+	if ( $bytes >= 1024 )       return round( $bytes / 1024 )          . ' KB';
+	return $bytes . ' B';
 }
 
 /**
@@ -6133,6 +6292,9 @@ function csc_render_page() {
                     <div id="space-report-error"   style="display:none;padding:16px;color:#c62828"></div>
 
                     <div id="space-report-content" style="display:none">
+                        <!-- Insight cards — shown only at root level -->
+                        <div id="space-insights" style="display:none;padding:16px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #e0e0e0"></div>
+
                         <!-- Breadcrumb -->
                         <div id="space-breadcrumb" style="padding:10px 16px;background:#f5f7fa;border-bottom:1px solid #e0e0e0;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"></div>
 

@@ -2748,6 +2748,49 @@ function cscOrphanToggle(el, type) {
             var d = resp.data;
             if (cscSpacePath === '') { cscSpaceTotal = d.total; }
 
+            // Insight cards (root level only)
+            var $ins = $('#space-insights').empty();
+            if (d.insights && d.insights.length && !d.rel) {
+                var insColors = {
+                    error:   { bg: '#fff3f3', border: '#e53935', icon: '🔴', badge: '#e53935', badgeTxt: 'Issue' },
+                    warning: { bg: '#fffbf0', border: '#fb8c00', icon: '🟡', badge: '#fb8c00', badgeTxt: 'Waste' },
+                    info:    { bg: '#f0f7ff', border: '#1976d2', icon: '🔵', badge: '#1976d2', badgeTxt: 'Info'  },
+                };
+                $.each(d.insights, function(i, ins) {
+                    var c = insColors[ins.level] || insColors.info;
+                    var $card = $('<div>').css({
+                        background: c.bg,
+                        border: '1px solid ' + c.border,
+                        'border-left': '4px solid ' + c.border,
+                        'border-radius': '6px',
+                        padding: '12px 14px',
+                    });
+                    var $header = $('<div>').css({ display: 'flex', 'align-items': 'center', gap: '8px', 'margin-bottom': '5px', 'flex-wrap': 'wrap' })
+                        .append($('<strong>').css({ 'font-size': '13px' }).text(ins.title))
+                        .append($('<span>').css({ background: c.badge, color: '#fff', 'font-size': '10px', 'font-weight': '700', padding: '2px 7px', 'border-radius': '3px' }).text(c.badgeTxt));
+                    if (ins.savings > 0) {
+                        $header.append($('<span>').css({ color: '#2e7d32', 'font-size': '11px', 'font-weight': '700', 'margin-left': 'auto', 'white-space': 'nowrap' }).text('~' + cscFmtBytes(ins.savings) + ' recoverable'));
+                    }
+                    $card.append($header);
+                    $card.append($('<p>').css({ margin: '0 0 6px', 'font-size': '12px', color: '#444', 'line-height': '1.5' }).text(ins.detail));
+                    if (ins.drills && ins.drills.length) {
+                        var $drills = $('<div>').css({ display: 'flex', gap: '6px', 'flex-wrap': 'wrap' });
+                        $.each(ins.drills, function(j, drill) {
+                            var rel = drill.rel;
+                            $drills.append($('<button>').css({
+                                background: 'transparent', border: '1px solid ' + c.border, 'border-radius': '4px',
+                                padding: '3px 10px', 'font-size': '12px', color: c.border, cursor: 'pointer'
+                            }).text('View ' + drill.label).on('click', function() { cscSpaceScan(rel); }));
+                        });
+                        $card.append($drills);
+                    }
+                    $ins.append($card);
+                });
+                $ins.css('display', 'flex').show();
+            } else {
+                $ins.hide();
+            }
+
             // Breadcrumb
             var $bc = $('#space-breadcrumb').empty();
             $bc.append($('<a href="#">uploads</a>').css({ color: '#1565c0', cursor: 'pointer', 'text-decoration': 'none' }).on('click', function(e) { e.preventDefault(); cscSpaceScan(''); }));
@@ -2767,12 +2810,43 @@ function cscOrphanToggle(el, type) {
             }
 
             // Summary
-            $('#space-summary').text(
-                (d.dirs.length ? d.dirs.length + ' folder' + (d.dirs.length !== 1 ? 's' : '') : 'No subfolders') +
-                (d.files.length ? '   |   ' + d.files.length + ' file' + (d.files.length !== 1 ? 's' : '') : '') +
-                '   |   Total: ' + cscFmtBytes(d.total) +
-                (cscSpaceTotal > 0 && d.rel ? '   (' + Math.round(d.total / cscSpaceTotal * 100) + '% of uploads)' : '')
-            );
+            var summaryParts = [];
+            if (d.dirs.length)  summaryParts.push(d.dirs.length + ' folder' + (d.dirs.length !== 1 ? 's' : ''));
+            if (d.files.length) summaryParts.push(d.files.length + ' file' + (d.files.length !== 1 ? 's' : ''));
+            summaryParts.push('Total: ' + cscFmtBytes(d.total));
+            if (cscSpaceTotal > 0 && d.rel) summaryParts.push(Math.round(d.total / cscSpaceTotal * 100) + '% of uploads');
+
+            var $sum = $('#space-summary').empty().css({ display: 'flex', 'flex-wrap': 'wrap', gap: '6px', 'align-items': 'flex-start' });
+            var $text = $('<div>').css('flex', '1 1 100%').text(summaryParts.join('   |   '));
+            $sum.append($text);
+
+            // Type breakdown (drill-down only)
+            if (d.type_breakdown && (d.type_breakdown.scaled || Object.keys(d.type_breakdown.by_ext || {}).length)) {
+                var tb = d.type_breakdown;
+                var $breakdown = $('<div>').css({ display: 'flex', gap: '8px', 'flex-wrap': 'wrap', 'font-size': '12px', 'margin-top': '4px' });
+
+                // Image scaled vs original pill
+                if (tb.scaled > 0 || tb.original > 0) {
+                    var total_imgs = tb.scaled + tb.original;
+                    var scaledPct = total_imgs > 0 ? Math.round(tb.scaled / total_imgs * 100) : 0;
+                    $breakdown.append($('<span>').css({
+                        background: scaledPct > 60 ? '#fff3cd' : '#e8f5e9',
+                        border: '1px solid ' + (scaledPct > 60 ? '#fb8c00' : '#43a047'),
+                        'border-radius': '4px', padding: '2px 8px', 'white-space': 'nowrap',
+                    }).html('<strong>' + scaledPct + '% scaled copies</strong> (' + tb.scaled.toLocaleString() + ' scaled / ' + tb.original.toLocaleString() + ' originals)'));
+                }
+
+                // Top file types
+                if (tb.by_ext) {
+                    $.each(tb.by_ext, function(ext, bytes) {
+                        $breakdown.append($('<span>').css({
+                            background: '#f0f4ff', border: '1px solid #c5cae9',
+                            'border-radius': '4px', padding: '2px 8px', 'white-space': 'nowrap', 'font-family': 'monospace',
+                        }).text('.' + ext + ': ' + cscFmtBytes(bytes)));
+                    });
+                }
+                $sum.append($breakdown);
+            }
 
             // Dirs table
             var $body = $('#space-dirs-body').empty();
