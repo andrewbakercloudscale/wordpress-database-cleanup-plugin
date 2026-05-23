@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.49
+ * Version:     2.5.51
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.49' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.51' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -181,6 +181,8 @@ function csc_enqueue_assets( $hook ) {
     .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #90caf9 !important; }
     .csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
     .csc-tab:nth-child(7).active, .csc-tab:nth-child(7):hover { border-top-color: #bcaaa4 !important; }
+    @media (max-width: 600px) { .csc-help-btn { font-size:12px !important; padding:6px 10px !important; } }
+    @media (max-width: 480px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } }
     div[style*="#fff3e0"] .csc-health-metric,
     div[style*="#e3f2fd"] .csc-health-metric,
     div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
@@ -5436,9 +5438,9 @@ function csc_render_page() {
                         <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://terraclaim.org" target="_blank">terraclaim.org</a></p>
                     </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px">
-                    <div class="csc-header-version">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
-                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5)" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:0">
+                    <div class="csc-header-version" style="flex-shrink:0">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
+                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" class="csc-help-btn" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5);flex-shrink:0" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
                 </div>
             </div>
         </div>
