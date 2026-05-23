@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.45
+ * Version:     2.5.47
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.45' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.47' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -5157,18 +5157,21 @@ function csc_ajax_space_scan(): void {
 
 	// File type breakdown for the current level's direct files + recursive files when drilling in.
 	$type_breakdown = [];
+	$top_files      = [];
 	if ( $rel ) {
-		$img_exts = [ 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' ];
-		$counts = [ 'scaled' => 0, 'original' => 0, 'other' => 0 ];
+		$img_exts  = [ 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif' ];
+		$counts    = [ 'scaled' => 0, 'original' => 0, 'other' => 0 ];
 		$ext_bytes = [];
+		$all_files = [];
 		try {
 			$all_iter = new RecursiveIteratorIterator(
 				new RecursiveDirectoryIterator( $real, RecursiveDirectoryIterator::SKIP_DOTS )
 			);
 			foreach ( $all_iter as $f ) {
 				if ( ! $f->isFile() ) continue;
-				$ext = strtolower( $f->getExtension() );
-				$ext_bytes[ $ext ] = ( $ext_bytes[ $ext ] ?? 0 ) + $f->getSize();
+				$size = $f->getSize();
+				$ext  = strtolower( $f->getExtension() );
+				$ext_bytes[ $ext ] = ( $ext_bytes[ $ext ] ?? 0 ) + $size;
 				if ( in_array( $ext, $img_exts, true ) ) {
 					if ( preg_match( '/-\d+x\d+\.[a-zA-Z]+$/', $f->getFilename() ) ) {
 						$counts['scaled']++;
@@ -5178,14 +5181,21 @@ function csc_ajax_space_scan(): void {
 				} else {
 					$counts['other']++;
 				}
+				// Collect for top-files list — store relative sub-path + size.
+				$sub_rel    = ltrim( substr( (string) $f->getPathname(), strlen( $real ) ), '/\\' );
+				$all_files[] = [ 'path' => $sub_rel, 'name' => $f->getFilename(), 'size' => $size, 'ext' => $ext ];
 			}
 		} catch ( Exception $e ) {}
 
+		// Sort descending by size, return top 100.
+		usort( $all_files, static fn( $a, $b ) => $b['size'] <=> $a['size'] );
+		$top_files = array_slice( $all_files, 0, 100 );
+
 		arsort( $ext_bytes );
 		$type_breakdown = [
-			'by_ext'  => array_slice( $ext_bytes, 0, 10, true ),
-			'scaled'  => $counts['scaled'],
-			'original'=> $counts['original'],
+			'by_ext'   => array_slice( $ext_bytes, 0, 10, true ),
+			'scaled'   => $counts['scaled'],
+			'original' => $counts['original'],
 		];
 	}
 
@@ -5198,6 +5208,7 @@ function csc_ajax_space_scan(): void {
 		'total'          => $dir_total + $file_total,
 		'insights'       => $insights,
 		'type_breakdown' => $type_breakdown,
+		'top_files'      => $top_files,
 	] );
 }
 
@@ -6316,19 +6327,19 @@ function csc_render_page() {
                         </table>
                         </div>
 
-                        <!-- Files table (shown when drilling in) -->
-                        <div id="space-files-wrap" style="display:none">
-                            <div style="padding:8px 12px;background:#fafafa;border-top:2px solid #e0e0e0;font-size:12px;font-weight:700;color:#555;letter-spacing:.05em;text-transform:uppercase">Files in this folder</div>
+                        <!-- Largest files (recursive, drill-down only) -->
+                        <div id="space-top-files-wrap" style="display:none">
+                            <div style="padding:8px 12px;background:#f5f7fa;border-top:2px solid #c5cae9;font-size:12px;font-weight:700;color:#1a237e;letter-spacing:.05em;text-transform:uppercase">Largest Files (all subfolders)</div>
                             <div style="overflow-x:auto">
                             <table style="width:100%;border-collapse:collapse;font-size:13px">
                                 <thead>
-                                    <tr style="background:#fafafa">
-                                        <th style="padding:6px 12px;text-align:left;border-bottom:1px solid #e0e0e0">Filename</th>
-                                        <th style="padding:6px 12px;text-align:right;border-bottom:1px solid #e0e0e0;white-space:nowrap">Size</th>
-                                        <th style="padding:6px 12px;text-align:left;border-bottom:1px solid #e0e0e0">Type</th>
+                                    <tr style="background:#f0f4ff">
+                                        <th style="padding:7px 12px;text-align:left;border-bottom:2px solid #c5cae9">Path</th>
+                                        <th style="padding:7px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">Size</th>
+                                        <th style="padding:7px 12px;text-align:left;border-bottom:2px solid #c5cae9">Type</th>
                                     </tr>
                                 </thead>
-                                <tbody id="space-files-body"></tbody>
+                                <tbody id="space-top-files-body"></tbody>
                             </table>
                             </div>
                         </div>

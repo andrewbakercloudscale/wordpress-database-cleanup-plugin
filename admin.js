@@ -2870,19 +2870,20 @@ function cscOrphanToggle(el, type) {
                 $body.append($row);
             });
 
-            // Files table
-            if (d.files.length) {
-                var $fb = $('#space-files-body').empty();
-                $.each(d.files, function(i, f) {
-                    var $row = $('<tr>').css('border-bottom', '1px solid #f5f5f5');
-                    $row.append($('<td>').css({ padding: '7px 12px', 'word-break': 'break-all' }).text(f.name));
-                    $row.append($('<td>').css({ padding: '7px 12px', 'text-align': 'right', 'white-space': 'nowrap', 'font-family': 'monospace' }).text(cscFmtBytes(f.size)));
-                    $row.append($('<td>').css({ padding: '7px 12px', color: '#666' }).text(f.ext || '—'));
-                    $fb.append($row);
+            // Largest files table (recursive, drill-down only)
+            if (d.top_files && d.top_files.length) {
+                var $tf = $('#space-top-files-body').empty();
+                $.each(d.top_files, function(i, f) {
+                    var isScaled = /\-\d+x\d+\.[a-z]+$/i.test(f.name);
+                    var $row = $('<tr>').css('border-bottom', '1px solid #f0f0f0');
+                    $row.append($('<td>').css({ padding: '6px 12px', 'word-break': 'break-all', 'font-size': '12px', color: isScaled ? '#888' : '#222' }).text(f.path));
+                    $row.append($('<td>').css({ padding: '6px 12px', 'text-align': 'right', 'white-space': 'nowrap', 'font-family': 'monospace', 'font-size': '12px' }).text(cscFmtBytes(f.size)));
+                    $row.append($('<td>').css({ padding: '6px 12px', color: '#888', 'font-size': '12px' }).text(f.ext || '—'));
+                    $tf.append($row);
                 });
-                $('#space-files-wrap').show();
+                $('#space-top-files-wrap').show();
             } else {
-                $('#space-files-wrap').hide();
+                $('#space-top-files-wrap').hide();
             }
 
             $('#space-report-content').show();
