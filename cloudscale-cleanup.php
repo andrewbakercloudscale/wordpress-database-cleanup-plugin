@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.41
+ * Version:     2.5.43
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.41' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.43' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -5092,6 +5092,103 @@ function csc_ajax_cron_run_now() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// SPACE REPORT
+// ═════════════════════════════════════════════════════════════════════════════
+
+add_action( 'wp_ajax_csc_space_scan', 'csc_ajax_space_scan' );
+/**
+ * Return directory listing with recursive sizes for the Space Report tab.
+ * Path must stay within wp-content/uploads.
+ *
+ * @since 2.6.0
+ */
+function csc_ajax_space_scan(): void {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+	@set_time_limit( 60 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- scan may take a few seconds on large trees
+
+	$upload_info = wp_upload_dir();
+	$base        = rtrim( $upload_info['basedir'], '/\\' );
+
+	$rel  = trim( sanitize_text_field( wp_unslash( $_POST['path'] ?? '' ) ), '/\\' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified above
+	$path = $rel ? ( $base . DIRECTORY_SEPARATOR . $rel ) : $base;
+	$real = realpath( $path );
+
+	if ( ! $real || strncmp( $real . DIRECTORY_SEPARATOR, $base . DIRECTORY_SEPARATOR, strlen( $base ) + 1 ) !== 0 ) {
+		wp_send_json_error( 'Invalid path.' );
+	}
+
+	$dirs  = [];
+	$files = [];
+
+	try {
+		foreach ( new DirectoryIterator( $real ) as $item ) {
+			if ( $item->isDot() ) continue;
+			$name = $item->getFilename();
+			$full = $item->getPathname();
+			if ( $item->isDir() ) {
+				[ $size, $count ] = csc_dir_size_and_count( $full );
+				$dirs[] = [
+					'name'  => $name,
+					'rel'   => ( $rel ? $rel . '/' : '' ) . $name,
+					'size'  => $size,
+					'count' => $count,
+				];
+			} else {
+				$files[] = [
+					'name' => $name,
+					'size' => $item->getSize(),
+					'ext'  => strtolower( pathinfo( $name, PATHINFO_EXTENSION ) ),
+				];
+			}
+		}
+	} catch ( Exception $e ) {
+		wp_send_json_error( $e->getMessage() );
+	}
+
+	usort( $dirs,  static fn( $a, $b ) => $b['size'] <=> $a['size'] );
+	usort( $files, static fn( $a, $b ) => $b['size'] <=> $a['size'] );
+
+	$dir_total  = array_sum( array_column( $dirs,  'size' ) );
+	$file_total = array_sum( array_column( $files, 'size' ) );
+
+	wp_send_json_success( [
+		'rel'        => $real === $base ? '' : ltrim( substr( $real, strlen( $base ) ), '/\\' ),
+		'dirs'       => $dirs,
+		'files'      => $files,
+		'dir_total'  => $dir_total,
+		'file_total' => $file_total,
+		'total'      => $dir_total + $file_total,
+	] );
+}
+
+/**
+ * Return [total_bytes, file_count] for a directory tree.
+ *
+ * @since 2.6.0
+ * @return array{0:int,1:int}
+ */
+function csc_dir_size_and_count( string $path ): array {
+	$size  = 0;
+	$count = 0;
+	try {
+		$iter = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $path, RecursiveDirectoryIterator::SKIP_DOTS )
+		);
+		foreach ( $iter as $item ) {
+			if ( $item->isFile() ) {
+				$size  += $item->getSize();
+				$count += 1;
+			}
+		}
+	} catch ( Exception $e ) {
+		// skip unreadable directories
+	}
+	return [ $size, $count ];
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ADMIN PAGE
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -5180,6 +5277,7 @@ function csc_render_page() {
             <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
+            <button class="csc-tab" data-tab="space-report">Space Report</button>
             <button class="csc-tab" data-tab="cron">Cron</button>
         </div>
 
@@ -6018,6 +6116,60 @@ function csc_render_page() {
                             <button class="csc-btn csc-btn-secondary" id="btn-sysstat-test">🔧 Test Sysstat</button>
                         </div>
 
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ Space Report ═══ -->
+        <div class="csc-tab-content" id="tab-space-report">
+            <div class="csc-card">
+                <div class="csc-card-header" style="background:linear-gradient(135deg,#0d47a1 0%,#1565c0 100%)">
+                    <span>Uploads Space Report</span>
+                    <button id="btn-space-scan" class="csc-btn csc-btn-secondary" style="margin-left:auto">Scan</button>
+                </div>
+                <div class="csc-card-body" style="padding:0">
+                    <div id="space-report-loading" style="display:none;padding:24px;text-align:center;color:#666">Scanning&hellip;</div>
+                    <div id="space-report-error"   style="display:none;padding:16px;color:#c62828"></div>
+
+                    <div id="space-report-content" style="display:none">
+                        <!-- Breadcrumb -->
+                        <div id="space-breadcrumb" style="padding:10px 16px;background:#f5f7fa;border-bottom:1px solid #e0e0e0;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"></div>
+
+                        <!-- Summary bar -->
+                        <div id="space-summary" style="padding:12px 16px;background:#e8f0fe;font-size:13px;color:#1a237e;border-bottom:1px solid #c5cae9"></div>
+
+                        <!-- Dirs table -->
+                        <div style="overflow-x:auto">
+                        <table id="space-dirs-table" style="width:100%;border-collapse:collapse;font-size:13px">
+                            <thead>
+                                <tr style="background:#f0f4ff">
+                                    <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #c5cae9">Folder</th>
+                                    <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">Size</th>
+                                    <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">Files</th>
+                                    <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="space-dirs-body"></tbody>
+                        </table>
+                        </div>
+
+                        <!-- Files table (shown when drilling in) -->
+                        <div id="space-files-wrap" style="display:none">
+                            <div style="padding:8px 12px;background:#fafafa;border-top:2px solid #e0e0e0;font-size:12px;font-weight:700;color:#555;letter-spacing:.05em;text-transform:uppercase">Files in this folder</div>
+                            <div style="overflow-x:auto">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px">
+                                <thead>
+                                    <tr style="background:#fafafa">
+                                        <th style="padding:6px 12px;text-align:left;border-bottom:1px solid #e0e0e0">Filename</th>
+                                        <th style="padding:6px 12px;text-align:right;border-bottom:1px solid #e0e0e0;white-space:nowrap">Size</th>
+                                        <th style="padding:6px 12px;text-align:left;border-bottom:1px solid #e0e0e0">Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="space-files-body"></tbody>
+                            </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

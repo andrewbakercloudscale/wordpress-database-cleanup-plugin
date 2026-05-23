@@ -2723,6 +2723,112 @@ function cscOrphanToggle(el, type) {
 
     // ── End Cron Management ────────────────────────────────────────────────────
 
+    // ── Space Report ──────────────────────────────────────────────────────────
+
+    var cscSpacePath = '';
+    var cscSpaceTotal = 0;
+
+    function cscFmtBytes(b) {
+        if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+        if (b >= 1048576)    return (b / 1048576).toFixed(1)    + ' MB';
+        if (b >= 1024)       return (b / 1024).toFixed(0)       + ' KB';
+        return b + ' B';
+    }
+
+    function cscSpaceScan(path) {
+        cscSpacePath = path || '';
+        $('#space-report-loading').show();
+        $('#space-report-content, #space-report-error').hide();
+        $.post(CSC.ajax_url, { action: 'csc_space_scan', nonce: CSC.nonce, path: cscSpacePath }, function(resp) {
+            $('#space-report-loading').hide();
+            if (!resp.success) {
+                $('#space-report-error').text(resp.data || 'Scan failed.').show();
+                return;
+            }
+            var d = resp.data;
+            if (cscSpacePath === '') { cscSpaceTotal = d.total; }
+
+            // Breadcrumb
+            var $bc = $('#space-breadcrumb').empty();
+            $bc.append($('<a href="#">uploads</a>').css({ color: '#1565c0', cursor: 'pointer', 'text-decoration': 'none' }).on('click', function(e) { e.preventDefault(); cscSpaceScan(''); }));
+            if (d.rel) {
+                var parts = d.rel.split('/');
+                var accum = '';
+                $.each(parts, function(i, p) {
+                    accum = accum ? accum + '/' + p : p;
+                    $bc.append($('<span>').text(' / '));
+                    if (i < parts.length - 1) {
+                        var rel = accum;
+                        $bc.append($('<a href="#">').text(p).css({ color: '#1565c0', cursor: 'pointer', 'text-decoration': 'none' }).on('click', function(e) { e.preventDefault(); cscSpaceScan(rel); }));
+                    } else {
+                        $bc.append($('<strong>').text(p));
+                    }
+                });
+            }
+
+            // Summary
+            $('#space-summary').text(
+                (d.dirs.length ? d.dirs.length + ' folder' + (d.dirs.length !== 1 ? 's' : '') : 'No subfolders') +
+                (d.files.length ? '   |   ' + d.files.length + ' file' + (d.files.length !== 1 ? 's' : '') : '') +
+                '   |   Total: ' + cscFmtBytes(d.total) +
+                (cscSpaceTotal > 0 && d.rel ? '   (' + Math.round(d.total / cscSpaceTotal * 100) + '% of uploads)' : '')
+            );
+
+            // Dirs table
+            var $body = $('#space-dirs-body').empty();
+            if (!d.dirs.length) {
+                $body.append('<tr><td colspan="4" style="padding:12px;color:#888;text-align:center">No subdirectories</td></tr>');
+            }
+            $.each(d.dirs, function(i, dir) {
+                var pct = d.total > 0 ? Math.round(dir.size / d.total * 100) : 0;
+                var $row = $('<tr>').css({ 'border-bottom': '1px solid #f0f0f0', cursor: 'pointer' })
+                    .hover(function() { $(this).css('background', '#f0f4ff'); }, function() { $(this).css('background', ''); });
+                $row.append($('<td>').css({ padding: '9px 12px', 'white-space': 'nowrap' }).html(
+                    '<span style="color:#1565c0;font-weight:600">&#128194; ' + $('<span>').text(dir.name).html() + '</span>'
+                ));
+                $row.append($('<td>').css({ padding: '9px 12px', 'text-align': 'right', 'white-space': 'nowrap', 'font-family': 'monospace' }).text(cscFmtBytes(dir.size)));
+                $row.append($('<td>').css({ padding: '9px 12px', 'text-align': 'right', color: '#666' }).text(dir.count.toLocaleString()));
+                var $bar = $('<div>').css({ display: 'flex', 'align-items': 'center', gap: '6px' })
+                    .append($('<div>').css({ height: '8px', width: pct + '%', 'max-width': '100%', 'min-width': '2px', background: pct > 50 ? '#e53935' : pct > 20 ? '#fb8c00' : '#43a047', 'border-radius': '4px' }))
+                    .append($('<span>').css({ 'font-size': '11px', color: '#666', 'white-space': 'nowrap' }).text(pct + '%'));
+                $row.append($('<td>').css({ padding: '9px 12px', 'text-align': 'right', 'min-width': '120px' }).append($bar));
+                $row.on('click', function() { cscSpaceScan(dir.rel); });
+                $body.append($row);
+            });
+
+            // Files table
+            if (d.files.length) {
+                var $fb = $('#space-files-body').empty();
+                $.each(d.files, function(i, f) {
+                    var $row = $('<tr>').css('border-bottom', '1px solid #f5f5f5');
+                    $row.append($('<td>').css({ padding: '7px 12px', 'word-break': 'break-all' }).text(f.name));
+                    $row.append($('<td>').css({ padding: '7px 12px', 'text-align': 'right', 'white-space': 'nowrap', 'font-family': 'monospace' }).text(cscFmtBytes(f.size)));
+                    $row.append($('<td>').css({ padding: '7px 12px', color: '#666' }).text(f.ext || '—'));
+                    $fb.append($row);
+                });
+                $('#space-files-wrap').show();
+            } else {
+                $('#space-files-wrap').hide();
+            }
+
+            $('#space-report-content').show();
+        }).fail(function() {
+            $('#space-report-loading').hide();
+            $('#space-report-error').text('Network error — scan failed.').show();
+        });
+    }
+
+    $('#btn-space-scan').on('click', function() { cscSpaceScan(''); });
+
+    // Auto-scan when tab is activated.
+    $(document).on('click', '.csc-tab[data-tab="space-report"]', function() {
+        if ($('#space-report-content').is(':hidden') && $('#space-report-loading').is(':hidden')) {
+            cscSpaceScan('');
+        }
+    });
+
+    // ── End Space Report ──────────────────────────────────────────────────────
+
     }); // document.ready
 
 }(jQuery));
