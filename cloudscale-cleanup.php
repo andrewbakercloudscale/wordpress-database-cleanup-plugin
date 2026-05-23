@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.47
+ * Version:     2.5.49
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.47' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.49' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -177,8 +177,10 @@ function csc_enqueue_assets( $hook ) {
     $csc_inline_css = '
     .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
     .csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
-    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%) !important; border-top-color: #90caf9 !important; }
+    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #90caf9 !important; }
+    .csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(7).active, .csc-tab:nth-child(7):hover { border-top-color: #bcaaa4 !important; }
     div[style*="#fff3e0"] .csc-health-metric,
     div[style*="#e3f2fd"] .csc-health-metric,
     div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
@@ -5447,7 +5449,7 @@ function csc_render_page() {
             <button class="csc-tab" data-tab="img-cleanup">Media Cleanup</button>
             <button class="csc-tab" data-tab="img-optimise">Image Optimisation</button>
             <button class="csc-tab" data-tab="png-to-jpeg">PNG to JPEG</button>
-            <button class="csc-tab" data-tab="space-report">Space Report</button>
+            <button class="csc-tab" data-tab="space-report">Storage</button>
             <button class="csc-tab" data-tab="cron">Cron</button>
         </div>
 
