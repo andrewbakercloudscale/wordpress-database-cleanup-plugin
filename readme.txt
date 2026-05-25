@@ -4,11 +4,11 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.5.41
+Stable tag: 2.5.64
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Database and media library cleanup with dry-run preview, chunked processing, image optimisation, and scheduled automation. Free, no subscriptions.
+Database and media library cleanup with dry-run preview, chunked processing, image optimisation, and scheduled automation.
 
 == Description ==
 

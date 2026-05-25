@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.5.64 — 2026-05-25
+- STANDARDS: Renamed all PHP function, option, transient, AJAX action, and constant prefixes from `csc_`/`CSC_` (3 chars, rejected by WP.org) to `cscc_`/`CSCC_` — WordPress.org requires ≥ 4-character unique prefix
+- STANDARDS: Removed versioned asset copies (`admin-X-X-X.js/css`) from plugin directory — WP.org prohibits writing files to the plugin folder; cache-busting now uses the `$version` parameter in `wp_enqueue_*`
+- STANDARDS: Removed `register_deactivation_hook` that deleted files inside `plugin_dir_path()` — prohibited as a plugin-directory write
+- STANDARDS: Removed `cscc_cleanup_stale_assets()` and `cscc_get_versioned_asset()` helper functions (no longer needed)
+- STANDARDS: Excluded dev/build artifacts from distribution zip — `terraclaim/`, `docs/`, `generate-help-docs.sh`, `build-review.sh`, `setup-playwright-test-account.sh`, `delete-playwright-test-account.sh`, `archive/`, `CloudScaleCleanup.jpg`; zip is now 17 files only
+- FIX(img-optimise): Remove premature `wp_delete_file($actual_path)` before rename in optimise chunk handler — caused original images to be silently deleted when WP image editor returned a different temp path; added `file_exists($tmp_file)` guard before original is ever touched
+- STANDARDS: Added `phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen` to binary chunk assembly `fopen()` calls
+- STANDARDS: Added safety comment + phpcs suppress to `maybe_unserialize()` on WP core postmeta
+- DOCS: Removed "Free, no subscriptions." from readme.txt short description
+
 ## 2.5.40 — 2026-05-20
 - SECURITY: Removed all `exec()` calls (sysstat/sar disk-usage and CPU/memory metrics) — WordPress.org hard-rejects any `exec()` usage; metrics now use PHP-only fallbacks (`sys_getloadavg()`, `/proc/meminfo`, `RecursiveDirectoryIterator`)
 - SECURITY: Added `Throwable`-catching wrapper to all five WP-Cron callbacks (`csc_scheduled_db_cleanup`, `csc_scheduled_img_cleanup`, `cspj_cleanup_chunks`, `csc_health_hourly_collect`, `csc_health_weekly_snapshot`) to prevent PHP-FPM crash loops on uncaught exceptions

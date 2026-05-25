@@ -95,6 +95,43 @@ if [ "$RUNTIME_ERRORS" -ne 0 ]; then
 fi
 echo "PHP runtime: OK"
 echo ""
+
+# ── Cross-file PHP method existence check ──────────────────────────────────
+# Catches ClassName::method() calls where the method is not defined in the
+# plugin — passes php -l but causes fatal errors at runtime (e.g. after an
+# OPcache serves a stale class that is missing a newly added method).
+echo "Checking cross-file method calls..."
+XFILE_ERRORS=0
+XFILE_PHP=()
+while IFS= read -r -d '' f; do
+    XFILE_PHP+=("$f")
+done < <(find "$REPO_DIR" -name "*.php" \
+    ! -path "*/repo/*" ! -path "*/vendor/*" ! -path "*/tests/*" \
+    ! -path "*/node_modules/*" -print0 2>/dev/null)
+if [[ ${#XFILE_PHP[@]} -gt 0 ]]; then
+    PLUGIN_CLASSES=$(grep -hE "^(abstract |final )?class [A-Z_]" \
+        "${XFILE_PHP[@]}" 2>/dev/null | \
+        sed -E 's/^(abstract |final )?class ([A-Z_][a-zA-Z_0-9]+).*/\2/' | sort -u)
+    while IFS= read -r class; do
+        [[ -z "$class" ]] && continue
+        while IFS= read -r method; do
+            [[ -z "$method" ]] && continue
+            if ! grep -qh "function ${method}(" "${XFILE_PHP[@]}" 2>/dev/null; then
+                echo "  UNDEFINED: ${class}::${method}() — not found in plugin files"
+                XFILE_ERRORS=1
+            fi
+        done < <(grep -h "${class}::" "${XFILE_PHP[@]}" 2>/dev/null \
+            | grep -v '^\s*//' | grep -v '^\s*\*' \
+            | grep -oh "${class}::[a-zA-Z_][a-zA-Z_0-9]*(" \
+            | cut -d: -f3 | tr -d '(' | sort -u)
+    done <<< "$PLUGIN_CLASSES"
+fi
+if [[ "$XFILE_ERRORS" -ne 0 ]]; then
+    echo ""
+    echo "ERROR: Undefined method calls found — fix before deploying."
+    exit 1
+fi
+echo "Cross-file methods: OK"
 echo ""
 
 
@@ -109,14 +146,15 @@ rsync -a \
   --exclude='rollback-wordpress.sh' \
   --exclude='node_modules' --exclude='package.json' --exclude='package-lock.json' \
   --exclude='playwright.config.js' --exclude='tests' --exclude='test-results' --exclude='playwright-report' \
+  --exclude='terraclaim' \
+  --exclude='docs' \
+  --exclude='generate-help-docs.sh' \
+  --exclude='build-review.sh' \
+  --exclude='setup-playwright-test-account.sh' \
+  --exclude='delete-playwright-test-account.sh' \
+  --exclude='archive' \
+  --exclude='CloudScaleCleanup.jpg' \
   "$REPO_DIR/" "$TEMP_DIR/$PLUGIN_NAME/"
-
-# Create versioned copies of admin.js and admin.css for cache busting
-VERSION=$(grep "^ \* Version:" "$REPO_DIR/cloudscale-cleanup.php" | head -1 | sed 's/.*Version:[[:space:]]*//' | tr -d '[:space:]')
-VER_SLUG=$(echo "$VERSION" | tr '.' '-')
-cp "$TEMP_DIR/$PLUGIN_NAME/admin.js" "$TEMP_DIR/$PLUGIN_NAME/admin-${VER_SLUG}.js"
-cp "$TEMP_DIR/$PLUGIN_NAME/admin.css" "$TEMP_DIR/$PLUGIN_NAME/admin-${VER_SLUG}.css"
-echo "Created versioned assets: admin-${VER_SLUG}.js, admin-${VER_SLUG}.css"
 
 # Build zip with correct structure
 rm -f "$ZIP_FILE"

@@ -165,7 +165,7 @@ function cscOrphanToggle(el, type) {
         $('input[type="hidden"][data-csc-toggle]').each(function () {
             data[$(this).attr('name')] = $(this).val();
         });
-        $('input[type=checkbox][name^=csc_]').not('[name$="[]"]').each(function () {
+        $('input[type=checkbox][name^=cscc_]').not('[name$="[]"]').each(function () {
             data[$(this).attr('name')] = $(this).is(':checked') ? '1' : '0';
         });
         $('input[type=checkbox][name$="[]"]:checked').each(function () {
@@ -183,7 +183,7 @@ function cscOrphanToggle(el, type) {
         var origLabel = $btn.text();
         $btn.prop('disabled', true).text('Saving…');
         var payload = collectSettings();
-        payload.action = 'csc_save_settings';
+        payload.action = 'cscc_save_settings';
         payload.nonce  = CSC.nonce;
         $.post(CSC.ajax_url, payload, function (resp) {
             $btn.prop('disabled', false).text(origLabel);
@@ -355,14 +355,14 @@ function cscOrphanToggle(el, type) {
         appendLine('db-terminal', { type: 'section', text: '=== DRY RUN — Database Scan ===' });
 
         // Collect toggle states from track divs
-        var postData = { action: 'csc_scan_db', nonce: CSC.nonce };
+        var postData = { action: 'cscc_scan_db', nonce: CSC.nonce };
         var tracked = 0;
         document.querySelectorAll('[data-csc-toggle-track]').forEach(function (track) {
             // Walk up to find the option row, then find the hidden input anywhere inside it
             var row = track.closest('.csc-option-row') || track.parentNode;
             var inputs = row.querySelectorAll('input[type="hidden"]');
             inputs.forEach(function (input) {
-                if (input.name && input.name.indexOf('csc_clean_') === 0) {
+                if (input.name && input.name.indexOf('cscc_clean_') === 0) {
                     postData[input.name] = track.getAttribute('data-on') === '1' ? '1' : '0';
                     tracked++;
                 }
@@ -389,15 +389,15 @@ function cscOrphanToggle(el, type) {
         document.querySelectorAll('[data-csc-toggle-track]').forEach(function (track) {
             var row = track.closest('.csc-option-row') || track.parentNode;
             row.querySelectorAll('input[type="hidden"]').forEach(function (input) {
-                if (input.name && input.name.indexOf('csc_clean_') === 0) {
+                if (input.name && input.name.indexOf('cscc_clean_') === 0) {
                     toggleData[input.name] = track.getAttribute('data-on') === '1' ? '1' : '0';
                 }
             });
         });
         runChunked({
-            startAction:   'csc_db_start',
-            chunkAction:   'csc_db_chunk',
-            finishAction:  'csc_db_finish',
+            startAction:   'cscc_db_start',
+            chunkAction:   'cscc_db_chunk',
+            finishAction:  'cscc_db_finish',
             startLabel:    'DATABASE CLEANUP RUNNING',
             termId:        'db-terminal',
             progressOuter: 'db-progress-outer',
@@ -424,7 +424,7 @@ function cscOrphanToggle(el, type) {
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('autoload-terminal');
         appendLine('autoload-terminal', { type: 'section', text: '=== DRY RUN — Autoloaded Options ===' });
-        $.post(CSC.ajax_url, { action: 'csc_autoload_scan', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_autoload_scan', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('autoload-terminal', resp.data);
@@ -440,9 +440,9 @@ function cscOrphanToggle(el, type) {
 
     $('#btn-run-autoload').on('click', function () {
         runChunked({
-            startAction:   'csc_autoload_start',
-            chunkAction:   'csc_autoload_chunk',
-            finishAction:  'csc_autoload_finish',
+            startAction:   'cscc_autoload_start',
+            chunkAction:   'cscc_autoload_chunk',
+            finishAction:  'cscc_autoload_finish',
             startLabel:    'AUTOLOAD CLEANUP RUNNING',
             termId:        'autoload-terminal',
             progressOuter: 'autoload-progress-outer',
@@ -490,7 +490,7 @@ function cscOrphanToggle(el, type) {
         $('#orphan-results').html('');
         $('#btn-run-orphans').hide();
 
-        $.post(CSC.ajax_url, { action: 'csc_orphan_scan', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_orphan_scan', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Scan for Orphans');
             if (!resp.success) {
                 $('#orphan-results').html('<p style="color:#c62828">Scan failed: ' + (resp.data || 'unknown error') + '</p>');
@@ -590,7 +590,7 @@ function cscOrphanToggle(el, type) {
         if (!selected.length) { cscShowModal('Nothing Selected', 'Please check at least one option row before moving to the recycle bin.'); return; }
 
         var $btn = $(this).prop('disabled', true).html('⏳ Moving…');
-        $.post(CSC.ajax_url, { action: 'csc_orphan_delete', nonce: CSC.nonce, options: selected }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_orphan_delete', nonce: CSC.nonce, options: selected }, function (resp) {
             $btn.prop('disabled', false).html('♻️ Move to Recycle Bin');
             if (resp.success) {
                 var n = resp.data.moved;
@@ -618,7 +618,7 @@ function cscOrphanToggle(el, type) {
             cancelLabel: 'Cancel', confirmLabel: 'Restore All', confirmClass: 'csc-btn-primary',
         }, function () {
             $btn.prop('disabled', true).html('⏳ Restoring…');
-            $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_orphan_restore', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('↩ Restore All');
                 if (resp.success) {
                     orphanUpdateBinBar(resp.data.bin_count, null);
@@ -636,7 +636,7 @@ function cscOrphanToggle(el, type) {
         var $list = $('#orphan-bin-list');
         if ($list.is(':visible')) { $list.hide(); return; }
         $list.html('<p style="font-size:12px;color:#666">Loading…</p>').show();
-        $.post(CSC.ajax_url, { action: 'csc_orphan_bin_list', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_orphan_bin_list', nonce: CSC.nonce }, function (resp) {
             if (!resp.success || !resp.data.items.length) {
                 $list.html('<p style="font-size:12px;color:#999">Bin is empty.</p>');
                 return;
@@ -668,7 +668,7 @@ function cscOrphanToggle(el, type) {
         var $row  = $(this).closest('tr');
         var name  = $row.data('name');
         var $btn  = $(this).prop('disabled', true).html('⏳');
-        $.post(CSC.ajax_url, { action: 'csc_orphan_restore', nonce: CSC.nonce, name: name }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_orphan_restore', nonce: CSC.nonce, name: name }, function (resp) {
             if (resp.success && resp.data.restored > 0) {
                 $row.fadeOut(300, function () { $(this).remove(); });
                 orphanUpdateBinBar(resp.data.bin_count, null);
@@ -690,7 +690,7 @@ function cscOrphanToggle(el, type) {
             cancelLabel: 'Cancel', confirmLabel: 'Empty Bin', confirmClass: 'csc-btn-danger',
         }, function () {
             $btn.prop('disabled', true).html('⏳ Emptying…');
-            $.post(CSC.ajax_url, { action: 'csc_orphan_empty', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_orphan_empty', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('🗑 Empty Bin');
                 if (resp.success) {
                     orphanUpdateBinBar(0, null);
@@ -717,7 +717,7 @@ function cscOrphanToggle(el, type) {
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('table-terminal');
         appendLine('table-terminal', { type: 'section', text: '=== DRY RUN — Table Overhead ===' });
-        $.post(CSC.ajax_url, { action: 'csc_table_scan', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_table_scan', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('table-terminal', resp.data);
@@ -733,9 +733,9 @@ function cscOrphanToggle(el, type) {
 
     $('#btn-run-tables').on('click', function () {
         runChunked({
-            startAction:   'csc_table_start',
-            chunkAction:   'csc_table_chunk',
-            finishAction:  'csc_table_finish',
+            startAction:   'cscc_table_start',
+            chunkAction:   'cscc_table_chunk',
+            finishAction:  'cscc_table_finish',
             startLabel:    'TABLE OPTIMISATION RUNNING',
             termId:        'table-terminal',
             progressOuter: 'table-progress-outer',
@@ -772,7 +772,7 @@ function cscOrphanToggle(el, type) {
     }
 
     // Check media recycle bin on page load
-    $.post( CSC.ajax_url, { action: 'csc_media_recycle_status', nonce: CSC.nonce }, function( resp ) {
+    $.post( CSC.ajax_url, { action: 'cscc_media_recycle_status', nonce: CSC.nonce }, function( resp ) {
         mediaUpdateRecycleBin( resp.success ? resp.data.recycle : 0 );
     });
 
@@ -785,7 +785,7 @@ function cscOrphanToggle(el, type) {
         $('#img-dry-run-summary').hide();
         appendLine('img-terminal', { type: 'section', text: '=== DRY RUN — Unused Media Scan ===' });
 
-        $.post(CSC.ajax_url, { action: 'csc_scan_images', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_scan_images', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
             if (resp.success) {
                 appendLines('img-terminal', resp.data);
@@ -832,9 +832,9 @@ function cscOrphanToggle(el, type) {
         $('#csc-img-move-modal').hide();
         $('#img-dry-run-summary').hide();
         runChunked({
-            startAction:   'csc_img_start',
-            chunkAction:   'csc_img_chunk',
-            finishAction:  'csc_img_finish',
+            startAction:   'cscc_img_start',
+            chunkAction:   'cscc_img_chunk',
+            finishAction:  'cscc_img_finish',
             startLabel:    'MOVING UNUSED MEDIA TO RECYCLE',
             termId:        'img-terminal',
             progressOuter: 'img-progress-outer',
@@ -862,7 +862,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', true).html('⏳ Restoring…');
             clearTerminal('img-terminal');
 
-            $.post(CSC.ajax_url, { action: 'csc_media_restore', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_media_restore', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('↩️ Restore All');
                 if (resp.success) {
                     appendLines('img-terminal', resp.data.lines);
@@ -889,7 +889,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', true).html('⏳ Deleting…');
             clearTerminal('img-terminal');
 
-            $.post(CSC.ajax_url, { action: 'csc_media_purge', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_media_purge', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('🗑 Permanently Delete');
                 if (resp.success) {
                     appendLines('img-terminal', resp.data.lines);
@@ -909,7 +909,7 @@ function cscOrphanToggle(el, type) {
         var $modal = $('#csc-media-recycle-modal').show();
         var $list  = $('#media-recycle-modal-list').html('<div style="padding:30px;text-align:center;color:#999">Loading media recycle bin…</div>');
 
-        $.post(CSC.ajax_url, { action: 'csc_media_recycle_browse', nonce: CSC.nonce }, function (res) {
+        $.post(CSC.ajax_url, { action: 'cscc_media_recycle_browse', nonce: CSC.nonce }, function (res) {
             if (!res.success || !res.data.files.length) {
                 $list.html('<div style="padding:30px;text-align:center;color:#999">Recycle bin is empty.</div>');
                 $('#media-recycle-modal-summary').text('0 attachments');
@@ -930,7 +930,7 @@ function cscOrphanToggle(el, type) {
                 $row.find('.csc-media-restore-single').on('click', function () {
                     var $b = $(this);
                     $b.prop('disabled', true).text('⏳…');
-                    $.post(CSC.ajax_url, { action: 'csc_media_restore_single', nonce: CSC.nonce, att_id: file.id }, function (res) {
+                    $.post(CSC.ajax_url, { action: 'cscc_media_restore_single', nonce: CSC.nonce, att_id: file.id }, function (res) {
                         if (res.success) {
                             $row.fadeOut(300, function () { $(this).remove(); });
                             $('#media-recycle-modal-summary').text(res.data.remaining + ' attachment(s) remaining');
@@ -960,7 +960,7 @@ function cscOrphanToggle(el, type) {
     }
 
     // Check recycle bin status on page load
-    $.post( CSC.ajax_url, { action: 'csc_recycle_status', nonce: CSC.nonce }, function( resp ) {
+    $.post( CSC.ajax_url, { action: 'cscc_recycle_status', nonce: CSC.nonce }, function( resp ) {
         orphanUpdateRecycleBin( resp.success ? resp.data.recycle : 0 );
     });
 
@@ -976,7 +976,7 @@ function cscOrphanToggle(el, type) {
         clearTerminal('img-terminal');
         appendLine('img-terminal', { type: 'section', text: '=== UNREGISTERED FILE SCAN ===' });
 
-        $.post(CSC.ajax_url, { action: 'csc_scan_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_scan_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Scan Unregistered Files');
             if (resp.success) {
                 appendLines('img-terminal', resp.data.lines);
@@ -1007,7 +1007,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', true).html('⏳ Moving…');
             clearTerminal('img-terminal');
 
-            $.post(CSC.ajax_url, { action: 'csc_recycle_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_recycle_orphan_files', nonce: CSC.nonce, file_type: fileType }, function (resp) {
                 $btn.prop('disabled', false).html('♻️ Move to Recycle');
                 if (resp.success) {
                     appendLines('img-terminal', resp.data.lines);
@@ -1034,7 +1034,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', true).html('⏳ Restoring…');
             clearTerminal('img-terminal');
 
-            $.post(CSC.ajax_url, { action: 'csc_restore_orphan_files', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_restore_orphan_files', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('↩️ Restore All');
                 if (resp.success) {
                     appendLines('img-terminal', resp.data.lines);
@@ -1061,7 +1061,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', true).html('⏳ Deleting…');
             clearTerminal('img-terminal');
 
-            $.post(CSC.ajax_url, { action: 'csc_purge_orphan_files', nonce: CSC.nonce }, function (resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_purge_orphan_files', nonce: CSC.nonce }, function (resp) {
                 $btn.prop('disabled', false).html('🗑 Permanently Delete');
                 if (resp.success) {
                     appendLines('img-terminal', resp.data.lines);
@@ -1086,7 +1086,7 @@ function cscOrphanToggle(el, type) {
         clearTerminal('optimise-terminal');
         appendLine('optimise-terminal', { type: 'section', text: '=== DRY RUN — Image Optimisation Preview ===' });
 
-        $.post(CSC.ajax_url, { action: 'csc_scan_optimise', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_scan_optimise', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Dry Run — Preview Savings');
             if (resp.success) {
                 appendLines('optimise-terminal', resp.data);
@@ -1102,9 +1102,9 @@ function cscOrphanToggle(el, type) {
 
     $('#btn-run-optimise').on('click', function () {
         runChunked({
-            startAction:   'csc_optimise_start',
-            chunkAction:   'csc_optimise_chunk',
-            finishAction:  'csc_optimise_finish',
+            startAction:   'cscc_optimise_start',
+            chunkAction:   'cscc_optimise_chunk',
+            finishAction:  'cscc_optimise_finish',
             startLabel:    'IMAGE OPTIMISATION RUNNING',
             termId:        'optimise-terminal',
             progressOuter: 'opt-progress-outer',
@@ -1203,7 +1203,7 @@ function cscOrphanToggle(el, type) {
 
         function scanBatch(offset) {
             $.post(CSC.ajax_url, {
-                action: 'csc_scan_broken_images',
+                action: 'cscc_scan_broken_images',
                 nonce: CSC.nonce,
                 offset: offset
             }, function (res) {
@@ -1272,7 +1272,7 @@ function cscOrphanToggle(el, type) {
         $('#regen-thumb-results').hide().html('');
         $('#regen-thumb-progress-outer').hide();
 
-        $.post(CSC.ajax_url, { action: 'csc_regen_thumb_scan', nonce: CSC.nonce }, function (resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_regen_thumb_scan', nonce: CSC.nonce }, function (resp) {
             $btn.prop('disabled', false).html('🔍 Scan for Missing Sizes');
             if (!resp.success) {
                 $('#regen-thumb-msg').text('Scan failed: ' + (resp.data || 'Unknown error'));
@@ -1361,7 +1361,7 @@ function cscOrphanToggle(el, type) {
                 nextOffset += BATCH;
                 inFlight++;
                 (function (off) {
-                    $.post(CSC.ajax_url, { action: 'csc_regen_thumb_batch', nonce: CSC.nonce, offset: off, total: totalImages }, function (resp) {
+                    $.post(CSC.ajax_url, { action: 'cscc_regen_thumb_batch', nonce: CSC.nonce, offset: off, total: totalImages }, function (resp) {
                         inFlight--;
                         if (!resp.success) {
                             errors++;
@@ -1408,7 +1408,7 @@ function cscOrphanToggle(el, type) {
         var $list  = $('#recycle-modal-list').html('<div style="padding:30px;text-align:center;color:#999">Loading recycle bin…</div>');
         $('#recycle-search').val('');
 
-        $.post(CSC.ajax_url, { action: 'csc_recycle_browse', nonce: CSC.nonce }, function (res) {
+        $.post(CSC.ajax_url, { action: 'cscc_recycle_browse', nonce: CSC.nonce }, function (res) {
             if (!res || !res.success) {
                 $list.html('<div style="padding:30px;text-align:center;color:#d32f2f">Failed to load recycle bin.</div>');
                 return;
@@ -1437,7 +1437,7 @@ function cscOrphanToggle(el, type) {
                 '</div>');
                 $row.find('.csc-recycle-restore-btn').on('click', function () {
                     var $b = $(this).prop('disabled', true).text('Restoring…');
-                    $.post(CSC.ajax_url, { action: 'csc_recycle_restore_single', nonce: CSC.nonce, rel: file.rel }, function (res) {
+                    $.post(CSC.ajax_url, { action: 'cscc_recycle_restore_single', nonce: CSC.nonce, rel: file.rel }, function (res) {
                         if (res && res.success) {
                             $b.closest('div[style*="display:flex"]').css({ background: '#e8f5e9', borderRadius: '6px', padding: '10px' });
                             $b.text('✓ Restored').css({ background: '#a5d6a7', color: '#1b5e20' });
@@ -1549,7 +1549,7 @@ function cscOrphanToggle(el, type) {
         var mb = parseFloat($('#cspj-chunk-mb').val());
         if (!mb || mb < 0.25) { $('#cspj-save-status').text('Enter a valid number.').css('color', 'var(--csc-red)'); return; }
         var $btn = $(this).prop('disabled', true).text('Saving…');
-        $.post(CSC.ajax_url, { action: 'csc_pj_save_settings', nonce: CSC.nonce, chunk_mb: mb }, function (res) {
+        $.post(CSC.ajax_url, { action: 'cscc_pj_save_settings', nonce: CSC.nonce, chunk_mb: mb }, function (res) {
             $btn.prop('disabled', false).text('Save');
             if (res.success) {
                 cspjChunkMb = res.data.chunk_mb;
@@ -1680,7 +1680,7 @@ function cscOrphanToggle(el, type) {
         cspjDbg('INFO', 'File size: ' + cspjFmtSize(file.size) + ' | Chunk size: ' + cspjChunkMb + ' MB (' + chunkBytes + ' bytes) | Total chunks: ' + totalChunks);
         cspjDbg('INFO', 'AJAX URL: <span class="cspj-log-val">' + esc(CSC.ajax_url || 'EMPTY') + '</span>');
         cspjDbg('INFO', 'Nonce: <span class="cspj-log-val">' + (CSC.nonce ? CSC.nonce.substring(0, 6) + '...' : 'EMPTY') + '</span>');
-        cspjDbg('INFO', 'Action: <span class="cspj-log-val">csc_pj_chunk_start</span>');
+        cspjDbg('INFO', 'Action: <span class="cspj-log-val">cscc_pj_chunk_start</span>');
 
         cspjSetBadge(item.id, 'loading', 'Uploading…');
 
@@ -1698,7 +1698,7 @@ function cscOrphanToggle(el, type) {
         }
 
         var startPayload = {
-            action: 'csc_pj_chunk_start',
+            action: 'cscc_pj_chunk_start',
             nonce: CSC.nonce,
             filename: file.name,
             total_size: file.size,
@@ -1725,7 +1725,7 @@ function cscOrphanToggle(el, type) {
             function uploadOne() {
                 if (i >= totalChunks) {
                     cspjSetBadge(item.id, 'loading', 'Converting…');
-                    cspjDbg('INFO', 'All chunks uploaded. Calling csc_pj_chunk_finish...');
+                    cspjDbg('INFO', 'All chunks uploaded. Calling cscc_pj_chunk_finish...');
                     return finish();
                 }
                 var startByte = i * chunkBytes;
@@ -1738,7 +1738,7 @@ function cscOrphanToggle(el, type) {
                 cspjDbg('REQ', 'Chunk ' + (i+1) + '/' + totalChunks + ': bytes ' + startByte + '-' + endByte + ' (' + cspjFmtSize(blob.size) + ')');
 
                 var fd = new FormData();
-                fd.append('action', 'csc_pj_chunk_upload');
+                fd.append('action', 'cscc_pj_chunk_upload');
                 fd.append('nonce', CSC.nonce);
                 fd.append('upload_id', uploadId);
                 fd.append('chunk_index', String(i));
@@ -1776,12 +1776,12 @@ function cscOrphanToggle(el, type) {
 
             function finish() {
                 var finPayload = {
-                    action: 'csc_pj_chunk_finish', nonce: CSC.nonce, upload_id: uploadId,
+                    action: 'cscc_pj_chunk_finish', nonce: CSC.nonce, upload_id: uploadId,
                     quality: $('#cspj-quality').val(), size: $('#cspj-size').val(),
                     custom_w: $('#cspj-custom-w').val() || '0', custom_h: $('#cspj-custom-h').val() || '0',
                     constrain: $('#cspj-constrain').is(':checked') ? '1' : '0'
                 };
-                cspjDbg('REQ', 'POST csc_pj_chunk_finish: quality=' + finPayload.quality + ' size=' + esc(finPayload.size));
+                cspjDbg('REQ', 'POST cscc_pj_chunk_finish: quality=' + finPayload.quality + ' size=' + esc(finPayload.size));
 
                 $.post(CSC.ajax_url, finPayload, function (finRes) {
                     cspjDbg('RESP', 'chunk_finish: success=' + (finRes && finRes.success) + ' data=' + esc(JSON.stringify(finRes && finRes.data)).substring(0, 300));
@@ -1888,7 +1888,7 @@ function cscOrphanToggle(el, type) {
 
         $('#cspj-rename-confirm').prop('disabled', true).text('Saving…');
         $.post(CSC.ajax_url, {
-            action: 'csc_pj_add_to_library', nonce: CSC.nonce,
+            action: 'cscc_pj_add_to_library', nonce: CSC.nonce,
             path: cspjPendingLibrary.path, url: cspjPendingLibrary.url, new_name: rawName
         }, function (res) {
             if (res.success) {
@@ -1930,7 +1930,7 @@ function cscOrphanToggle(el, type) {
         var $row = $('#result-' + rid);
         // Delete the converted file from server
         $.post(CSC.ajax_url, {
-            action: 'csc_pj_delete_converted', nonce: CSC.nonce, path: path
+            action: 'cscc_pj_delete_converted', nonce: CSC.nonce, path: path
         }, function (res) {
             if (res.success) {
                 cspjDbg('OK', 'Deleted converted file from disk');
@@ -2068,7 +2068,7 @@ function cscOrphanToggle(el, type) {
     }
 
     function healthLoad() {
-        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_health_get', nonce: CSC.nonce }, function(resp) {
             if (resp.success) { healthRenderData(resp.data); }
             else { $('#csc-health-loading').text('Failed to load health data.'); }
         }).fail(function() { $('#csc-health-loading').text('Network error loading health data.'); });
@@ -2087,7 +2087,7 @@ function cscOrphanToggle(el, type) {
 
     $('#btn-health-refresh').on('click', function() {
         $(this).prop('disabled', true).html('⏳ Loading…');
-        $.post(CSC.ajax_url, { action: 'csc_health_get', nonce: CSC.nonce }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_health_get', nonce: CSC.nonce }, function(resp) {
             $('#btn-health-refresh').prop('disabled', false).html('🔄 Refresh');
             if (resp.success) { healthRenderData(resp.data); }
         }).fail(function() { $('#btn-health-refresh').prop('disabled', false).html('🔄 Refresh'); });
@@ -2105,7 +2105,7 @@ function cscOrphanToggle(el, type) {
     $('#btn-collect-confirm').on('click', function() {
         $('#csc-collect-modal').hide();
         var $b = $('#btn-health-collect').prop('disabled', true).html('⏳ Collecting…');
-        $.post(CSC.ajax_url, { action: 'csc_health_collect_now', nonce: CSC.nonce }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_health_collect_now', nonce: CSC.nonce }, function(resp) {
             $b.prop('disabled', false).html('📊 Collect Metrics Now');
             if (resp.success && resp.data.health) { healthRenderData(resp.data.health); }
         }).fail(function() { $b.prop('disabled', false).html('📊 Collect Metrics Now'); });
@@ -2123,7 +2123,7 @@ function cscOrphanToggle(el, type) {
         $('#csc-sysstat-detail').text('');
         $('#csc-sysstat-instructions').hide();
 
-        $.post(CSC.ajax_url, { action: 'csc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
             $btn.prop('disabled', false).html('🔧 Test Sysstat');
             if (!resp.success) {
                 $('#csc-sysstat-icon').text('❌');
@@ -2532,7 +2532,7 @@ function cscOrphanToggle(el, type) {
             .html('<span class="csc-cron-spinner"></span> Loading cron status&hellip;');
         $('#csc-cron-events-body').html('<tr><td colspan="4" style="text-align:center;padding:12px;color:#666">Loading&hellip;</td></tr>');
 
-        $.post(CSC.ajax_url, { action: 'csc_cron_status', nonce: CSC.nonce }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_cron_status', nonce: CSC.nonce }, function(resp) {
             if (!resp.success) {
                 $('#csc-cron-health-banner').addClass('csc-cron-health-error').html('&#10060; Failed to load cron data.');
                 return;
@@ -2588,7 +2588,7 @@ function cscOrphanToggle(el, type) {
         clearTimeout(cronResizeTimer);
         cronResizeTimer = setTimeout(function() {
             if (!cronLoaded) { return; }
-            $.post(CSC.ajax_url, { action: 'csc_cron_status', nonce: CSC.nonce }, function(resp) {
+            $.post(CSC.ajax_url, { action: 'cscc_cron_status', nonce: CSC.nonce }, function(resp) {
                 if (resp.success) {
                     var d = resp.data;
                     cscRenderCronTimeline(d.events, d.server_time, d.congestion);
@@ -2605,10 +2605,10 @@ function cscOrphanToggle(el, type) {
         $btn.prop('disabled', true).prepend('&#9203; ');
         $res.hide();
 
-        $.post(CSC.ajax_url, { action: 'csc_cron_run_now', nonce: CSC.nonce, hook: hook }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_cron_run_now', nonce: CSC.nonce, hook: hook }, function(resp) {
             $btn.prop('disabled', false).find('span').remove();
             // Restore button text
-            $btn.html($btn.data('hook') === 'csc_scheduled_db_cleanup'
+            $btn.html($btn.data('hook') === 'cscc_scheduled_db_cleanup'
                 ? '&#9654; Run DB Cleanup Now'
                 : '&#9654; Run Media Cleanup Now');
             if (resp.success) {
@@ -2663,7 +2663,7 @@ function cscOrphanToggle(el, type) {
     function cscDeleteCronJob(hook) {
         if (!hook) { return; }
         if (!window.confirm('Move "' + hook + '" to the cron recycle bin?\n\nYou can restore it from the bin below.')) { return; }
-        $.post(CSC.ajax_url, { action: 'csc_cron_delete', nonce: CSC.nonce, hook: hook }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_cron_delete', nonce: CSC.nonce, hook: hook }, function(resp) {
             if (resp.success) {
                 cronLoaded = false;
                 cscLoadCronStatus();
@@ -2683,7 +2683,7 @@ function cscOrphanToggle(el, type) {
     $(document).on('click', '.csc-cron-restore-btn', function() {
         var id   = $(this).data('id');
         var $res = $('#csc-cron-recycle-result');
-        $.post(CSC.ajax_url, { action: 'csc_cron_restore', nonce: CSC.nonce, id: id }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_cron_restore', nonce: CSC.nonce, id: id }, function(resp) {
             if (resp.success) {
                 cronLoaded = false;
                 cscLoadCronStatus();
@@ -2706,7 +2706,7 @@ function cscOrphanToggle(el, type) {
         if (!window.confirm('Permanently delete this cron job? This cannot be undone.')) { return; }
         var id   = $(this).data('id');
         var $res = $('#csc-cron-recycle-result');
-        $.post(CSC.ajax_url, { action: 'csc_cron_purge_bin', nonce: CSC.nonce, id: id }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_cron_purge_bin', nonce: CSC.nonce, id: id }, function(resp) {
             if (resp.success) {
                 cronLoaded = false;
                 cscLoadCronStatus();
@@ -2739,7 +2739,7 @@ function cscOrphanToggle(el, type) {
         cscSpacePath = path || '';
         $('#space-report-loading').show();
         $('#space-report-content, #space-report-error').hide();
-        $.post(CSC.ajax_url, { action: 'csc_space_scan', nonce: CSC.nonce, path: cscSpacePath }, function(resp) {
+        $.post(CSC.ajax_url, { action: 'cscc_space_scan', nonce: CSC.nonce, path: cscSpacePath }, function(resp) {
             $('#space-report-loading').hide();
             if (!resp.success) {
                 $('#space-report-error').text(resp.data || 'Scan failed.').show();
@@ -2851,7 +2851,7 @@ function cscOrphanToggle(el, type) {
             // Dirs table
             var $body = $('#space-dirs-body').empty();
             if (!d.dirs.length) {
-                $body.append('<tr><td colspan="4" style="padding:12px;color:#888;text-align:center">No subdirectories</td></tr>');
+                $body.append('<tr><td colspan="5" style="padding:12px;color:#888;text-align:center">No subdirectories</td></tr>');
             }
             $.each(d.dirs, function(i, dir) {
                 var pct = d.total > 0 ? Math.round(dir.size / d.total * 100) : 0;
@@ -2866,6 +2866,30 @@ function cscOrphanToggle(el, type) {
                     .append($('<div>').css({ height: '8px', width: pct + '%', 'max-width': '100%', 'min-width': '2px', background: pct > 50 ? '#e53935' : pct > 20 ? '#fb8c00' : '#43a047', 'border-radius': '4px' }))
                     .append($('<span>').css({ 'font-size': '11px', color: '#666', 'white-space': 'nowrap' }).text(pct + '%'));
                 $row.append($('<td>').css({ padding: '9px 12px', 'text-align': 'right', 'min-width': '120px' }).append($bar));
+                (function($r, d_ref) {
+                    var $trash = $('<button>').css({
+                        background: 'transparent', border: '1px solid #d32f2f', 'border-radius': '4px',
+                        padding: '3px 7px', 'font-size': '13px', cursor: 'pointer', color: '#d32f2f', 'line-height': '1'
+                    }).html('&#128465;').attr('title', 'Move to Storage Recycle Bin').on('click', function(e) {
+                        e.stopPropagation();
+                        if (!window.confirm('Move "' + d_ref.name + '" to the Storage Recycle Bin?\n\nYou can restore it from the bin at any time.')) { return; }
+                        var $btn = $(this);
+                        $btn.prop('disabled', true).text('…');
+                        $.post(CSC.ajax_url, { action: 'cscc_storage_recycle_folder', nonce: CSC.nonce, path: d_ref.rel }, function(res) {
+                            if (res.success) {
+                                $r.fadeOut(200, function() { $(this).remove(); });
+                                cscLoadStorageBin();
+                            } else {
+                                alert(res.data || 'Failed to move to recycle bin.');
+                                $btn.prop('disabled', false).html('&#128465;');
+                            }
+                        }).fail(function() {
+                            alert('Network error.');
+                            $btn.prop('disabled', false).html('&#128465;');
+                        });
+                    });
+                    $r.append($('<td>').css({ padding: '9px 12px', 'text-align': 'center' }).append($trash));
+                })($row, dir);
                 $row.on('click', function() { cscSpaceScan(dir.rel); });
                 $body.append($row);
             });
@@ -2895,11 +2919,81 @@ function cscOrphanToggle(el, type) {
 
     $('#btn-space-scan').on('click', function() { cscSpaceScan(''); });
 
-    // Auto-scan when tab is activated.
+    // Auto-scan + load bin when tab is activated.
     $(document).on('click', '.csc-tab[data-tab="space-report"]', function() {
         if ($('#space-report-content').is(':hidden') && $('#space-report-loading').is(':hidden')) {
             cscSpaceScan('');
         }
+        cscLoadStorageBin();
+    });
+
+    function cscLoadStorageBin() {
+        $.post(CSC.ajax_url, { action: 'cscc_storage_recycle_list', nonce: CSC.nonce }, function(res) {
+            var items = (res.success && res.data) ? res.data : [];
+            var $body = $('#storage-bin-body').empty();
+            if (!items.length) {
+                $('#storage-bin-list-wrap').hide();
+                $('#storage-bin-empty-msg').show();
+                return;
+            }
+            $('#storage-bin-empty-msg').hide();
+            $.each(items, function(i, item) {
+                var $row = $('<tr>').css('border-bottom', '1px solid #f0f0f0');
+                $row.append($('<td>').css({ padding: '8px 12px', 'font-weight': '600', 'white-space': 'nowrap' }).text(item.original_name));
+                $row.append($('<td>').css({ padding: '8px 12px', color: '#666', 'word-break': 'break-all', 'font-size': '12px' }).text(item.original_rel));
+                $row.append($('<td>').css({ padding: '8px 12px', 'text-align': 'right', 'font-family': 'monospace', 'font-size': '12px', 'white-space': 'nowrap' }).text(cscFmtBytes(item.size || 0)));
+                var d = new Date(item.recycled_at * 1000);
+                var dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                $row.append($('<td>').css({ padding: '8px 12px', 'text-align': 'center', color: '#888', 'font-size': '12px', 'white-space': 'nowrap' }).text(dateStr));
+                (function($r, it) {
+                    var $restore = $('<button>').css({
+                        background: '#e8f5e9', border: '1px solid #43a047', 'border-radius': '4px',
+                        padding: '4px 8px', 'font-size': '12px', cursor: 'pointer', color: '#2e7d32', 'margin-right': '6px', 'white-space': 'nowrap'
+                    }).text('↩ Restore').on('click', function() {
+                        var $btn = $(this);
+                        $btn.prop('disabled', true).text('…');
+                        $.post(CSC.ajax_url, { action: 'cscc_storage_recycle_restore', nonce: CSC.nonce, id: it.id }, function(res) {
+                            if (res.success) {
+                                $r.fadeOut(200, function() { $(this).remove(); cscLoadStorageBin(); });
+                                cscSpaceScan(cscSpacePath);
+                            } else {
+                                alert(res.data || 'Restore failed.');
+                                $btn.prop('disabled', false).text('↩ Restore');
+                            }
+                        }).fail(function() { alert('Network error.'); $btn.prop('disabled', false).text('↩ Restore'); });
+                    });
+                    var $purge = $('<button>').css({
+                        background: '#ffebee', border: '1px solid #e53935', 'border-radius': '4px',
+                        padding: '4px 8px', 'font-size': '12px', cursor: 'pointer', color: '#c62828', 'white-space': 'nowrap'
+                    }).text('🗑 Delete Forever').on('click', function() {
+                        if (!window.confirm('Permanently delete "' + it.original_name + '"?\n\nThis cannot be undone.')) { return; }
+                        var $btn = $(this);
+                        $btn.prop('disabled', true).text('…');
+                        $.post(CSC.ajax_url, { action: 'cscc_storage_recycle_purge', nonce: CSC.nonce, id: it.id }, function(res) {
+                            if (res.success) {
+                                $r.fadeOut(200, function() { $(this).remove(); cscLoadStorageBin(); });
+                            } else {
+                                alert(res.data || 'Delete failed.');
+                                $btn.prop('disabled', false).text('🗑 Delete Forever');
+                            }
+                        }).fail(function() { alert('Network error.'); $btn.prop('disabled', false).text('🗑 Delete Forever'); });
+                    });
+                    $r.append($('<td>').css({ padding: '8px 12px', 'text-align': 'center', 'white-space': 'nowrap' }).append($restore).append($purge));
+                })($row, item);
+                $body.append($row);
+            });
+            $('#storage-bin-list-wrap').show();
+        });
+    }
+
+    $('#btn-storage-bin-empty').on('click', function() {
+        if (!window.confirm('Permanently delete ALL items in the Storage Recycle Bin?\n\nThis cannot be undone.')) { return; }
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('…');
+        $.post(CSC.ajax_url, { action: 'cscc_storage_recycle_purge', nonce: CSC.nonce, id: '' }, function(res) {
+            $btn.prop('disabled', false).text('Empty Bin');
+            if (res.success) { cscLoadStorageBin(); } else { alert(res.data || 'Failed to empty bin.'); }
+        }).fail(function() { $btn.prop('disabled', false).text('Empty Bin'); });
     });
 
     // ── End Space Report ──────────────────────────────────────────────────────
