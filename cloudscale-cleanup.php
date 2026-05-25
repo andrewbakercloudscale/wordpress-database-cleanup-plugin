@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.51
+ * Version:     2.5.63
  * Author:      Andrew Baker
  * Author URI:  https://terraclaim.org
  * License:     GPL-2.0-or-later
@@ -15,7 +15,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.51' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.63' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -181,8 +181,7 @@ function csc_enqueue_assets( $hook ) {
     .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #90caf9 !important; }
     .csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
     .csc-tab:nth-child(7).active, .csc-tab:nth-child(7):hover { border-top-color: #bcaaa4 !important; }
-    @media (max-width: 600px) { .csc-help-btn { font-size:12px !important; padding:6px 10px !important; } }
-    @media (max-width: 480px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } }
+    @media (max-width: 782px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } .csc-help-btn { padding:6px 12px !important; font-size:12px !important; } .csc-header-version { display:none !important; } }
     div[style*="#fff3e0"] .csc-health-metric,
     div[style*="#e3f2fd"] .csc-health-metric,
     div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
@@ -641,6 +640,7 @@ function csc_ajax_save_settings() {
         'csc_post_revisions_age', 'csc_drafts_age', 'csc_trash_age',
         'csc_autodraft_age', 'csc_spam_comments_age', 'csc_trash_comments_age',
         'csc_img_max_width', 'csc_img_max_height', 'csc_img_quality',
+        'csc_img_min_size_kb', 'csc_img_min_gain_pct',
         'csc_schedule_db_hour', 'csc_schedule_img_hour',
         'csc_clean_revisions', 'csc_clean_drafts', 'csc_clean_trashed', 'csc_clean_autodrafts',
         'csc_clean_transients', 'csc_clean_orphan_post', 'csc_clean_orphan_user',
@@ -3176,67 +3176,138 @@ function csc_rmdir_recursive( string $dir ): void {
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Dry run scan
+/**
+ * Shared candidate builder for both the dry-run scan and the live optimiser.
+ * Uses stored attachment metadata (no file I/O) so it runs fast on low-power hardware.
+ *
+ * Returns array of candidates, each:
+ *   [ 'id', 'mime', 'size', 'w', 'h', 'flags', 'est_saving', 'file', 'title', 'ext' ]
+ * Plus 'skipped_small' count in a separate key via the $skipped_small out-param.
+ *
+ * @param int  $max_w        Max width px.
+ * @param int  $max_h        Max height px.
+ * @param bool $convert_png  Whether PNG→JPEG conversion is enabled.
+ * @param int  $min_size_b   Minimum file size in bytes (0 = no limit).
+ * @param int  $min_gain_pct Minimum estimated gain % to include (0 = no limit).
+ * @param int  &$skipped_small  Out-param: count of files excluded by size threshold.
+ * @return array
+ */
+function csc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, int $min_size_b, int $min_gain_pct, int &$skipped_small ): array {
+    $skipped_small = 0;
+    $candidates    = array();
+
+    $all = get_posts( array(
+        'post_type'      => 'attachment',
+        'post_status'    => 'inherit',
+        'post_mime_type' => array( 'image/jpeg', 'image/jpg', 'image/png' ),
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+    ) );
+
+    foreach ( $all as $id ) {
+        $mime = get_post_mime_type( $id );
+        if ( ! $mime ) { continue; }
+
+        $is_jpeg = in_array( $mime, array( 'image/jpeg', 'image/jpg' ), true );
+        $is_png  = ( $mime === 'image/png' );
+        if ( ! $is_jpeg && ! $is_png ) { continue; }
+
+        $meta = wp_get_attachment_metadata( $id );
+        $size = (int) ( $meta['filesize'] ?? 0 );
+        $w    = (int) ( $meta['width']    ?? 0 );
+        $h    = (int) ( $meta['height']   ?? 0 );
+
+        // Fall back to disk read for size only if metadata is missing.
+        if ( $size === 0 ) {
+            $file = get_attached_file( $id );
+            if ( $file && file_exists( $file ) ) { $size = (int) filesize( $file ); }
+        }
+
+        if ( $min_size_b > 0 && $size > 0 && $size < $min_size_b ) {
+            $skipped_small++;
+            continue;
+        }
+
+        $flags      = array();
+        $est_saving = 0;
+
+        if ( $w > $max_w || $h > $max_h ) {
+            $flags[] = 'oversized (' . $w . 'x' . $h . ')';
+        }
+
+        if ( $is_jpeg ) {
+            $est     = (int) ( $size * 0.22 );
+            $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
+            if ( $est > 1024 && $est_pct >= $min_gain_pct ) {
+                $flags[]     = 'recompressible (~' . size_format( $est ) . ', ~' . round( $est_pct ) . '%)';
+                $est_saving += $est;
+            }
+        }
+
+        if ( $convert_png && $is_png ) {
+            $est     = (int) ( $size * 0.55 );
+            $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
+            if ( $est_pct >= $min_gain_pct ) {
+                $flags[]     = 'PNG→JPEG (~' . size_format( $est ) . ', ~' . round( $est_pct ) . '%)';
+                $est_saving += $est;
+            }
+        }
+
+        // Include if oversized (always worth fixing) or if estimated gain passes threshold.
+        $oversized = ( $w > $max_w || $h > $max_h );
+        if ( empty( $flags ) && ! $oversized ) { continue; }
+        if ( ! $oversized && $est_saving === 0 ) { continue; }
+
+        $file  = $file ?? get_attached_file( $id );
+        $ext   = $file ? strtolower( pathinfo( $file, PATHINFO_EXTENSION ) ) : '';
+        $title = get_the_title( $id );
+
+        $candidates[] = array(
+            'id'          => intval( $id ),
+            'mime'        => $mime,
+            'size'        => $size,
+            'w'           => $w,
+            'h'           => $h,
+            'flags'       => $flags,
+            'est_saving'  => $est_saving,
+            'file'        => $file,
+            'title'       => $title,
+            'ext'         => $ext,
+        );
+    }
+
+    return $candidates;
+}
+
 add_action( 'wp_ajax_csc_scan_optimise', 'csc_ajax_scan_optimise' );
 function csc_ajax_scan_optimise() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Insufficient permissions.' );
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+    $max_w        = intval( get_option( 'csc_img_max_width',    1920 ) );
+    $max_h        = intval( get_option( 'csc_img_max_height',   1080 ) );
+    $quality      = intval( get_option( 'csc_img_quality',      82   ) );
+    $convert_png  = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
+    $min_size_kb  = max( 0, intval( get_option( 'csc_img_min_size_kb',  100 ) ) );
+    $min_gain_pct = max( 0, intval( get_option( 'csc_img_min_gain_pct',  10 ) ) );
+
+    $skipped_small = 0;
+    $candidates    = csc_optimise_candidates( $max_w, $max_h, $convert_png, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
+
+    $lines   = array();
+    $lines[] = array( 'type' => 'section', 'text' => 'Image Optimisation Scan — max ' . $max_w . 'x' . $max_h . 'px · quality ' . $quality . ' · skip <' . $min_size_kb . ' KB · skip <' . $min_gain_pct . '% gain' );
+    $lines[] = array( 'type' => 'info',    'text' => '  ' . count( $candidates ) . ' image(s) to optimise' . ( $skipped_small > 0 ? ' · ' . $skipped_small . ' excluded (under ' . $min_size_kb . ' KB)' : '' ) . '.' );
+
+    $total_saving = 0;
+    foreach ( $candidates as $c ) {
+        $total_saving += $c['est_saving'];
+        $label = esc_html( $c['title'] ) . ( $c['ext'] ? '.' . $c['ext'] : '' );
+        $lines[] = array( 'type' => 'item', 'text' => '  [OPTIMISE] ID ' . $c['id'] . ' — ' . $label . ' (' . size_format( $c['size'] ) . ') — ' . implode( ', ', $c['flags'] ) );
     }
 
-    $max_w       = intval( get_option( 'csc_img_max_width',  1920 ) );
-    $max_h       = intval( get_option( 'csc_img_max_height', 1080 ) );
-    $quality     = intval( get_option( 'csc_img_quality',    82 ) );
-    $convert_png = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
-
-    $lines = array();
-    $lines[] = array( 'type' => 'section', 'text' => 'Image Optimisation Scan — max ' . $max_w . 'x' . $max_h . 'px · JPEG quality ' . $quality );
-
-    $attachments = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'post_mime_type' => array( 'image/jpeg', 'image/jpg', 'image/png' ), 'posts_per_page' => -1, 'fields' => 'ids' ) );
-    $lines[] = array( 'type' => 'info', 'text' => '  Total JPEG/PNG attachments: ' . count( $attachments ) );
-
-    $needs_work  = 0;
-    $total_saved = 0;
-
-    foreach ( $attachments as $id ) {
-        $file = get_attached_file( $id );
-        if ( ! $file || ! file_exists( $file ) ) { continue; }
-        $mime     = mime_content_type( $file );
-        $size_now = filesize( $file );
-        $dims     = @getimagesize( $file );
-        if ( ! $dims ) { continue; }
-        list( $w, $h ) = $dims;
-
-        $flags  = array();
-        $saving = 0;
-
-        if ( $w > $max_w || $h > $max_h ) { $flags[] = 'oversized (' . $w . 'x' . $h . ')'; }
-
-        if ( in_array( $mime, array( 'image/jpeg', 'image/jpg' ), true ) ) {
-            $est = (int) ( $size_now * 0.22 );
-            if ( $est > 1024 ) { $flags[] = 'recompressible (~' . size_format( $est ) . ' saving)'; $saving += $est; }
-        }
-
-        if ( $convert_png && $mime === 'image/png' ) {
-            $est = (int) ( $size_now * 0.55 );
-            $flags[] = 'PNG→JPEG (~' . size_format( $est ) . ' saving)';
-            $saving += $est;
-        }
-
-        if ( ! empty( $flags ) ) {
-            $needs_work++;
-            $total_saved += $saving;
-            // Build label: title.ext so the file type is always visible
-            $ext   = strtolower( pathinfo( $file, PATHINFO_EXTENSION ) );
-            $label = esc_html( get_the_title( $id ) );
-            if ( $ext ) { $label .= '.' . $ext; }
-            $lines[] = array( 'type' => 'item', 'text' => '  [OPTIMISE] ID ' . $id . ' — ' . $label . ' (' . size_format( $size_now ) . ') — ' . implode( ', ', $flags ) );
-        }
-    }
-
-    $lines[] = array( 'type' => 'count', 'text' => '  Images to optimise: ' . $needs_work );
-    $lines[] = array( 'type' => 'count', 'text' => '  Estimated total saving: ' . size_format( $total_saved ) );
+    $lines[] = array( 'type' => 'count', 'text' => '  Estimated total saving: ' . size_format( $total_saving ) );
     if ( $convert_png ) {
-        $lines[] = array( 'type' => 'info', 'text' => '  Note: PNG→JPEG conversion is ON — all PNGs above will be converted.' );
+        $lines[] = array( 'type' => 'info', 'text' => '  Note: PNG→JPEG conversion is ON.' );
     }
     wp_send_json_success( $lines );
 }
@@ -3245,41 +3316,35 @@ function csc_ajax_scan_optimise() {
 add_action( 'wp_ajax_csc_optimise_start', 'csc_ajax_optimise_start' );
 function csc_ajax_optimise_start() {
     check_ajax_referer( 'csc_nonce', 'nonce' );
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_send_json_error( 'Insufficient permissions.' );
-    }
+    if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
-    $max_w       = intval( get_option( 'csc_img_max_width',  1920 ) );
-    $max_h       = intval( get_option( 'csc_img_max_height', 1080 ) );
-    $convert_png = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
+    $max_w        = intval( get_option( 'csc_img_max_width',    1920 ) );
+    $max_h        = intval( get_option( 'csc_img_max_height',   1080 ) );
+    $convert_png  = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
+    $min_size_kb  = max( 0, intval( get_option( 'csc_img_min_size_kb',  100 ) ) );
+    $min_gain_pct = max( 0, intval( get_option( 'csc_img_min_gain_pct',  10 ) ) );
 
-    $all   = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit', 'post_mime_type' => array( 'image/jpeg', 'image/jpg', 'image/png' ), 'posts_per_page' => -1, 'fields' => 'ids' ) );
-    $queue = array();
+    $skipped_small = 0;
+    $candidates    = csc_optimise_candidates( $max_w, $max_h, $convert_png, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
+    $queue         = array_column( $candidates, 'id' );
 
-    foreach ( $all as $id ) {
-        $file = get_attached_file( $id );
-        if ( ! $file || ! file_exists( $file ) ) { continue; }
-        $mime = mime_content_type( $file );
-        $dims = @getimagesize( $file );
-        if ( ! $dims ) { continue; }
-        list( $w, $h ) = $dims;
-
-        $needs = false;
-        if ( $w > $max_w || $h > $max_h )                                         { $needs = true; }
-        if ( in_array( $mime, array( 'image/jpeg', 'image/jpg' ), true ) )         { $needs = true; }
-        if ( $convert_png && $mime === 'image/png' )                               { $needs = true; }
-
-        if ( $needs ) { $queue[] = intval( $id ); }
-    }
-
-    set_transient( 'csc_optimise_queue', $queue, 2 * HOUR_IN_SECONDS );
-    set_transient( 'csc_optimise_saved', 0,       2 * HOUR_IN_SECONDS );
-    set_transient( 'csc_optimise_count', 0,       2 * HOUR_IN_SECONDS );
+    // Store in a plain wp_option (autoload=no) — transients are unreliable when object
+    // caches are flushed or another plugin's transient cleaner runs mid-sequence.
+    delete_option( 'csc_optimise_run' );
+    update_option( 'csc_optimise_run', array(
+        'queue'   => $queue,
+        'saved'   => 0,
+        'count'   => 0,
+        'started' => time(),
+    ), false );
 
     wp_send_json_success( array(
         'total'     => count( $queue ),
         'remaining' => count( $queue ),
-        'lines'     => array( array( 'type' => 'info', 'text' => '  ' . count( $queue ) . ' images queued. Processing ' . CSC_CHUNK_OPTIMISE . ' per request.' ) ),
+        'lines'     => array_filter( array(
+            array( 'type' => 'info', 'text' => '  ' . count( $queue ) . ' images queued. Processing 1 per request.' ),
+            $skipped_small > 0 ? array( 'type' => 'info', 'text' => '  ' . $skipped_small . ' file(s) skipped — under ' . $min_size_kb . ' KB minimum.' ) : null,
+        ) ),
     ) );
 }
 
@@ -3291,19 +3356,30 @@ function csc_ajax_optimise_chunk() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $queue = get_transient( 'csc_optimise_queue' );
-    if ( ! is_array( $queue ) ) { wp_send_json_error( 'Session expired — please start again.' ); }
+    $run = get_option( 'csc_optimise_run' );
+    if ( ! is_array( $run ) || ! isset( $run['queue'] ) ) {
+        $exists = get_option( 'csc_optimise_run', '__missing__' );
+        $detail = ( $exists === '__missing__' )
+            ? 'The session option was not found in the database — it may have been cleared by another plugin or a transient cleanup cron.'
+            : 'The session data is present but corrupt (type: ' . gettype( $exists ) . ').';
+        wp_send_json_error( 'Optimisation session lost. ' . $detail . ' Please click Optimise Images Now to start again.' );
+    }
 
-    $max_w       = intval( get_option( 'csc_img_max_width',  1920 ) );
-    $max_h       = intval( get_option( 'csc_img_max_height', 1080 ) );
-    $quality     = intval( get_option( 'csc_img_quality',    82 ) );
-    $convert_png = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
+    $max_w        = intval( get_option( 'csc_img_max_width',    1920 ) );
+    $max_h        = intval( get_option( 'csc_img_max_height',   1080 ) );
+    $quality      = intval( get_option( 'csc_img_quality',      82   ) );
+    $convert_png  = get_option( 'csc_convert_png_to_jpg', '0' ) === '1';
+    $min_gain_pct = max( 0, intval( get_option( 'csc_img_min_gain_pct', 10 ) ) );
 
-    $chunk       = array_splice( $queue, 0, CSC_CHUNK_OPTIMISE );
-    $total_saved = (int) get_transient( 'csc_optimise_saved' );
-    $total_count = (int) get_transient( 'csc_optimise_count' );
+    @set_time_limit( 120 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- image processing can take 30-60 s per image on low-power hardware
 
-    set_transient( 'csc_optimise_queue', $queue, 2 * HOUR_IN_SECONDS );
+    $queue       = $run['queue'];
+    $chunk       = array_splice( $queue, 0, 1 ); // 1 image per request — wp_generate_attachment_metadata can take 30+ s on a Pi
+    $total_saved = (int) ( $run['saved'] ?? 0 );
+    $total_count = (int) ( $run['count'] ?? 0 );
+
+    $run['queue'] = $queue;
+    update_option( 'csc_optimise_run', $run, false );
 
     $lines = array();
 
@@ -3332,48 +3408,83 @@ function csc_ajax_optimise_chunk() {
 
         $editor->set_quality( $quality );
 
-        if ( $w > $max_w || $h > $max_h ) {
+        $resized = ( $w > $max_w || $h > $max_h );
+        if ( $resized ) {
             $editor->resize( $max_w, $max_h, false );
         }
 
-        // PNG to JPEG conversion path
+        // PNG to JPEG conversion — save to temp first, check gain, then commit or discard.
         if ( $convert_png && $mime === 'image/png' ) {
             $new_file = preg_replace( '/\.png$/i', '.jpg', $file );
-            $result   = $editor->save( $new_file, 'image/jpeg' );
+            $tmp_file = $new_file . '.csc-tmp';
+            $result   = $editor->save( $tmp_file, 'image/jpeg' );
             if ( is_wp_error( $result ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' PNG→JPEG: ' . $result->get_error_message() );
                 continue;
             }
-            // WP image editor may save to a different filename with dimensions appended.
-            // If so, rename back to the intended filename to preserve URL integrity.
             $actual_path = $result['path'];
-            if ( $actual_path !== $new_file ) {
-                @rename( $actual_path, $new_file );
+            if ( $actual_path !== $tmp_file ) {
+                @rename( $actual_path, $tmp_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
             }
+            $size_new = file_exists( $tmp_file ) ? filesize( $tmp_file ) : 0;
+            $saved    = max( 0, $size_old - $size_new );
+            $gain_pct = $size_old > 0 ? ( $saved / $size_old ) * 100 : 0;
+            if ( $size_new >= $size_old || $gain_pct < $min_gain_pct ) {
+                wp_delete_file( $tmp_file );
+                $lines[] = array( 'type' => 'info', 'text' => '  Skipped ID ' . $id . ' — ' . esc_html( $title ) . ' (gain only ' . round( $gain_pct ) . '%, below ' . $min_gain_pct . '% threshold).' );
+                continue;
+            }
+            // Sufficient gain — commit the conversion.
+            @rename( $tmp_file, $new_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
             wp_delete_file( $file );
             update_attached_file( $id, $new_file );
             $meta = wp_generate_attachment_metadata( $id, $new_file );
             wp_update_attachment_metadata( $id, $meta );
             wp_update_post( array( 'ID' => $id, 'post_mime_type' => 'image/jpeg' ) );
             csc_update_image_references( $id, $file, $new_file );
-            $size_new = file_exists( $new_file ) ? filesize( $new_file ) : 0;
         } else {
-            // Recompress / resize in place — must overwrite original, not create a new file.
-            $result = $editor->save( $file );
+            // JPEG recompress / resize — save to temp, check gain, then commit or discard.
+            $tmp_file    = $file . '.csc-tmp';
+            $result      = $editor->save( $tmp_file );
             if ( is_wp_error( $result ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . $result->get_error_message() );
                 continue;
             }
-            // WP image editor appends dimensions to the filename (e.g. photo-1024x768.jpg).
-            // This breaks all existing image URLs in posts. Rename back to the original.
             $actual_path = $result['path'];
-            if ( $actual_path !== $file ) {
-                wp_delete_file( $file );
-                @rename( $actual_path, $file );
+            if ( $actual_path !== $tmp_file ) {
+                // WP image editor may save to a slightly different path (e.g. it appends the
+                // correct extension).  Simply move that file to our canonical tmp name.
+                // Do NOT wp_delete_file() first — that deletes the only copy we have.
+                @rename( $actual_path, $tmp_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
             }
-            $meta = wp_generate_attachment_metadata( $id, $file );
-            wp_update_attachment_metadata( $id, $meta );
-            $size_new = file_exists( $file ) ? filesize( $file ) : $size_old;
+            // Safety: if temp still doesn't exist after rename, abort — original must not be touched.
+            if ( ! file_exists( $tmp_file ) ) {
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' — temp file missing after save; original preserved.' );
+                continue;
+            }
+            $size_new = filesize( $tmp_file );
+            $saved    = max( 0, $size_old - $size_new );
+            $gain_pct = $size_old > 0 ? ( $saved / $size_old ) * 100 : 0;
+            if ( $size_new >= $size_old || $gain_pct < $min_gain_pct ) {
+                wp_delete_file( $tmp_file );
+                $lines[] = array( 'type' => 'info', 'text' => '  Skipped ID ' . $id . ' — ' . esc_html( $title ) . ' (gain only ' . round( $gain_pct ) . '%, below ' . $min_gain_pct . '% threshold).' );
+                continue;
+            }
+            // Sufficient gain — replace original.
+            wp_delete_file( $file );
+            @rename( $tmp_file, $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+            if ( $resized ) {
+                // Dimensions changed — regenerate thumbnails at new size.
+                $meta = wp_generate_attachment_metadata( $id, $file );
+                wp_update_attachment_metadata( $id, $meta );
+            } else {
+                // Quality-only recompression — dimensions unchanged, thumbnails still valid.
+                $meta = wp_get_attachment_metadata( $id );
+                if ( is_array( $meta ) ) {
+                    $meta['filesize'] = $size_new;
+                    wp_update_attachment_metadata( $id, $meta );
+                }
+            }
         }
 
         $saved        = max( 0, $size_old - $size_new );
@@ -3383,8 +3494,9 @@ function csc_ajax_optimise_chunk() {
         $lines[] = array( 'type' => 'deleted', 'text' => '  [OPTIMISED] ID ' . $id . ' — ' . esc_html( $title ) . ' ' . size_format( $size_old ) . ' → ' . size_format( $size_new ) . ' (saved ' . size_format( $saved ) . ')' );
     }
 
-    set_transient( 'csc_optimise_saved', $total_saved, 2 * HOUR_IN_SECONDS );
-    set_transient( 'csc_optimise_count', $total_count, 2 * HOUR_IN_SECONDS );
+    $run['saved'] = $total_saved;
+    $run['count'] = $total_count;
+    update_option( 'csc_optimise_run', $run, false );
 
     wp_send_json_success( array( 'remaining' => count( $queue ), 'total_saved' => $total_saved, 'lines' => $lines ) );
 }
@@ -3397,9 +3509,12 @@ function csc_ajax_optimise_finish() {
         wp_send_json_error( 'Insufficient permissions.' );
     }
 
-    $total_saved = (int) get_transient( 'csc_optimise_saved' );
-    $total_count = (int) get_transient( 'csc_optimise_count' );
+    $run         = get_option( 'csc_optimise_run', array() );
+    $total_saved = (int) ( $run['saved'] ?? 0 );
+    $total_count = (int) ( $run['count'] ?? 0 );
 
+    delete_option( 'csc_optimise_run' );
+    // Clean up old transient keys from previous plugin versions.
     delete_transient( 'csc_optimise_queue' );
     delete_transient( 'csc_optimise_saved' );
     delete_transient( 'csc_optimise_count' );
@@ -5096,8 +5211,145 @@ function csc_ajax_cron_run_now() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// SPACE REPORT
+// SPACE REPORT + STORAGE RECYCLE BIN
 // ═════════════════════════════════════════════════════════════════════════════
+
+define( 'CSC_STORAGE_RECYCLE', '.csc-storage-recycle' );
+
+/** Absolute path to the storage recycle bin directory. */
+function csc_storage_recycle_dir(): string {
+	return rtrim( wp_upload_dir()['basedir'], '/\\' ) . '/' . CSC_STORAGE_RECYCLE;
+}
+
+/** Read the recycle manifest (array keyed by item ID). */
+function csc_storage_recycle_manifest(): array {
+	$path = csc_storage_recycle_dir() . '/manifest.json';
+	if ( ! file_exists( $path ) ) return [];
+	$raw = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	$data = $raw ? json_decode( $raw, true ) : null;
+	return is_array( $data ) ? $data : [];
+}
+
+/** Save the recycle manifest. */
+function csc_storage_recycle_save_manifest( array $manifest ): void {
+	$dir = csc_storage_recycle_dir();
+	wp_mkdir_p( $dir );
+	$htaccess = $dir . '/.htaccess';
+	if ( ! file_exists( $htaccess ) ) {
+		file_put_contents( $htaccess, "Deny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	}
+	file_put_contents( $dir . '/manifest.json', wp_json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+}
+
+add_action( 'wp_ajax_csc_storage_recycle_folder', 'csc_ajax_storage_recycle_folder' );
+/**
+ * Move a folder into the storage recycle bin.
+ *
+ * @since 2.6.0
+ */
+function csc_ajax_storage_recycle_folder(): void {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+	$base = rtrim( wp_upload_dir()['basedir'], '/\\' );
+	$rel  = trim( sanitize_text_field( wp_unslash( $_POST['path'] ?? '' ) ), '/\\' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified above
+	if ( ! $rel ) { wp_send_json_error( 'No path specified.' ); }
+	if ( str_starts_with( $rel, CSC_STORAGE_RECYCLE ) ) { wp_send_json_error( 'Cannot recycle the recycle bin itself.' ); }
+
+	$real = realpath( $base . '/' . $rel );
+	if ( ! $real || ! is_dir( $real ) ) { wp_send_json_error( 'Folder not found.' ); }
+	if ( strncmp( $real . '/', $base . '/', strlen( $base ) + 1 ) !== 0 ) { wp_send_json_error( 'Invalid path.' ); }
+
+	[ $size, $count ] = csc_dir_size_and_count( $real );
+	$id       = uniqid( 'sr_', true );
+	$dest_dir = csc_storage_recycle_dir() . '/' . $id;
+	wp_mkdir_p( dirname( $dest_dir ) );
+
+	if ( ! rename( $real, $dest_dir ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+		wp_send_json_error( 'Could not move folder — check permissions.' );
+	}
+
+	$manifest       = csc_storage_recycle_manifest();
+	$manifest[ $id ] = [
+		'id'           => $id,
+		'original_rel' => $rel,
+		'original_name'=> basename( $rel ),
+		'recycled_at'  => time(),
+		'size'         => $size,
+		'count'        => $count,
+	];
+	csc_storage_recycle_save_manifest( $manifest );
+
+	wp_send_json_success( [ 'id' => $id, 'freed' => $size ] );
+}
+
+add_action( 'wp_ajax_csc_storage_recycle_list', 'csc_ajax_storage_recycle_list' );
+/** Return current recycle bin contents. @since 2.6.0 */
+function csc_ajax_storage_recycle_list(): void {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+	$items = array_values( csc_storage_recycle_manifest() );
+	usort( $items, static fn( $a, $b ) => $b['recycled_at'] <=> $a['recycled_at'] );
+	wp_send_json_success( $items );
+}
+
+add_action( 'wp_ajax_csc_storage_recycle_restore', 'csc_ajax_storage_recycle_restore' );
+/** Restore a folder from the recycle bin to its original location. @since 2.6.0 */
+function csc_ajax_storage_recycle_restore(): void {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+	$id = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	if ( ! $id ) { wp_send_json_error( 'Missing id.' ); }
+
+	$manifest = csc_storage_recycle_manifest();
+	if ( ! isset( $manifest[ $id ] ) ) { wp_send_json_error( 'Item not found in recycle bin.' ); }
+
+	$item     = $manifest[ $id ];
+	$base     = rtrim( wp_upload_dir()['basedir'], '/\\' );
+	$src      = csc_storage_recycle_dir() . '/' . $id;
+	$dest     = $base . '/' . $item['original_rel'];
+
+	if ( ! is_dir( $src ) ) { wp_send_json_error( 'Recycled folder no longer exists on disk.' ); }
+	if ( is_dir( $dest ) )  { wp_send_json_error( 'A folder already exists at the original location — rename or remove it first.' ); }
+
+	wp_mkdir_p( dirname( $dest ) );
+	if ( ! rename( $src, $dest ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+		wp_send_json_error( 'Could not restore folder — check permissions.' );
+	}
+
+	unset( $manifest[ $id ] );
+	csc_storage_recycle_save_manifest( $manifest );
+	wp_send_json_success( [] );
+}
+
+add_action( 'wp_ajax_csc_storage_recycle_purge', 'csc_ajax_storage_recycle_purge' );
+/** Permanently delete one or all recycled folders. @since 2.6.0 */
+function csc_ajax_storage_recycle_purge(): void {
+	check_ajax_referer( 'csc_nonce', 'nonce' );
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
+
+	$id       = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$manifest = csc_storage_recycle_manifest();
+	$ids      = $id ? [ $id ] : array_keys( $manifest );
+
+	foreach ( $ids as $del_id ) {
+		$dir = csc_storage_recycle_dir() . '/' . $del_id;
+		if ( is_dir( $dir ) ) {
+			$iter = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+				RecursiveIteratorIterator::CHILD_FIRST
+			);
+			foreach ( $iter as $f ) {
+				$f->isDir() ? @rmdir( $f->getPathname() ) : wp_delete_file( $f->getPathname() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			}
+			@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		}
+		unset( $manifest[ $del_id ] );
+	}
+	csc_storage_recycle_save_manifest( $manifest );
+	wp_send_json_success( [] );
+}
 
 add_action( 'wp_ajax_csc_space_scan', 'csc_ajax_space_scan' );
 /**
@@ -5131,6 +5383,7 @@ function csc_ajax_space_scan(): void {
 			if ( $item->isDot() ) continue;
 			$name = $item->getFilename();
 			$full = $item->getPathname();
+			if ( $name === CSC_STORAGE_RECYCLE ) continue; // hide recycle bin from listing
 			if ( $item->isDir() ) {
 				[ $size, $count ] = csc_dir_size_and_count( $full );
 				$dirs[] = [
@@ -5438,9 +5691,9 @@ function csc_render_page() {
                         <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://terraclaim.org" target="_blank">terraclaim.org</a></p>
                     </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:0">
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:1">
                     <div class="csc-header-version" style="flex-shrink:0">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
-                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" class="csc-help-btn" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5);flex-shrink:0" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; Help &amp; Documentation</a>
+                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" class="csc-help-btn" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5);flex-shrink:0" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; <span>Help &amp; Documentation</span></a>
                 </div>
             </div>
         </div>
@@ -5954,15 +6207,15 @@ function csc_render_page() {
             'Image Optimisation — How it works',
             [
             [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Processes your original uploaded images in two ways: Resize (scales down images exceeding your configured maximum, preserving aspect ratio) and Recompress (re-saves JPEG files at the configured quality level).' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'After each image is processed, all registered WordPress thumbnail sizes are regenerated from the new optimised original to ensure consistency.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'Thumbnails are only regenerated when an image is resized or converted from PNG to JPEG. For quality-only recompression the existing thumbnails stay valid and are left untouched, making those runs much faster.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'PNG to JPEG conversion', 'desc' => 'When enabled, PNG files without transparency are converted to JPEG. Photographic PNGs typically shrink by 40-70% when converted. PNG files with transparency are never converted.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'Images are processed 5 at a time per request to keep each request well under 30 seconds. Always take a full site backup before running on a production site.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'One image is processed per request to stay well within server and gateway timeout limits. Each request completes in seconds regardless of image size.' ],
             [ 'rec' => '💡 Tip', 'name' => 'Always dry run first', 'desc' => 'Press Dry Run to preview potential savings, then review the output log carefully before optimising. No files are modified until you press the optimise button.' ],
             ],
             '#ff1744'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Resizes oversized originals and recompresses JPEGs to the configured quality target. Processes <?php echo (int) CSC_CHUNK_OPTIMISE; ?> images per request — chunked to stay well within any server's PHP timeout limit regardless of media library size. All WordPress thumbnail sizes are regenerated after each image is processed.</p>
+                        <p>Resizes oversized originals and recompresses JPEGs to the configured quality target. Processes one image per request — each request completes in seconds. Files under the minimum size or below the gain threshold are skipped automatically.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-optimise">🔍 Dry Run — Preview Savings</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-run-optimise">⚡ Optimise Images Now</button>
@@ -5981,19 +6234,23 @@ function csc_render_page() {
             [
             [ 'rec' => '✅ Recommended', 'name' => 'Maximum width and height (px)', 'desc' => 'Any image whose width or height exceeds the maximum will be scaled down proportionally. Default: 1920x1080. If your theme never displays images wider than 1200px, setting the max to 1200 will produce better storage savings.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'JPEG quality (1-100)', 'desc' => 'Controls compression when saving JPEG files. 80-85 is the sweet spot — excellent quality with significant size reduction. Default: 82.' ],
+            [ 'rec' => '✅ Recommended', 'name' => 'Minimum file size (KB)', 'desc' => 'Images smaller than this threshold are skipped entirely. Already-small files yield tiny absolute savings and re-compressing them at a lower quality setting can actually increase their size. Default: 100 KB.' ],
+            [ 'rec' => '✅ Recommended', 'name' => 'Minimum gain threshold (%)', 'desc' => 'After compressing to a temp file, if the size saving is below this percentage the original is kept and the result discarded. Protects already-optimised images from being overwritten with a negligibly smaller (or larger) version. Default: 10%.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'Convert non-transparent PNGs to JPEG', 'desc' => 'Converts eligible PNGs (those with no transparency) to JPEG. A PNG screenshot at 200KB will typically become a 40-80KB JPEG with no visible difference at screen resolution.' ],
             ],
             '#ffd600'
         ); ?></div>
                     <div class="csc-card-body csc-settings-inline">
-                        <label>Maximum width (px)   <input type="number" class="csc-setting" name="csc_img_max_width"  value="<?php echo esc_attr( get_option( 'csc_img_max_width',  1920 ) ); ?>" min="200"></label>
-                        <label>Maximum height (px)  <input type="number" class="csc-setting" name="csc_img_max_height" value="<?php echo esc_attr( get_option( 'csc_img_max_height', 1080 ) ); ?>" min="200"></label>
-                        <label>JPEG quality (1–100) <input type="number" class="csc-setting" name="csc_img_quality"    value="<?php echo esc_attr( get_option( 'csc_img_quality',    82   ) ); ?>" min="1" max="100"></label>
+                        <label>Maximum width (px)      <input type="number" class="csc-setting" name="csc_img_max_width"     value="<?php echo esc_attr( get_option( 'csc_img_max_width',     1920 ) ); ?>" min="200"></label>
+                        <label>Maximum height (px)     <input type="number" class="csc-setting" name="csc_img_max_height"    value="<?php echo esc_attr( get_option( 'csc_img_max_height',    1080 ) ); ?>" min="200"></label>
+                        <label>JPEG quality (1–100)    <input type="number" class="csc-setting" name="csc_img_quality"       value="<?php echo esc_attr( get_option( 'csc_img_quality',       82   ) ); ?>" min="1" max="100"></label>
+                        <label>Min. file size (KB)     <input type="number" class="csc-setting" name="csc_img_min_size_kb"   value="<?php echo esc_attr( get_option( 'csc_img_min_size_kb',  100  ) ); ?>" min="0"></label>
+                        <label>Min. gain threshold (%) <input type="number" class="csc-setting" name="csc_img_min_gain_pct"  value="<?php echo esc_attr( get_option( 'csc_img_min_gain_pct',  10  ) ); ?>" min="0" max="99"></label>
                         <label class="csc-toggle-label">
                             <input type="checkbox" name="csc_convert_png_to_jpg" value="1" <?php checked( get_option( 'csc_convert_png_to_jpg', '1' ), '1' ); ?>>
                             Convert non-transparent PNGs to JPEG
                         </label>
-                        <p class="csc-note">Recommended defaults: 1920&times;1080 · quality 82. PNG conversion yields 40–70% size reduction on photographic images.</p>
+                        <p class="csc-note">Recommended defaults: 1920&times;1080 · quality 82 · skip under 100 KB · skip if gain &lt; 10%. PNG conversion yields 40–70% size reduction on photographic images.</p>
                         <button class="csc-btn csc-btn-primary csc-save-btn" data-group="optimise">Save Settings</button>
                     </div>
                 </div>
@@ -6325,6 +6582,7 @@ function csc_render_page() {
                                     <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">Size</th>
                                     <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">Files</th>
                                     <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #c5cae9;white-space:nowrap">% of Total</th>
+                                    <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #c5cae9;white-space:nowrap">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="space-dirs-body"></tbody>
@@ -6348,6 +6606,32 @@ function csc_render_page() {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Storage Recycle Bin -->
+            <div class="csc-card" id="space-recycle-bin-card" style="margin-top:16px">
+                <div class="csc-card-header" style="background:linear-gradient(135deg,#4a148c 0%,#7b1fa2 100%);display:flex;align-items:center">
+                    <span>&#128465;&#65039; Storage Recycle Bin</span>
+                    <button id="btn-storage-bin-empty" class="csc-btn csc-btn-sm" style="margin-left:auto;background:#c62828;color:#fff;border-color:#c62828">Empty Bin</button>
+                </div>
+                <div class="csc-card-body" style="padding:0">
+                    <div id="storage-bin-empty-msg" style="padding:16px;color:#888;text-align:center;font-size:13px">Recycle bin is empty.</div>
+                    <div id="storage-bin-list-wrap" style="display:none;overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:13px">
+                            <thead>
+                                <tr style="background:#f9f0ff">
+                                    <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ce93d8">Folder</th>
+                                    <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #ce93d8">Original Path</th>
+                                    <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #ce93d8;white-space:nowrap">Size</th>
+                                    <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #ce93d8;white-space:nowrap">Trashed</th>
+                                    <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #ce93d8;white-space:nowrap">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="storage-bin-body"></tbody>
+                        </table>
+                    </div>
+                    <div id="storage-bin-result" style="display:none;padding:10px 16px;font-size:13px"></div>
                 </div>
             </div>
         </div>
