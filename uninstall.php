@@ -1,6 +1,6 @@
 <?php
 /**
- * CloudScale Cleanup — Uninstall
+ * CloudScale Cleanup, Uninstall
  *
  * Removes all plugin options and clears scheduled cron events when the plugin
  * is deleted via Plugins > Delete.

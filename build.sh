@@ -41,10 +41,16 @@ VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
 VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
 VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
 NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
-ESC_VER=$(echo "$CURRENT_VER" | sed 's/\./\./g')
+# Escape dots so the sed pattern is a literal version string, not a regex with
+# wildcards. Without this, "s/2.5.65/.../g" matches "255,255,255,0.15" inside
+# inline CSS rgba() values and mangles them (see commit 623474a, v2.5.28 and
+# v2.5.65 — both fixed the same recurring CSS corruption).
+ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
+# Word-boundary anchors prevent matching version-like substrings inside
+# longer numeric runs (e.g. the "2.5.65" inside a hypothetical "12.5.654").
 echo "Version bump: $CURRENT_VER → $NEW_VER"
 while IFS= read -r vfile; do
-  sed -i '' "s/$ESC_VER/$NEW_VER/g" "$vfile"
+  sed -i '' "s/[[:<:]]${ESC_VER}[[:>:]]/$NEW_VER/g" "$vfile"
 done < <(grep -rl "$CURRENT_VER" "$REPO_DIR" --include="*.php" --include="*.js" --include="*.txt" 2>/dev/null | grep -v "\.git" | grep -v "/repo/")
 # Sync readme.txt and main PHP into repo/ so SVN trunk always has correct version.
 cp "$REPO_DIR/readme.txt" "$REPO_DIR/repo/readme.txt"
@@ -154,6 +160,7 @@ rsync -a \
   --exclude='delete-playwright-test-account.sh' \
   --exclude='archive' \
   --exclude='CloudScaleCleanup.jpg' \
+  --exclude='repo' \
   "$REPO_DIR/" "$TEMP_DIR/$PLUGIN_NAME/"
 
 # Build zip with correct structure

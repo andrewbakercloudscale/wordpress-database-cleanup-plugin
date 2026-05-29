@@ -1,9 +1,9 @@
-/* CloudScale Cleanup — Admin JS
+/* CloudScale Cleanup, Admin JS
  * Chunked processing engine: start → loop chunks → finish
  * Each operation sends small AJAX requests until done.
  */
 
-// Global helpers — called from inline onclick attributes in PHP-rendered HTML.
+// Global helpers, called from inline onclick attributes in PHP-rendered HTML.
 // Must be window-scoped so they are reachable from HTML event attributes.
 function cscToggle(track) {
     var isOn = track.getAttribute('data-on') === '1';
@@ -40,7 +40,7 @@ function cscOrphanToggle(el, type) {
 
     $(document).ready(function () {
 
-    console.log('[CSC] admin-v7.js loaded — build 2.1.0 — ' + new Date().toISOString());
+    console.log('[CSC] admin-v7.js loaded, build 2.1.0, ' + new Date().toISOString());
     // ── Tab switching ──────────────────────────────────────────────────────────
 
     $('.csc-tab').on('click', function () {
@@ -67,11 +67,11 @@ function cscOrphanToggle(el, type) {
         $('#' + id).empty();
     }
 
-    // Parse "[OPTIMISE] ID 1041 — name.ext (87 KB) — flags"
-    // or    "[UNUSED]   ID 1041 — name.ext (87 KB)"
+    // Parse "[OPTIMISE] ID 1041, name.ext (87 KB), flags"
+    // or    "[UNUSED]   ID 1041, name.ext (87 KB)"
     // into column cells for a cleaner table layout.
     function parseTableLine(text) {
-        var m = text.match(/^\s*\[(OPTIMISE|UNUSED)\]\s+ID\s+(\d+)\s+—\s+(.+?)\s+\(([^)]+)\)(?:\s+—\s+(.+))?$/);
+        var m = text.match(/^\s*\[(OPTIMISE|UNUSED)\]\s+ID\s+(\d+)\s+, \s+(.+?)\s+\(([^)]+)\)(?:\s+, \s+(.+))?$/);
         if (!m) { return null; }
         return { tag: m[1], id: m[2], name: m[3], size: m[4], flags: m[5] || '' };
     }
@@ -143,7 +143,7 @@ function cscOrphanToggle(el, type) {
     function updateProgress(fillId, labelId, done, total, extraLabel) {
         var pct = total > 0 ? Math.round((done / total) * 100) : 0;
         $('#' + fillId).css('width', pct + '%');
-        var label = pct + '% — ' + done + ' / ' + total + ' processed';
+        var label = pct + '%, ' + done + ' / ' + total + ' processed';
         if (extraLabel) { label += ' · ' + extraLabel; }
         $('#' + labelId).text(label);
     }
@@ -307,7 +307,7 @@ function cscOrphanToggle(el, type) {
                 if (!resp.success) {
                     appendLine(opts.termId, { type: 'error', text: 'Error: ' + (resp.data || 'Unknown error') });
                     opts.$btn.prop('disabled', false).html(opts.restoreLabel);
-                    finishProgress('#' + opts.progressOuter, opts.progressFill, opts.progressLabel, 'Error — see log.');
+                    finishProgress('#' + opts.progressOuter, opts.progressFill, opts.progressLabel, 'Error, see log.');
                     return;
                 }
 
@@ -352,7 +352,7 @@ function cscOrphanToggle(el, type) {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('db-terminal');
-        appendLine('db-terminal', { type: 'section', text: '=== DRY RUN — Database Scan ===' });
+        appendLine('db-terminal', { type: 'section', text: '=== DRY RUN, Database Scan ===' });
 
         // Collect toggle states from track divs
         var postData = { action: 'cscc_scan_db', nonce: CSC.nonce };
@@ -370,16 +370,16 @@ function cscOrphanToggle(el, type) {
         });
 
         $.post(CSC.ajax_url, postData, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             if (resp.success) {
                 appendLines('db-terminal', resp.data);
                 appendLine('db-terminal', { type: 'info', text: '\nDry run complete. No changes have been made. Review the output log above before running cleanup.' });
             } else {
-                appendLine('db-terminal', { type: 'error', text: 'Server error: ' + (resp.data || 'Unknown — check PHP error log') });
+                appendLine('db-terminal', { type: 'error', text: 'Server error: ' + (resp.data || 'Unknown, check PHP error log') });
             }
         }).fail(function (jqXHR, textStatus, errorThrown) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
-            appendLine('db-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
+            appendLine('db-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             appendLine('db-terminal', { type: 'error', text: 'Response: ' + jqXHR.responseText.substring(0, 200) });
         });
     });
@@ -406,7 +406,7 @@ function cscOrphanToggle(el, type) {
             confirmOpts: {
                 icon: '🗑️', title: 'Run Database Cleanup',
                 warning: 'Selected items will be permanently deleted from the database.',
-                body: '<p>Items identified in the dry run will be removed based on your toggle selections — revisions, transients, spam comments, and other selected data.</p><p>This action <strong>cannot be undone</strong>.</p>',
+                body: '<p>Items identified in the dry run will be removed based on your toggle selections, revisions, transients, spam comments, and other selected data.</p><p>This action <strong>cannot be undone</strong>.</p>',
                 cancelLabel: 'Cancel', confirmLabel: 'Run Cleanup', confirmClass: 'csc-btn-danger',
             },
             $btn:          $(this),
@@ -423,9 +423,9 @@ function cscOrphanToggle(el, type) {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('autoload-terminal');
-        appendLine('autoload-terminal', { type: 'section', text: '=== DRY RUN — Autoloaded Options ===' });
+        appendLine('autoload-terminal', { type: 'section', text: '=== DRY RUN, Autoloaded Options ===' });
         $.post(CSC.ajax_url, { action: 'cscc_autoload_scan', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             if (resp.success) {
                 appendLines('autoload-terminal', resp.data);
                 appendLine('autoload-terminal', { type: 'info', text: '\nDry run complete. No changes made. Press Clean Autoload Now to optimise.' });
@@ -433,7 +433,7 @@ function cscOrphanToggle(el, type) {
                 appendLine('autoload-terminal', { type: 'error', text: 'Scan failed: ' + (resp.data || 'unknown error') });
             }
         }).fail(function (jqXHR) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             appendLine('autoload-terminal', { type: 'error', text: 'Request failed: ' + jqXHR.status });
         });
     });
@@ -463,7 +463,7 @@ function cscOrphanToggle(el, type) {
                 var bgs    = { green: '#2e7d32', amber: '#e65100', red: '#c62828' };
                 var labels = { green: '✅ Healthy', amber: '⚠️ Warning', red: '🔴 Critical' };
                 $('#autoload-rag-badge')
-                    .text((labels[rag] || rag) + ' — ' + size)
+                    .text((labels[rag] || rag) + ', ' + size)
                     .css('background', bgs[rag] || '#555');
             },
         });
@@ -506,8 +506,8 @@ function cscOrphanToggle(el, type) {
             var knownCount = rows.filter(function(r) { return r.plugin !== 'Unknown plugin'; }).length;
             var html = '<p style="margin:0 0 8px;font-size:13px;color:#3c434a">'
                      + '<strong>' + rows.length + ' candidate' + (rows.length === 1 ? '' : 's') + '</strong>'
-                     + ' — <strong>' + formatBytes(totalSize) + '</strong> total'
-                     + ' (' + knownCount + ' matched to a known plugin). Nothing pre-selected — review and check what you want to move.</p>';
+                     + ', <strong>' + formatBytes(totalSize) + '</strong> total'
+                     + ' (' + knownCount + ' matched to a known plugin). Nothing pre-selected, review and check what you want to move.</p>';
 
             html += '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">'
                   + '<button id="orphan-select-all"    class="csc-btn csc-btn-secondary" style="font-size:11px;padding:3px 10px">Select All</button>'
@@ -556,7 +556,7 @@ function cscOrphanToggle(el, type) {
                 });
             });
 
-            // Wildcard search — matches option name or plugin name, supports * as wildcard
+            // Wildcard search, matches option name or plugin name, supports * as wildcard
             function orphanMatchSearch(str, pattern) {
                 if (!pattern) { return false; }
                 // Convert wildcard pattern to regex: * → .*, ? → .
@@ -631,7 +631,7 @@ function cscOrphanToggle(el, type) {
         });
     });
 
-    // View bin — with per-row restore buttons
+    // View bin, with per-row restore buttons
     $(document).on('click', '#btn-orphan-view-bin', function () {
         var $list = $('#orphan-bin-list');
         if ($list.is(':visible')) { $list.hide(); return; }
@@ -716,9 +716,9 @@ function cscOrphanToggle(el, type) {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('table-terminal');
-        appendLine('table-terminal', { type: 'section', text: '=== DRY RUN — Table Overhead ===' });
+        appendLine('table-terminal', { type: 'section', text: '=== DRY RUN, Table Overhead ===' });
         $.post(CSC.ajax_url, { action: 'cscc_table_scan', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             if (resp.success) {
                 appendLines('table-terminal', resp.data);
                 appendLine('table-terminal', { type: 'info', text: '\nDry run complete. Press Repair Tables to optimise.' });
@@ -726,7 +726,7 @@ function cscOrphanToggle(el, type) {
                 appendLine('table-terminal', { type: 'error', text: 'Scan failed: ' + (resp.data || 'unknown error') });
             }
         }).fail(function (jqXHR) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             appendLine('table-terminal', { type: 'error', text: 'Request failed: ' + jqXHR.status });
         });
     });
@@ -744,7 +744,7 @@ function cscOrphanToggle(el, type) {
             confirmOpts: {
                 icon: '🔧', title: 'Repair Table Overhead',
                 warning: 'OPTIMIZE TABLE will run on all tables with significant overhead.',
-                body: '<p>Safe on InnoDB — no table locks on MySQL 5.6+. This may take a few minutes on large databases.</p><p><strong>No data will be deleted.</strong></p>',
+                body: '<p>Safe on InnoDB, no table locks on MySQL 5.6+. This may take a few minutes on large databases.</p><p><strong>No data will be deleted.</strong></p>',
                 cancelLabel: 'Cancel', confirmLabel: 'Run Repair', confirmClass: 'csc-btn-primary',
             },
             $btn:          $(this),
@@ -756,7 +756,7 @@ function cscOrphanToggle(el, type) {
                 var bgs    = { green: '#2e7d32', amber: '#e65100', red: '#c62828' };
                 var labels = { green: '✅ Healthy', amber: '⚠️ Warning', red: '🔴 Critical' };
                 $('#table-rag-badge')
-                    .text((labels[rag] || rag) + ' — ' + size + ' overhead')
+                    .text((labels[rag] || rag) + ', ' + size + ' overhead')
                     .css('background', bgs[rag] || '#555');
             },
         });
@@ -768,7 +768,7 @@ function cscOrphanToggle(el, type) {
 
     // ── Media recycle bin status helper ──
     function mediaUpdateRecycleBin( count ) {
-        $('#media-recycle-count').text( count > 0 ? '— ' + count + ' attachment(s) in recycle bin' : '— recycle bin is empty' );
+        $('#media-recycle-count').text( count > 0 ? ',  ' + count + ' attachment(s) in recycle bin' : ',  recycle bin is empty' );
     }
 
     // Check media recycle bin on page load
@@ -783,10 +783,10 @@ function cscOrphanToggle(el, type) {
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('img-terminal');
         $('#img-dry-run-summary').hide();
-        appendLine('img-terminal', { type: 'section', text: '=== DRY RUN — Unused Media Scan ===' });
+        appendLine('img-terminal', { type: 'section', text: '=== DRY RUN, Unused Media Scan ===' });
 
         $.post(CSC.ajax_url, { action: 'cscc_scan_images', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             if (resp.success) {
                 appendLines('img-terminal', resp.data);
                 appendLine('img-terminal', { type: 'info', text: '\nDry run complete. No files moved or deleted. Review the output log below before moving to recycle.' });
@@ -810,7 +810,7 @@ function cscOrphanToggle(el, type) {
                 appendLine('img-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
         }).fail(function () {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview');
             appendLine('img-terminal', { type: 'error', text: 'Network error.' });
         });
     });
@@ -872,7 +872,7 @@ function cscOrphanToggle(el, type) {
                 }
             }).fail(function (jqXHR, textStatus, errorThrown) {
                 $btn.prop('disabled', false).html('↩️ Restore All');
-                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             });
         });
     });
@@ -899,7 +899,7 @@ function cscOrphanToggle(el, type) {
                 }
             }).fail(function (jqXHR, textStatus, errorThrown) {
                 $btn.prop('disabled', false).html('🗑 Permanently Delete');
-                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             });
         });
     });
@@ -921,7 +921,7 @@ function cscOrphanToggle(el, type) {
             res.data.files.forEach(function (file) {
                 var $row = $('<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee">' +
                     '<div style="flex:1;min-width:0">' +
-                        '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ID ' + file.id + ' — ' + $('<span>').text(file.name).html() + '</div>' +
+                        '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ID ' + file.id + ', ' + $('<span>').text(file.name).html() + '</div>' +
                         '<div style="font-size:11px;color:#888;margin-top:2px">' + file.file_count + ' file(s) · ' + file.size_fmt + (file.recycled ? ' · recycled ' + file.recycled : '') + '</div>' +
                     '</div>' +
                     '<button class="csc-media-restore-single" data-att-id="' + file.id + '" style="background:#43a047;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;margin-left:10px;white-space:nowrap">↩️ Restore</button>' +
@@ -956,7 +956,7 @@ function cscOrphanToggle(el, type) {
     // File types stored as data-ftype on buttons, set by inline onclick pill toggles
 
     function orphanUpdateRecycleBin( count ) {
-        $('#orphan-recycle-count').text( count > 0 ? '— ' + count + ' file(s) in recycle bin' : '— recycle bin is empty' );
+        $('#orphan-recycle-count').text( count > 0 ? ',  ' + count + ' file(s) in recycle bin' : ',  recycle bin is empty' );
     }
 
     // Check recycle bin status on page load
@@ -986,7 +986,7 @@ function cscOrphanToggle(el, type) {
             }
         }).fail(function (jqXHR, textStatus, errorThrown) {
             $btn.prop('disabled', false).html('🔍 Scan Unregistered Files');
-            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+            appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
         });
     });
 
@@ -1001,7 +1001,7 @@ function cscOrphanToggle(el, type) {
         cscConfirmModal({
             icon: '♻️', title: 'Move Orphaned Files to Recycle',
             warning: 'All scanned orphaned files will be moved to the recycle bin.',
-            body: '<p>Files are <strong>moved, not deleted</strong> — they are placed in a protected recycle folder on disk. You can restore or permanently delete them afterwards.</p>',
+            body: '<p>Files are <strong>moved, not deleted</strong>, they are placed in a protected recycle folder on disk. You can restore or permanently delete them afterwards.</p>',
             cancelLabel: 'Cancel', confirmLabel: 'Move to Recycle', confirmClass: 'csc-btn-primary',
         }, function () {
             $btn.prop('disabled', true).html('⏳ Moving…');
@@ -1017,7 +1017,7 @@ function cscOrphanToggle(el, type) {
                 }
             }).fail(function (jqXHR, textStatus, errorThrown) {
                 $btn.prop('disabled', false).html('♻️ Move to Recycle');
-                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             });
         });
     });
@@ -1044,7 +1044,7 @@ function cscOrphanToggle(el, type) {
                 }
             }).fail(function (jqXHR, textStatus, errorThrown) {
                 $btn.prop('disabled', false).html('↩️ Restore All');
-                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             });
         });
     });
@@ -1071,7 +1071,7 @@ function cscOrphanToggle(el, type) {
                 }
             }).fail(function (jqXHR, textStatus, errorThrown) {
                 $btn.prop('disabled', false).html('🗑 Permanently Delete');
-                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ' — ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
+                appendLine('img-terminal', { type: 'error', text: 'AJAX failed: ' + textStatus + ', ' + errorThrown + ' (HTTP ' + jqXHR.status + ')' });
             });
         });
     });
@@ -1084,10 +1084,10 @@ function cscOrphanToggle(el, type) {
         var $btn = $(this);
         $btn.prop('disabled', true).html('⏳ Scanning…');
         clearTerminal('optimise-terminal');
-        appendLine('optimise-terminal', { type: 'section', text: '=== DRY RUN — Image Optimisation Preview ===' });
+        appendLine('optimise-terminal', { type: 'section', text: '=== DRY RUN, Image Optimisation Preview ===' });
 
         $.post(CSC.ajax_url, { action: 'cscc_scan_optimise', nonce: CSC.nonce }, function (resp) {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview Savings');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview Savings');
             if (resp.success) {
                 appendLines('optimise-terminal', resp.data);
                 appendLine('optimise-terminal', { type: 'info', text: '\nDry run complete. No files modified. Review the output log above before optimising.' });
@@ -1095,7 +1095,7 @@ function cscOrphanToggle(el, type) {
                 appendLine('optimise-terminal', { type: 'error', text: 'Error: ' + (resp.data || 'Unknown') });
             }
         }).fail(function () {
-            $btn.prop('disabled', false).html('🔍 Dry Run — Preview Savings');
+            $btn.prop('disabled', false).html('🔍 Dry Run, Preview Savings');
             appendLine('optimise-terminal', { type: 'error', text: 'Network error.' });
         });
     });
@@ -1143,7 +1143,7 @@ function cscOrphanToggle(el, type) {
 // EXPLAIN MODALS
 // ═════════════════════════════════════════════════════════════════════════════
 
-    // Force explain button styles — WordPress admin CSS overrides inline styles
+    // Force explain button styles, WordPress admin CSS overrides inline styles
     document.querySelectorAll('[id^="csc-explain-btn-"]').forEach(function(btn) {
         var header = btn.parentElement;
         header.style.setProperty('display', 'flex', 'important');
@@ -1160,7 +1160,7 @@ function cscOrphanToggle(el, type) {
 
     // Force-hide native checkboxes inside slider labels
     // WordPress admin CSS can override our hidden-checkbox styles, so we apply
-    // inline styles directly via JS after DOM ready — these always win.
+    // inline styles directly via JS after DOM ready, these always win.
     function initSliders() {
         document.querySelectorAll('.csc-slider-label input[type="checkbox"]').forEach(function (cb) {
             cb.style.cssText = [
@@ -1283,7 +1283,7 @@ function cscOrphanToggle(el, type) {
             regenThumbTotal = d.total;
 
             if (d.missing === 0) {
-                $('#regen-thumb-msg').text('✔ All ' + d.total + ' images have their thumbnail sizes — nothing to regenerate.');
+                $('#regen-thumb-msg').text('✔ All ' + d.total + ' images have their thumbnail sizes, nothing to regenerate.');
                 $('#regen-thumb-summary').css('border-left-color', '#2e7d32').show();
                 $('#btn-run-regen-thumb').hide();
                 return;
@@ -1300,7 +1300,7 @@ function cscOrphanToggle(el, type) {
             var html   = '';
 
             if (used.length) {
-                html += '<div style="font-weight:700;color:#8c2020;margin-bottom:4px">⚠ Active featured images (' + used.length + ') — these affect article display right now:</div>';
+                html += '<div style="font-weight:700;color:#8c2020;margin-bottom:4px">⚠ Active featured images (' + used.length + '), these affect article display right now:</div>';
                 html += '<div style="margin-bottom:10px">' + used.map(function (i) {
                     return '<span style="display:inline-block;background:#fdf0f0;border:1px solid #f5c6c6;border-radius:4px;padding:2px 8px;margin:2px;font-size:11px">'
                         + '<strong style="color:#8c2020">[Featured]</strong> ' + esc(i.title || 'ID ' + i.id) + '</span>';
@@ -1345,8 +1345,8 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', false).html('⚙️ Regenerate All Missing').hide();
             $('#btn-scan-regen-thumb').prop('disabled', false);
             finishProgress('#regen-thumb-progress-outer', 'regen-thumb-progress-fill', 'regen-thumb-progress-label',
-                '✔ Done — ' + regenerated + ' images regenerated');
-            var doneMsg = '✔ Done — ' + regenerated + ' thumbnail size' + (regenerated === 1 ? '' : 's') + ' regenerated.';
+                '✔ Done, ' + regenerated + ' images regenerated');
+            var doneMsg = '✔ Done, ' + regenerated + ' thumbnail size' + (regenerated === 1 ? '' : 's') + ' regenerated.';
             if (regenerated > 0) { doneMsg += ' Refresh the page or view a post to confirm the article images display correctly.'; }
             if (errors)          { doneMsg += ' ' + errors + ' image(s) could not be processed (file missing on disk).'; }
             $('#regen-thumb-msg').text(doneMsg);
@@ -1553,7 +1553,7 @@ function cscOrphanToggle(el, type) {
             $btn.prop('disabled', false).text('Save');
             if (res.success) {
                 cspjChunkMb = res.data.chunk_mb;
-                $('#cspj-save-status').text('Saved — ' + cspjChunkMb + ' MB').css('color', 'var(--csc-green)');
+                $('#cspj-save-status').text('Saved, ' + cspjChunkMb + ' MB').css('color', 'var(--csc-green)');
                 cspjDbg('OK', 'Chunk size saved: <span class="cspj-log-val">' + cspjChunkMb + ' MB</span>');
             } else {
                 $('#cspj-save-status').text('Error').css('color', 'var(--csc-red)');
@@ -1984,7 +1984,7 @@ function cscOrphanToggle(el, type) {
     // ═════════════════════════════════════════════════════════════════════════
 
     function healthFormatBytes(b) {
-        if (b < 0) return '—';
+        if (b < 0) return '·';
         if (b === 0) return '0 B';
         if (b < 1024) return b + ' B';
         if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
@@ -1997,10 +1997,10 @@ function cscOrphanToggle(el, type) {
         var ragColors = { red: '#c62828', amber: '#e65100', green: '#2e7d32', grey: '#78909c' };
         var ragBgs    = { red: '#ffebee', amber: '#fff3e0', green: '#e8f5e9', grey: '#eceff1' };
         var ragLabels = {
-            red:   'Critical — Less than 3 months of storage remaining',
-            amber: 'Warning — Less than 6 months of storage remaining',
-            green: 'Healthy — More than 6 months of storage remaining',
-            grey:  'Collecting data — need at least 2 weekly snapshots'
+            red:   'Critical, Less than 3 months of storage remaining',
+            amber: 'Warning, Less than 6 months of storage remaining',
+            green: 'Healthy, More than 6 months of storage remaining',
+            grey:  'Collecting data, need at least 2 weekly snapshots'
         };
 
         var rag = d.disk_rag || 'grey';
@@ -2024,31 +2024,31 @@ function cscOrphanToggle(el, type) {
         } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
             $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
         } else {
-            $('#hm-weeks-left').text('—').css('color', '');
+            $('#hm-weeks-left').text('·').css('color', '');
         }
 
-        // CPU — show percentage with load average in parentheses
-        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now + '%' : '—';
+        // CPU, show percentage with load average in parentheses
+        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now + '%' : '·';
         if (d.cpu_load_now >= 0) { cpuNow += ' (load ' + d.cpu_load_now.toFixed(2) + ')'; }
         $('#hm-cpu-now').text(cpuNow);
-        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h + '%' : (d.cpu_max_24h >= 0 ? d.cpu_max_24h.toFixed(2) + ' load' : '—'));
-        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d + '%' : (d.cpu_max_7d >= 0 ? d.cpu_max_7d.toFixed(2) + ' load' : '—'));
+        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h + '%' : (d.cpu_max_24h >= 0 ? d.cpu_max_24h.toFixed(2) + ' load' : '·'));
+        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d + '%' : (d.cpu_max_7d >= 0 ? d.cpu_max_7d.toFixed(2) + ' load' : '·'));
 
-        // Memory — show percentage with bytes in parentheses
-        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now + '%' : '—';
+        // Memory, show percentage with bytes in parentheses
+        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now + '%' : '·';
         if (d.mem_used_now >= 0 && d.mem_total > 0) { memNow += ' (' + healthFormatBytes(d.mem_used_now) + ' / ' + healthFormatBytes(d.mem_total) + ')'; }
         $('#hm-mem-now').text(memNow);
-        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h + '%' : (d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '—'));
-        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d + '%' : (d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '—'));
+        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h + '%' : (d.mem_max_24h >= 0 ? healthFormatBytes(d.mem_max_24h) : '·'));
+        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d + '%' : (d.mem_max_7d >= 0 ? healthFormatBytes(d.mem_max_7d) : '·'));
 
-        // Max resource — render as 3 equal cards matching the row above
+        // Max resource, render as 3 equal cards matching the row above
         if (d.max_resource_now !== undefined) {
             var $grid = $('#hm-mem-7d').closest('[style*="grid"]');
             if ($grid.length && !$('#hm-maxres-now').length) {
                 $grid.after('<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">' +
-                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&mdash;</div></div>' +
-                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&mdash;</div></div>' +
-                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&mdash;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (now)</div><div class="csc-health-metric-value" id="hm-maxres-now">&middot;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (24h)</div><div class="csc-health-metric-value" id="hm-maxres-24h">&middot;</div></div>' +
+                    '<div class="csc-health-metric"><div class="csc-health-metric-label">Max Resource (7d)</div><div class="csc-health-metric-value" id="hm-maxres-7d">&middot;</div></div>' +
                 '</div>');
             }
             if (d.max_resource_now >= 0) $('#hm-maxres-now').text(d.max_resource_now + '%');
@@ -2148,7 +2148,7 @@ function cscOrphanToggle(el, type) {
             } else if (!d.sar_has_data) {
                 $('#csc-sysstat-icon').text('⚠️');
                 $('#csc-sysstat-label').text('sysstat active, no data yet');
-                $('#csc-sysstat-detail').text(d.sar_version + ' — wait 10 minutes for first samples');
+                $('#csc-sysstat-detail').text(d.sar_version + ', wait 10 minutes for first samples');
                 $box.css({ background: '#fffbeb', borderColor: '#fde68a' });
             } else {
                 $('#csc-sysstat-icon').text('✅');
@@ -2279,7 +2279,7 @@ function cscOrphanToggle(el, type) {
             ctx.fillRect(x - w * 0.5, HEADER_H, w * 2, cssH - HEADER_H);
         });
 
-        // "Now" marker at x=0 — line only, no label (avoids clash with first hour tick)
+        // "Now" marker at x=0, line only, no label (avoids clash with first hour tick)
         ctx.textBaseline = 'middle';
         ctx.strokeStyle  = '#bbb';
         ctx.lineWidth    = 1.5;
@@ -2418,7 +2418,7 @@ function cscOrphanToggle(el, type) {
         var cfg = PLUGIN_STATUS[status] || PLUGIN_STATUS['unknown'];
         var dot = '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + cfg.color + ';margin-right:4px;vertical-align:middle"></span>';
         var badge = '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + cfg.bg + ';color:' + cfg.color + ';white-space:nowrap">' + cfg.label + '</span>';
-        if (!name) { return '<span style="color:#aaa;font-size:11px">&mdash;</span>'; }
+        if (!name) { return '<span style="color:#aaa;font-size:11px">&middot;</span>'; }
         return '<span style="font-size:11px">' + dot + $('<span>').text(name).html() + '</span><br>' + badge;
     }
 
@@ -2441,7 +2441,7 @@ function cscOrphanToggle(el, type) {
                 : '<span class="csc-cron-badge csc-cron-badge-green">OK</span>';
             var timeHtml = cscFmtCronTime(ev.next_run, now);
 
-            var lastRunHtml = '&mdash;';
+            var lastRunHtml = '&middot;';
             if (runLog && runLog[ev.hook]) {
                 var lr = runLog[ev.hook];
                 var ms = lr.duration_ms;
@@ -2484,7 +2484,7 @@ function cscOrphanToggle(el, type) {
         var icon, cls, msg;
         if (disabled) {
             icon = '&#9989;'; cls = 'csc-cron-health-ok';
-            msg = 'DISABLE_WP_CRON is set — pseudo-cron is off. Ensure a real server cron is running.';
+            msg = 'DISABLE_WP_CRON is set, pseudo-cron is off. Ensure a real server cron is running.';
         } else if (overdue > 3 || congested) {
             icon = '&#9888;'; cls = 'csc-cron-health-warn';
             var parts = [];
@@ -2519,7 +2519,7 @@ function cscOrphanToggle(el, type) {
             return '<li><strong>' + zone.count + ' jobs</strong> at ' + timeLabel + ': ' + hooks + '</li>';
         });
         $warn.html(
-            '<strong>&#9888; Cron Congestion Detected</strong> — multiple jobs firing in the same 5-minute window may cause CPU spikes and slow page responses.' +
+            '<strong>&#9888; Cron Congestion Detected</strong>, multiple jobs firing in the same 5-minute window may cause CPU spikes and slow page responses.' +
             '<ul style="margin:6px 0 0 16px;padding:0">' + lines.join('') + '</ul>'
         ).show();
     }
@@ -2642,8 +2642,8 @@ function cscOrphanToggle(el, type) {
         var rows = bin.map(function(entry) {
             var hookHtml    = $('<span>').text(entry.hook).html();
             var schedHtml   = $('<span>').text(entry.schedule || 'one-time').html();
-            var wasDue      = entry.next_run ? new Date(entry.next_run * 1000).toLocaleString() : '&mdash;';
-            var deletedAt   = entry.deleted_at ? new Date(entry.deleted_at * 1000).toLocaleString() : '&mdash;';
+            var wasDue      = entry.next_run ? new Date(entry.next_run * 1000).toLocaleString() : '&middot;';
+            var deletedAt   = entry.deleted_at ? new Date(entry.deleted_at * 1000).toLocaleString() : '&middot;';
             var id          = $('<span>').text(entry.id).html();
             return '<tr>'
                 + '<td class="csc-cron-hook-cell">' + hookHtml + '</td>'
@@ -2902,7 +2902,7 @@ function cscOrphanToggle(el, type) {
                     var $row = $('<tr>').css('border-bottom', '1px solid #f0f0f0');
                     $row.append($('<td>').css({ padding: '6px 12px', 'word-break': 'break-all', 'font-size': '12px', color: isScaled ? '#888' : '#222' }).text(f.path));
                     $row.append($('<td>').css({ padding: '6px 12px', 'text-align': 'right', 'white-space': 'nowrap', 'font-family': 'monospace', 'font-size': '12px' }).text(cscFmtBytes(f.size)));
-                    $row.append($('<td>').css({ padding: '6px 12px', color: '#888', 'font-size': '12px' }).text(f.ext || '—'));
+                    $row.append($('<td>').css({ padding: '6px 12px', color: '#888', 'font-size': '12px' }).text(f.ext || '·'));
                     $tf.append($row);
                 });
                 $('#space-top-files-wrap').show();
@@ -2913,7 +2913,7 @@ function cscOrphanToggle(el, type) {
             $('#space-report-content').show();
         }).fail(function() {
             $('#space-report-loading').hide();
-            $('#space-report-error').text('Network error — scan failed.').show();
+            $('#space-report-error').text('Network error, scan failed.').show();
         });
     }
 

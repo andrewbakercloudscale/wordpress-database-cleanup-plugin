@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────
-   CloudScale Cleanup — Admin CSS
+   CloudScale Cleanup, Admin CSS
    Matches the CloudScale plugin family aesthetic
    ───────────────────────────────────────────── */
 
@@ -859,7 +859,7 @@
     transform: translateX(20px);
 }
 
-/* Explain button — right-aligned, per-card colours set via inline style */
+/* Explain button, right-aligned, per-card colours set via inline style */
 .csc-card-header button[id^="csc-explain-btn-"] {
     margin-left: auto !important;
     flex-shrink: 0;

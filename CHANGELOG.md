@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.68 — 2026-05-27
+- FIX(migration): The v2.5.65 prefix migration ran `delete_option($old)` unconditionally even when the new key already existed (because the new cron had fired between v2.5.64 deploy and v2.5.65 migration), destroying months of weekly snapshot and hourly-metric history on early upgraders
+- FIX(migration): Migration now MERGES time-series arrays (`cscc_health_weekly_snapshots`, `cscc_health_hourly_metrics`, `cscc_cron_run_log`) by `ts_unix` and only deletes the old key after a successful merge or copy
+- FIX(build): `build.sh` version-bump sed was using `s/\./\./g` (no-op) to escape dots, so `s/2.5.65/2.5.66/g` matched anywhere — mangled inline CSS `rgba(255,255,255,0.15)` values into `rgba(2.5.3955,2.5.1.15)` on every build (same bug as v2.5.28); replaced with proper dot-escape and word-boundary anchors
+- FIX(widget): 11 mangled `rgba()` values in `cloudscale-cleanup.php` reconstructed (Debug Console Copy/Clear/▼ buttons, Copy-log buttons on schedule cards, explain-button default colour, three gradient box-shadows)
+- FIX(widget): Dashboard widget disk panel now shows current usage immediately — was gated on `count($weekly) >= 2` which suppressed it for the first week after the weekly cron was added in v2.5.40
+
+## 2.5.66 — 2026-05-27
+- BUILD: Exclude nested `repo/` (SVN staging directory) from distribution zip — was duplicating every plugin file inside the WP.org submission package; zip is now 9 files instead of 17
+
+## 2.5.65 — 2026-05-27
+- FIX(widget): Restore dashboard widget data on sites that upgraded through the v2.5.64 `csc_` → `cscc_` prefix rename — added `cscc_migrate_legacy_csc_prefix()` one-time migration that copies historical weekly snapshots, last-run timestamps, schedule settings, image-optimise settings, counters, and queues from the old `csc_*` option keys to the new `cscc_*` keys
+- FIX(crons): Reschedule orphaned WP-Cron events (`csc_health_hourly_collect`, `csc_health_weekly_snapshot`, `csc_scheduled_db_cleanup`, `csc_scheduled_img_cleanup`) under their new `cscc_*` hook names, preserving recurrence and next-run time
+
 ## 2.5.64 — 2026-05-25
 - STANDARDS: Renamed all PHP function, option, transient, AJAX action, and constant prefixes from `csc_`/`CSC_` (3 chars, rejected by WP.org) to `cscc_`/`CSCC_` — WordPress.org requires ≥ 4-character unique prefix
 - STANDARDS: Removed versioned asset copies (`admin-X-X-X.js/css`) from plugin directory — WP.org prohibits writing files to the plugin folder; cache-busting now uses the `$version` parameter in `wp_enqueue_*`

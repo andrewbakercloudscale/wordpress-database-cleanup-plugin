@@ -1,10 +1,10 @@
 === CloudScale Cleanup ===
-Contributors: andrewbaker
+Contributors: cloudscale
 Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.5.64
+Stable tag: 2.5.68
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
