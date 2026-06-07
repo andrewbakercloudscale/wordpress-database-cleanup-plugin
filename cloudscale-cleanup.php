@@ -1,11 +1,10 @@
 <?php
 /**
  * Plugin Name: CloudScale Cleanup
- * Plugin URI:  https://terraclaim.org
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.68
+ * Version:     2.5.71
  * Author:      CloudScale
- * Author URI:  https://terraclaim.org
+ * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: cloudscale-cleanup
@@ -15,10 +14,12 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.68' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.71' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
+
+require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cloudscale-telegram.php';
 
 // Clear opcode cache on activation so updated files take effect immediately
 register_activation_hook( __FILE__, function() {
@@ -479,7 +480,7 @@ class CSCC_Front_Widget extends WP_Widget {
             'cscc_front_widget',
             'CloudScale Cleanup',
             array(
-                'description' => 'Shows last cleanup run times and links to the CloudScale Cleanup plugin at terraclaim.org.',
+                'description' => 'Shows last cleanup run times and links to the CloudScale Cleanup plugin at cloudscale.consulting.',
                 'classname'   => 'widget-csc-cleanup',
             )
         );
@@ -531,12 +532,12 @@ class CSCC_Front_Widget extends WP_Widget {
                 </li>
             </ul>
             <div class="csc-fw-links">
-                <a href="https://terraclaim.org" target="_blank" rel="noopener" class="csc-fw-link">terraclaim.org</a>
+                <a href="https://cloudscale.consulting" target="_blank" rel="noopener" class="csc-fw-link">cloudscale.consulting</a>
                 <?php if ( current_user_can( 'manage_options' ) ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>" class="csc-fw-link csc-fw-link-admin">Run Cleanup</a>
                 <?php endif; ?>
             </div>
-            <p class="csc-fw-credit">Powered by <a href="https://terraclaim.org" target="_blank" rel="noopener">CloudScale Cleanup</a></p>
+            <p class="csc-fw-credit">Powered by <a href="https://cloudscale.consulting" target="_blank" rel="noopener">CloudScale Cleanup</a></p>
         </div>
         <?php
         echo $args['after_widget'];
@@ -699,6 +700,11 @@ function cscc_cron_db_cleanup() {
         cscc_schedule_crons();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[CSC] cron "cscc_scheduled_db_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+        CloudScale_Telegram::send(
+            "Scheduled database cleanup cron failed.\n\nError: " . $e->getMessage(),
+            'CloudScale Cleanup',
+            'error'
+        );
     }
 }
 
@@ -749,6 +755,11 @@ function cscc_cron_img_cleanup() {
         cscc_schedule_crons();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[CSC] cron "cscc_scheduled_img_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
+        CloudScale_Telegram::send(
+            "Scheduled image cleanup cron failed.\n\nError: " . $e->getMessage(),
+            'CloudScale Cleanup',
+            'error'
+        );
     }
 }
 
@@ -5648,12 +5659,12 @@ function cscc_render_page() {
                     <span class="csc-logo">⚡</span>
                     <div>
                         <h1>CloudScale Cleanup</h1>
-                        <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://terraclaim.org" target="_blank">terraclaim.org</a></p>
+                        <p>Database and Media Library Cleanup &middot; Free and Open Source &middot; <a href="https://cloudscale.consulting" target="_blank">cloudscale.consulting</a></p>
                     </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:1">
                     <div class="csc-header-version" style="flex-shrink:0">v<?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
-                    <a href="https://terraclaim.org/cloudscale-cleanup/help/" target="_blank" rel="noopener" class="csc-help-btn" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5);flex-shrink:0" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; <span>Help &amp; Documentation</span></a>
+                    <a href="https://help.cloudscale.consulting/plugin-help/database-cleanup/" target="_blank" rel="noopener" class="csc-help-btn" style="display:inline-flex;align-items:center;gap:6px;background:#0073ff;color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:20px;text-decoration:none;white-space:nowrap;transition:background 0.15s;box-shadow:0 0 12px rgba(0,115,255,0.5);flex-shrink:0" onmouseover="this.style.background='#005ce6'" onmouseout="this.style.background='#0073ff'">&#128218; <span>Help &amp; Documentation</span></a>
                 </div>
             </div>
         </div>

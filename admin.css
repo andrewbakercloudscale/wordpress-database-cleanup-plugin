@@ -3,21 +3,24 @@
    Matches the CloudScale plugin family aesthetic
    ───────────────────────────────────────────── */
 
+/* Plugin palette is sourced from the shared CloudScale design system
+   (cloudscale-admin.css, loaded first). Change colours there to restyle
+   every plugin at once; the hex values below are fallbacks only. */
 :root {
-    --csc-dark:    #1a1f2e;
-    --csc-darker:  #141824;
-    --csc-accent:  #4a9eff;
-    --csc-accent2: #7c5cfc;
-    --csc-green:   #27ae60;
-    --csc-red:     #e74c3c;
-    --csc-amber:   #f39c12;
-    --csc-border:  #dde1e8;
-    --csc-bg:      #f4f6fa;
-    --csc-card-bg: #ffffff;
-    --csc-text:    #2c3345;
-    --csc-muted:   #6b7690;
-    --csc-radius:  8px;
-    --csc-shadow:  0 2px 8px rgba(0,0,0,0.08);
+    --csc-dark:    var(--csds-navy, #1a1f2e);
+    --csc-darker:  var(--csds-navy, #141824);
+    --csc-accent:  var(--csds-accent, #4a9eff);
+    --csc-accent2: var(--csds-accent-2, #7c5cfc);
+    --csc-green:   var(--csds-success, #27ae60);
+    --csc-red:     var(--csds-danger, #e74c3c);
+    --csc-amber:   var(--csds-warn, #f39c12);
+    --csc-border:  var(--csds-border, #dde1e8);
+    --csc-bg:      var(--csds-bg, #f4f6fa);
+    --csc-card-bg: var(--csds-surface, #ffffff);
+    --csc-text:    var(--csds-text, #2c3345);
+    --csc-muted:   var(--csds-muted, #6b7690);
+    --csc-radius:  var(--csds-radius-sm, 8px);
+    --csc-shadow:  var(--csds-shadow, 0 2px 8px rgba(0,0,0,0.08));
 }
 
 /* ── Wrap ── */

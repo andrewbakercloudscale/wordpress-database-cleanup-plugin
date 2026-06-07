@@ -163,6 +163,18 @@ rsync -a \
   --exclude='repo' \
   "$REPO_DIR/" "$TEMP_DIR/$PLUGIN_NAME/"
 
+# ── Deterministic WordPress.org file-write standards guard ───────────────────
+# Scans the STAGED plugin (exactly what ships) for disallowed file writes:
+# executable code (.php/.sh) deployed at runtime, writes to the plugin dir,
+# OS/system paths, or the /wp-content root. See standards-grep-guard.sh.
+STD_GUARD="$GITHUB_DIR/standards-grep-guard.sh"
+[ -f "$STD_GUARD" ] || STD_GUARD="$(dirname "$GITHUB_DIR")/standards-grep-guard.sh"
+if [ -f "$STD_GUARD" ]; then
+  bash "$STD_GUARD" "$TEMP_DIR/$PLUGIN_NAME" || { rm -rf "$TEMP_DIR"; exit 1; }
+else
+  echo "WARNING: standards-grep-guard.sh not found — file-write guard skipped."
+fi
+
 # Build zip with correct structure
 rm -f "$ZIP_FILE"
 cd "$TEMP_DIR"

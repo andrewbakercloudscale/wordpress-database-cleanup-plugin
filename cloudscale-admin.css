@@ -10,7 +10,7 @@
    Do NOT edit the copies inside individual plugins; they are overwritten.
 
    Two layers:
-     1. Design tokens  (--cs-*)         -> palette, type, shape, spacing
+     1. Design tokens  (--csds-*)         -> palette, type, shape, spacing
      2. Component classes (.csds-*)     -> cards, buttons, tabs, tables...
    Existing per-plugin classes (.cs-/.csc-/.cspv-/.ab-) can progressively
    point their colours at these tokens so the whole estate stays in sync.
@@ -18,67 +18,67 @@
 
 :root {
   /* ---- Brand ---- */
-  --cs-navy:        #0f172a;
-  --cs-navy-2:      #1e3a5f;
-  --cs-accent:      #2563eb;   /* primary action */
-  --cs-accent-2:    #6366f1;   /* indigo */
-  --cs-brand:       #f0821e;   /* CloudScale orange */
-  --cs-teal:        #0e7490;
+  --csds-navy:        #0f172a;
+  --csds-navy-2:      #1e3a5f;
+  --csds-accent:      #2563eb;   /* primary action */
+  --csds-accent-2:    #6366f1;   /* indigo */
+  --csds-brand:       #f0821e;   /* CloudScale orange */
+  --csds-teal:        #0e7490;
 
   /* ---- Status ---- */
-  --cs-success:     #16a34a;
-  --cs-warn:        #d97706;
-  --cs-danger:      #dc2626;
+  --csds-success:     #16a34a;
+  --csds-warn:        #d97706;
+  --csds-danger:      #dc2626;
 
   /* ---- Surfaces (modern light docs) ---- */
-  --cs-bg:          #f4f6fa;
-  --cs-surface:     #ffffff;
-  --cs-surface-2:   #f8fafc;
-  --cs-border:      #e2e8f0;
-  --cs-border-2:    #eef2f7;
-  --cs-border-strong:#cbd5e1;
+  --csds-bg:          #f4f6fa;
+  --csds-surface:     #ffffff;
+  --csds-surface-2:   #f8fafc;
+  --csds-border:      #e2e8f0;
+  --csds-border-2:    #eef2f7;
+  --csds-border-strong:#cbd5e1;
 
   /* ---- Text (high contrast on light) ---- */
-  --cs-text:        #0f172a;
-  --cs-text-2:      #334155;
-  --cs-muted:       #64748b;
-  --cs-on-dark:     #e2e8f0;
-  --cs-on-dark-mute:#94a3b8;
+  --csds-text:        #0f172a;
+  --csds-text-2:      #334155;
+  --csds-muted:       #64748b;
+  --csds-on-dark:     #e2e8f0;
+  --csds-on-dark-mute:#94a3b8;
 
   /* ---- Shape ---- */
-  --cs-radius:      12px;
-  --cs-radius-sm:   8px;
-  --cs-radius-pill: 999px;
-  --cs-shadow:      0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
-  --cs-shadow-lg:   0 10px 28px rgba(15,23,42,.12);
+  --csds-radius:      12px;
+  --csds-radius-sm:   8px;
+  --csds-radius-pill: 999px;
+  --csds-shadow:      0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.04);
+  --csds-shadow-lg:   0 10px 28px rgba(15,23,42,.12);
 
   /* ---- Type ---- */
-  --cs-font:        -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,sans-serif;
-  --cs-mono:        "SF Mono","Fira Code","Cascadia Code",Consolas,monospace;
+  --csds-font:        -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,sans-serif;
+  --csds-mono:        "SF Mono","Fira Code","Cascadia Code",Consolas,monospace;
 
   /* ---- Spacing scale ---- */
-  --cs-gap:         16px;
-  --cs-gap-sm:      10px;
-  --cs-gap-lg:      24px;
+  --csds-gap:         16px;
+  --csds-gap-sm:      10px;
+  --csds-gap-lg:      24px;
 }
 
 /* =====================================================================
    COMPONENTS  (namespaced .csds- to avoid clashing with existing prefixes)
    ===================================================================== */
 
-.csds-scope { font-family: var(--cs-font); color: var(--cs-text); line-height: 1.6; }
+.csds-scope { font-family: var(--csds-font); color: var(--csds-text); line-height: 1.6; }
 
 /* ---- Page hero panel ---- */
 .csds-hero {
   position: relative; overflow: hidden;
-  background: linear-gradient(135deg, var(--cs-navy) 0%, var(--cs-navy-2) 60%, var(--cs-navy-2) 100%);
+  background: linear-gradient(135deg, var(--csds-navy) 0%, var(--csds-navy-2) 60%, var(--csds-navy-2) 100%);
   color: #fff;
-  border-radius: var(--cs-radius);
+  border-radius: var(--csds-radius);
   padding: 36px 36px 32px;
   margin: 0 0 28px;
 }
 .csds-hero h1 { margin: 0 0 10px; font-size: 1.9em; font-weight: 800; line-height: 1.2; color: #fff; }
-.csds-hero p  { margin: 0; font-size: 1.05em; line-height: 1.7; color: var(--cs-on-dark); max-width: 720px; }
+.csds-hero p  { margin: 0; font-size: 1.05em; line-height: 1.7; color: var(--csds-on-dark); max-width: 720px; }
 .csds-hero .csds-eyebrow {
   display: inline-block; margin: 0 0 8px;
   font-size: .78em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
@@ -87,121 +87,121 @@
 
 /* ---- Card ---- */
 .csds-card {
-  background: var(--cs-surface);
-  border: 1px solid var(--cs-border);
-  border-radius: var(--cs-radius);
-  box-shadow: var(--cs-shadow);
+  background: var(--csds-surface);
+  border: 1px solid var(--csds-border);
+  border-radius: var(--csds-radius);
+  box-shadow: var(--csds-shadow);
   padding: 22px 24px;
   margin: 0 0 20px;
 }
-.csds-card--muted { background: var(--cs-surface-2); }
-.csds-card h2, .csds-card h3 { margin: 0 0 12px; color: var(--cs-text); font-weight: 800; letter-spacing: -.01em; }
+.csds-card--muted { background: var(--csds-surface-2); }
+.csds-card h2, .csds-card h3 { margin: 0 0 12px; color: var(--csds-text); font-weight: 800; letter-spacing: -.01em; }
 .csds-card h2 { font-size: 1.25em; }
 .csds-card h3 { font-size: 1.05em; }
-.csds-card p  { color: var(--cs-text-2); }
+.csds-card p  { color: var(--csds-text-2); }
 
 /* ---- Section label / heading ---- */
 .csds-label {
   font-size: .75em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--cs-teal); margin: 0 0 8px;
+  color: var(--csds-teal); margin: 0 0 8px;
 }
 
 /* ---- Buttons ---- */
 .csds-btn {
   display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--cs-font); font-size: .92em; font-weight: 700; line-height: 1;
-  padding: 11px 20px; border-radius: var(--cs-radius-sm);
+  font-family: var(--csds-font); font-size: .92em; font-weight: 700; line-height: 1;
+  padding: 11px 20px; border-radius: var(--csds-radius-sm);
   border: 1px solid transparent; cursor: pointer; text-decoration: none;
   transition: filter .15s, transform .1s, background .15s, border-color .15s;
 }
 .csds-btn:hover  { filter: brightness(1.05); }
 .csds-btn:active { transform: translateY(1px); }
-.csds-btn--primary  { background: var(--cs-accent);  color: #fff; }
-.csds-btn--brand    { background: var(--cs-brand);   color: #1a1206; }
-.csds-btn--success  { background: var(--cs-success); color: #fff; }
-.csds-btn--danger   { background: var(--cs-danger);  color: #fff; }
-.csds-btn--ghost    { background: transparent; color: var(--cs-text); border-color: var(--cs-border-strong); }
-.csds-btn--ghost:hover { background: var(--cs-surface-2); }
+.csds-btn--primary  { background: var(--csds-accent);  color: #fff; }
+.csds-btn--brand    { background: var(--csds-brand);   color: #1a1206; }
+.csds-btn--success  { background: var(--csds-success); color: #fff; }
+.csds-btn--danger   { background: var(--csds-danger);  color: #fff; }
+.csds-btn--ghost    { background: transparent; color: var(--csds-text); border-color: var(--csds-border-strong); }
+.csds-btn--ghost:hover { background: var(--csds-surface-2); }
 
 /* ---- Tabs ---- */
 .csds-tabs {
   display: flex; flex-wrap: wrap; gap: 4px;
-  background: var(--cs-surface-2);
-  border: 1px solid var(--cs-border);
-  border-radius: var(--cs-radius-sm);
+  background: var(--csds-surface-2);
+  border: 1px solid var(--csds-border);
+  border-radius: var(--csds-radius-sm);
   padding: 5px; margin: 0 0 22px;
 }
 .csds-tab {
   appearance: none; background: none; border: none; cursor: pointer;
-  font-family: var(--cs-font); font-size: .9em; font-weight: 600;
-  color: var(--cs-muted); padding: 9px 18px; border-radius: 7px;
+  font-family: var(--csds-font); font-size: .9em; font-weight: 600;
+  color: var(--csds-muted); padding: 9px 18px; border-radius: 7px;
   transition: background .15s, color .15s;
 }
-.csds-tab:hover { color: var(--cs-text); }
-.csds-tab.is-active { background: var(--cs-accent); color: #fff; }
+.csds-tab:hover { color: var(--csds-text); }
+.csds-tab.is-active { background: var(--csds-accent); color: #fff; }
 
 /* ---- Badges / tags ---- */
 .csds-badge {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: .78em; font-weight: 700; padding: 3px 11px;
-  border-radius: var(--cs-radius-pill);
-  background: rgba(37,99,235,.1); color: var(--cs-accent);
+  border-radius: var(--csds-radius-pill);
+  background: rgba(37,99,235,.1); color: var(--csds-accent);
 }
-.csds-badge--ok    { background: rgba(22,163,74,.12);  color: var(--cs-success); }
-.csds-badge--warn  { background: rgba(217,119,6,.12);  color: var(--cs-warn); }
-.csds-badge--danger{ background: rgba(220,38,38,.1);   color: var(--cs-danger); }
+.csds-badge--ok    { background: rgba(22,163,74,.12);  color: var(--csds-success); }
+.csds-badge--warn  { background: rgba(217,119,6,.12);  color: var(--csds-warn); }
+.csds-badge--danger{ background: rgba(220,38,38,.1);   color: var(--csds-danger); }
 .csds-tag {
-  font-family: var(--cs-mono); font-size: .8em;
-  background: var(--cs-surface-2); border: 1px solid var(--cs-border);
-  color: var(--cs-text-2); padding: 2px 8px; border-radius: 6px;
+  font-family: var(--csds-mono); font-size: .8em;
+  background: var(--csds-surface-2); border: 1px solid var(--csds-border);
+  color: var(--csds-text-2); padding: 2px 8px; border-radius: 6px;
 }
 
 /* ---- Tables ---- */
-.csds-table { width: 100%; border-collapse: collapse; font-size: .93em; color: var(--cs-text-2); }
+.csds-table { width: 100%; border-collapse: collapse; font-size: .93em; color: var(--csds-text-2); }
 .csds-table th {
-  text-align: left; font-weight: 700; color: var(--cs-text);
-  padding: 11px 14px; border-bottom: 2px solid var(--cs-border); background: var(--cs-surface-2);
+  text-align: left; font-weight: 700; color: var(--csds-text);
+  padding: 11px 14px; border-bottom: 2px solid var(--csds-border); background: var(--csds-surface-2);
 }
-.csds-table td { padding: 11px 14px; border-bottom: 1px solid var(--cs-border-2); }
+.csds-table td { padding: 11px 14px; border-bottom: 1px solid var(--csds-border-2); }
 .csds-table tr:last-child td { border-bottom: none; }
 
 /* ---- Comparison rows (old way vs CloudScale) ---- */
 .csds-compare { display: flex; flex-direction: column; gap: 8px; }
 .csds-compare-head { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 18px 4px; }
-.csds-compare-head .old { flex: 1 1 220px; font-size: .76em; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--cs-on-dark-mute); }
-.csds-compare-head .new { flex: 1 1 220px; font-size: .76em; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--cs-teal); }
+.csds-compare-head .old { flex: 1 1 220px; font-size: .76em; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--csds-on-dark-mute); }
+.csds-compare-head .new { flex: 1 1 220px; font-size: .76em; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--csds-teal); }
 .csds-compare-row {
   display: flex; flex-wrap: wrap; gap: 12px;
-  background: var(--cs-surface); border: 1px solid var(--cs-border-2);
-  border-radius: var(--cs-radius-sm); padding: 14px 18px;
+  background: var(--csds-surface); border: 1px solid var(--csds-border-2);
+  border-radius: var(--csds-radius-sm); padding: 14px 18px;
 }
 .csds-compare-row .old, .csds-compare-row .new { flex: 1 1 220px; display: flex; gap: 10px; align-items: flex-start; font-size: .95em; line-height: 1.55; }
-.csds-compare-row .old { color: var(--cs-text-2); }
-.csds-compare-row .new { color: var(--cs-text); font-weight: 600; }
-.csds-compare-row .ico-x { color: var(--cs-border-strong); font-weight: 800; flex-shrink: 0; }
-.csds-compare-row .ico-v { color: var(--cs-success);       font-weight: 800; flex-shrink: 0; }
+.csds-compare-row .old { color: var(--csds-text-2); }
+.csds-compare-row .new { color: var(--csds-text); font-weight: 600; }
+.csds-compare-row .ico-x { color: var(--csds-border-strong); font-weight: 800; flex-shrink: 0; }
+.csds-compare-row .ico-v { color: var(--csds-success);       font-weight: 800; flex-shrink: 0; }
 
 /* ---- Callout ---- */
 .csds-callout {
-  border-left: 4px solid var(--cs-accent);
-  background: var(--cs-surface-2);
-  border-radius: 0 var(--cs-radius-sm) var(--cs-radius-sm) 0;
+  border-left: 4px solid var(--csds-accent);
+  background: var(--csds-surface-2);
+  border-radius: 0 var(--csds-radius-sm) var(--csds-radius-sm) 0;
   padding: 16px 20px; margin: 0 0 20px;
 }
-.csds-callout--warn   { border-left-color: var(--cs-warn); }
-.csds-callout--danger { border-left-color: var(--cs-danger); }
+.csds-callout--warn   { border-left-color: var(--csds-warn); }
+.csds-callout--danger { border-left-color: var(--csds-danger); }
 
 /* ---- Grid ---- */
-.csds-grid { display: grid; gap: var(--cs-gap); }
+.csds-grid { display: grid; gap: var(--csds-gap); }
 .csds-grid--2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .csds-grid--3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 
 /* ---- Code ---- */
-.csds-code, .csds-scope code { font-family: var(--cs-mono); }
+.csds-code, .csds-scope code { font-family: var(--csds-mono); }
 .csds-pre {
-  background: var(--cs-navy); color: var(--cs-on-dark);
-  border-radius: var(--cs-radius-sm); padding: 16px 18px; overflow-x: auto;
-  font-family: var(--cs-mono); font-size: .85em; line-height: 1.6;
+  background: var(--csds-navy); color: var(--csds-on-dark);
+  border-radius: var(--csds-radius-sm); padding: 16px 18px; overflow-x: auto;
+  font-family: var(--csds-mono); font-size: .85em; line-height: 1.6;
 }
 
 @media (max-width: 600px) {
