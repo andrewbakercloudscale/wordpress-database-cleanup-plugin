@@ -1,5 +1,5 @@
 'use strict';
-const helpLib = require('/Users/cp363412/Desktop/github/shared-help-docs/help-lib.js');
+const helpLib = require('/Users/cp363412/Desktop/github/wordpress-plugins/shared-help-docs/help-lib.js');
 
 helpLib.run({
     baseUrl:    process.env.WP_BASE_URL,
@@ -40,6 +40,7 @@ helpLib.run({
         { id: 'img-cleanup',  label: 'Media Library Cleanup',  file: 'panel-img-cleanup.png',  tab: 'img-cleanup'  },
         { id: 'img-optimise', label: 'Image Optimisation',     file: 'panel-img-optimise.png', tab: 'img-optimise' },
         { id: 'png-to-jpeg',  label: 'PNG to JPEG Converter',  file: 'panel-png-to-jpeg.png',  tab: 'png-to-jpeg'  },
+        { id: 'space-report', label: 'Uploads Space Report',   file: 'panel-space-report.png', tab: 'space-report' },
         { id: 'cron',         label: 'Cron',                   file: 'panel-settings.png',     tab: 'cron'         },
     ],
 
@@ -305,6 +306,28 @@ sudo systemctl enable sysstat-collect.timer &amp;&amp; sudo systemctl start syss
 <li>Any server-side errors with full detail to help diagnose PHP configuration issues.</li>
 </ul>
 <p>Use <strong>Copy</strong> to export the full log, and <strong>Clear</strong> to reset it before a new batch.</p>`,
+
+        'space-report': `
+<p>The <strong>Uploads Space Report</strong> tab is an interactive, drill-down file-size explorer for your <code>wp-content/uploads</code> directory. It shows exactly which folders and files are consuming disk space so you can identify large uploads, old backup files, or orphaned plugin directories before running a cleanup.</p>
+
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">How to use it</h3>
+<ol>
+<li><strong>Click Scan</strong> — triggers a server-side recursive directory scan of your uploads folder. A "Scanning&hellip;" message appears while the scan runs. On a large media library this typically completes in a few seconds.</li>
+<li><strong>Read the directory table</strong> — results appear as a table with columns for Folder name, Size (total for the folder and all its subfolders), File count, and percentage of total uploads space.</li>
+<li><strong>Drill down</strong> — click any folder name to navigate into it. A breadcrumb bar updates to show your current path. Clicking a breadcrumb segment navigates back up.</li>
+<li><strong>Review the Largest Files panel</strong> — when you drill into any subfolder, a second table appears below the directory listing showing the largest individual files within that subtree, so you can pinpoint a single large file without manually browsing every subdirectory.</li>
+</ol>
+
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Insight cards</h3>
+<p>At the root level, the scan displays summary insight cards above the directory table. These highlight your largest single subdirectory, the folder with the most files, and any anomalies that suggest wasted space (e.g. backup zips stored in uploads, oversized video files).</p>
+
+<h3 style="font-size:1.1em;font-weight:700;color:#1e293b;margin:1.4em 0 0.5em;background:transparent;">Storage Recycle Bin</h3>
+<p>The second card on the tab is the Storage Recycle Bin. Any folder you remove via the Actions column on the directory table is moved here rather than immediately deleted. The bin records the original path, size, and the time it was trashed.</p>
+<ul>
+<li><strong>Restore</strong> — moves the folder back to its original location in uploads.</li>
+<li><strong>Empty Bin</strong> — permanently deletes all binned folders from disk. This cannot be undone.</li>
+</ul>
+<p>The Storage Recycle Bin is separate from the Media Library Recycle Bin on the Media Library Cleanup tab. This bin targets raw filesystem folders (including folders with no database records), while the Media Cleanup bin targets WordPress attachment records.</p>`,
 
         'cron': `
 <p>The <strong>Cron</strong> tab is a full cron management console for your WordPress installation. It shows every background job registered in the WordPress scheduler, visualises when they fire, detects scheduling conflicts, identifies which plugin owns each job, and lets you delete orphaned or unwanted jobs safely via a recycle bin.</p>
