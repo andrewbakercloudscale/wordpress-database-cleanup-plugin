@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CloudScale Cleanup
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.71
+ * Version:     2.5.75
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -14,7 +14,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.71' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.75' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -137,11 +137,14 @@ function cscc_enqueue_assets( $hook ) {
     // Tab colours and health metric styles, inline fallback (cache proof).
     $cscc_inline_css = '
     .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(1).active, .csc-tab:nth-child(1):hover { border-top-color: #ce93d8 !important; }
+    .csc-tab:nth-child(1).active { background: linear-gradient(135deg, #6a1b9a 0%, #9c27b0 100%) !important; border-top-color: #ce93d8 !important; }
+    .csc-tab:nth-child(1):hover:not(.active) { border-top-color: #ce93d8 !important; }
     .csc-tab:nth-child(6) { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%) !important; border-top-color: #90caf9 !important; }
-    .csc-tab:nth-child(6).active, .csc-tab:nth-child(6):hover { border-top-color: #90caf9 !important; }
+    .csc-tab:nth-child(6).active { background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%) !important; border-top-color: #90caf9 !important; }
+    .csc-tab:nth-child(6):hover:not(.active) { border-top-color: #90caf9 !important; }
     .csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
-    .csc-tab:nth-child(7).active, .csc-tab:nth-child(7):hover { border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(7).active { background: linear-gradient(135deg, #4e342e 0%, #6d4c41 100%) !important; border-top-color: #bcaaa4 !important; }
+    .csc-tab:nth-child(7):hover:not(.active) { border-top-color: #bcaaa4 !important; }
     @media (max-width: 782px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } .csc-help-btn { padding:6px 12px !important; font-size:12px !important; } .csc-header-version { display:none !important; } }
     div[style*="#fff3e0"] .csc-health-metric,
     div[style*="#e3f2fd"] .csc-health-metric,

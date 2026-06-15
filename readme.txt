@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 2.5.71
+Stable tag: 2.5.75
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,21 @@ WordPress Cron-based scheduler runs database cleanup automatically on selected d
 **Site Health Panel**
 
 Live server metrics panel showing disk usage, storage runway estimate, and CPU/memory data via `sysstat` (`sar`) where available.
+
+== External Services ==
+
+= Telegram Bot API =
+
+**Service:** Telegram Messenger Inc.
+**Website:** https://telegram.org
+**Endpoint:** https://api.telegram.org/bot{token}/sendMessage
+**Data sent:** An error summary message containing: the PHP error message, the file name and line number where the error occurred, and the relevant operation context (e.g. which cleanup task failed). No personal visitor data or database content is transmitted.
+**When data is sent:** Only when a plugin error is caught and you have configured a Telegram bot token and chat ID in the plugin's Notifications settings. No data is sent if the Telegram integration is not configured.
+**Purpose:** Sends real-time error alert notifications to a Telegram chat of your choosing so site owners can respond to cleanup failures quickly.
+
+Telegram Privacy Policy: https://telegram.org/privacy
+Telegram Terms of Service: https://telegram.org/tos
+Telegram Bot API documentation: https://core.telegram.org/bots/api
 
 == Installation ==
 

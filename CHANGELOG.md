@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.5.72 — 2026-06-14
+- DOCS: declared Telegram Bot API as an external service — added Telegram to a new External Services section in readme.txt as required by WordPress.org guidelines
+
 ## 2.5.68 — 2026-05-27
 - FIX(migration): The v2.5.65 prefix migration ran `delete_option($old)` unconditionally even when the new key already existed (because the new cron had fired between v2.5.64 deploy and v2.5.65 migration), destroying months of weekly snapshot and hourly-metric history on early upgraders
 - FIX(migration): Migration now MERGES time-series arrays (`cscc_health_weekly_snapshots`, `cscc_health_hourly_metrics`, `cscc_cron_run_log`) by `ts_unix` and only deletes the old key after a successful merge or copy

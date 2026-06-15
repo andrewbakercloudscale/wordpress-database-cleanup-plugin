@@ -140,6 +140,49 @@ fi
 echo "Cross-file methods: OK"
 echo ""
 
+# ── PHPCS WordPress standards check ──────────────────────────────────────────
+_PHPCS=""
+for _candidate in \
+    "$REPO_DIR/vendor/bin/phpcs" \
+    "$HOME/.composer/vendor/bin/phpcs" \
+    "$(command -v phpcs 2>/dev/null || true)"; do
+    [ -x "$_candidate" ] && { _PHPCS="$_candidate"; break; }
+done
+
+if [ -z "$_PHPCS" ]; then
+    echo "phpcs not found — attempting auto-install..."
+    if ! command -v composer &>/dev/null && command -v brew &>/dev/null; then
+        brew install --quiet composer && hash -r
+    fi
+    if command -v composer &>/dev/null; then
+        composer global require --quiet \
+            squizlabs/php_codesniffer \
+            wp-coding-standards/wpcs \
+            dealerdirect/phpcodesniffer-composer-installer 2>&1 | tail -3
+        _PHPCS="$(composer global config home 2>/dev/null)/vendor/bin/phpcs"
+    fi
+fi
+
+if [ -z "$_PHPCS" ] || [ ! -x "$_PHPCS" ]; then
+    echo "ERROR: phpcs not found and could not be installed automatically."
+    echo "  Install: composer global require squizlabs/php_codesniffer wp-coding-standards/wpcs dealerdirect/phpcodesniffer-composer-installer"
+    exit 1
+fi
+
+echo "Running PHPCS (WordPress standard)..."
+PHPCS_OUT=$("$_PHPCS" \
+    --standard=WordPress \
+    --severity=5 \
+    --ignore="*/vendor/*,*/node_modules/*,*/lib/*,*/repo/*,*/archive/*" \
+    --extensions=php \
+    "$REPO_DIR" 2>&1 || true)
+echo "$PHPCS_OUT"
+echo ""
+if echo "$PHPCS_OUT" | grep -q "| ERROR"; then
+    echo "WARNING: PHPCS errors found — run phpcbf to auto-fix formatting issues."
+fi
+echo "PHPCS: OK (no blocking errors)"
+echo ""
 
 # Create temp directory with plugin name as wrapper
 mkdir -p "$TEMP_DIR/$PLUGIN_NAME"

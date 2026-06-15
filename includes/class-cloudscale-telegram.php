@@ -19,8 +19,8 @@ if ( class_exists( 'CloudScale_Telegram' ) ) {
 
 class CloudScale_Telegram {
 
-	const OPTION_TOKEN   = 'cloudscale_telegram_bot_token'; // pragma:allow-secret
-	const OPTION_CHAT_ID = 'cloudscale_telegram_chat_id'; // pragma:allow-secret
+	const OPTION_TOKEN   = 'cloudscale_telegram_bot_token';
+	const OPTION_CHAT_ID = 'cloudscale_telegram_chat_id';
 
 	public static function is_configured(): bool {
 		return ! empty( get_option( self::OPTION_TOKEN ) ) && ! empty( get_option( self::OPTION_CHAT_ID ) );
