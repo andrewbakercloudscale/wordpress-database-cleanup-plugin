@@ -144,6 +144,7 @@ echo ""
 _PHPCS=""
 for _candidate in \
     "$REPO_DIR/vendor/bin/phpcs" \
+    "$HOME/.config/composer/vendor/bin/phpcs" \
     "$HOME/.composer/vendor/bin/phpcs" \
     "$(command -v phpcs 2>/dev/null || true)"; do
     [ -x "$_candidate" ] && { _PHPCS="$_candidate"; break; }
@@ -171,15 +172,16 @@ fi
 
 echo "Running PHPCS (WordPress standard)..."
 PHPCS_OUT=$("$_PHPCS" \
-    --standard=WordPress \
+    -d memory_limit=512M \
+    --standard="$REPO_DIR/phpcs.xml" \
     --severity=5 \
-    --ignore="*/vendor/*,*/node_modules/*,*/lib/*,*/repo/*,*/archive/*" \
     --extensions=php \
     "$REPO_DIR" 2>&1 || true)
 echo "$PHPCS_OUT"
 echo ""
-if echo "$PHPCS_OUT" | grep -q "| ERROR"; then
-    echo "WARNING: PHPCS errors found — run phpcbf to auto-fix formatting issues."
+if echo "$PHPCS_OUT" | grep -qE "\| ERROR.*WordPress\.(Security|DB\.PreparedSQL)"; then
+    echo "ERROR: PHPCS security errors found — fix before building."
+    exit 1
 fi
 echo "PHPCS: OK (no blocking errors)"
 echo ""
