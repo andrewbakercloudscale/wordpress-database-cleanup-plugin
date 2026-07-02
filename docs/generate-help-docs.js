@@ -27,10 +27,14 @@ helpLib.run({
         url: 'https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin',
     },
     pageTitle:  'CloudScale Cleanup — Free WordPress Database Cleaner, Image Optimizer & WP-Cron Manager',
-    pageSlug:   'cleanup-help',
+    pageSlug:   'database-cleanup',
     downloadUrl: 'https://andrewninjawordpress.s3.af-south-1.amazonaws.com/cloudscale-cleanup.zip',
     repoUrl:     'https://github.com/andrewbakercloudscale/wordpress-database-cleanup-plugin',
-    adminUrl:   `${process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-cleanup`,
+    // adminUrl must use WP_SCREENSHOT_URL (andrewbaker.ninja) — that's where the
+    // plugin is installed and where the CSDT session cookies authenticate.
+    // WP_BASE_URL is the publish target (help.cloudscale.consulting) which
+    // doesn't have wp-admin reachable for these screenshots.
+    adminUrl:   `${process.env.WP_SCREENSHOT_URL || process.env.WP_BASE_URL}/wp-admin/tools.php?page=cloudscale-cleanup`,
 
     downloadBtnColor: '#000',
 
