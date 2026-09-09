@@ -292,7 +292,7 @@ class CloudScale_Telegram {
 	 * The marker and the LEVEL word beside it must never disagree, and they did.
 	 * The map held only info/warning/error/critical and an unrecognised level fell
 	 * back to info, so the one call site that says 'high' — the front-end asset
-	 * monitor — shipped real failures as "✅ Andrewbaker.Ninja ... HIGH". A green
+	 * monitor — shipped real failures as "✅ <site name> ... HIGH". A green
 	 * tick over a broken asset is the most misleading thing an alert can look like
 	 * on a phone: it is read before the words are.
 	 *
