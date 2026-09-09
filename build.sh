@@ -49,69 +49,15 @@ PLUGIN_NAME="cloudscale-cleanup"
 TEMP_DIR=$(mktemp -d)
 
 echo "Building plugin zip from $REPO_DIR..."
-# ── Auto-increment patch version ─────────────────────────────────────────────
-MAIN_PHP=$(grep -rl "^ \* Version:" "$REPO_DIR" --include="*.php" 2>/dev/null | grep -v "repo/" | head -1)
-if [ -z "$MAIN_PHP" ]; then
-  echo "ERROR: Could not find main plugin PHP file with Version header."
-  exit 1
-fi
-CURRENT_VER=$(grep "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-if [ -z "$CURRENT_VER" ]; then
-  echo "ERROR: Could not extract version from $MAIN_PHP"
-  exit 1
-fi
-VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
-VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
-VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
-NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
-# Escape dots so the sed pattern is a literal version string, not a regex with
-# wildcards. Without this, "s/2.5.65/.../g" matches "255,255,255,0.15" inside
-# inline CSS rgba() values and mangles them (see commit 623474a, v2.5.28 and
-# v2.5.65 — both fixed the same recurring CSS corruption).
-ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
-# Word-boundary anchors prevent matching version-like substrings inside
-# longer numeric runs (e.g. the "2.5.65" inside a hypothetical "12.5.654").
-echo "Version bump: $CURRENT_VER → $NEW_VER"
-# Targeted bump ONLY. The old blanket replace-everywhere sed rewrote EVERY
-# occurrence of the previous version — historical @since/@deprecated docblock
-# tags and past readme.txt changelog headings included — so release history
-# was silently rewritten on every build.
-sed -i '' "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
-sed -i '' "s/\(define([[:space:]]*'CLOUDSCALE_CLEANUP_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-cleanup.php"
-sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
-# Promote ONLY the topmost changelog heading written for the pre-bump version;
-# headings for past releases are never dragged forward.
-# A new changelog entry is written as "= Unreleased =" and this stamps it with the
-# version the build produces. No other heading is ever relabelled.
-#
-# This used to promote the topmost heading matching the PRE-bump version, assuming
-# such a heading could only be a freshly written entry. It cannot tell that apart
-# from the previous release's own heading, which is legitimately labelled with that
-# version, so every build that added no entry dragged the last release's heading
-# forward by one. In the SEO plugin a narration entry travelled 4.21.459 -> .460 ->
-# .461 -> .462 that way, and the published changelog credited the current release
-# with a change that had shipped three releases earlier.
-if grep -q '^= Unreleased =$' "$REPO_DIR/readme.txt"; then
-  sed -i '' "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
-  echo "  readme.txt changelog: promoted '= Unreleased =' to '= ${NEW_VER} ='"
-else
-  echo "  readme.txt changelog: no '= Unreleased =' entry, headings left untouched"
-fi
-# JS @version headers.
-while IFS= read -r vfile; do
-  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
-done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/")
-# Sync readme.txt and main PHP into repo/ so SVN trunk always has correct version.
-cp "$REPO_DIR/readme.txt" "$REPO_DIR/repo/readme.txt"
-sed -i '' "s/^ \* Version:.*/ * Version:     $NEW_VER/" "$REPO_DIR/repo/cloudscale-cleanup.php"
-# ─────────────────────────────────────────────────────────────────────────────
 
 # PHP syntax check — abort before packaging if any file has a parse error
 echo "Checking PHP syntax..."
 LINT_ERRORS=0
 while IFS= read -r -d '' phpfile; do
-  result=$(php -l "$phpfile" 2>&1)
-  if [ $? -ne 0 ]; then
+  # `if !` rather than a bare assignment: under set -e a failing command substitution
+  # aborts the script (exit 255) before $? is ever tested, which made the error message
+  # and the exit 1 below unreachable. A broken file killed the build with no diagnostic.
+  if ! result=$(php -l "$phpfile" 2>&1); then
     echo "$result"
     LINT_ERRORS=1
   fi
@@ -605,6 +551,69 @@ else
     echo "PHPCS: OK — 0 errors, 0 warnings"
 fi
 echo ""
+
+# ── Auto-increment patch version ─────────────────────────────────────────────
+# MOVED BELOW THE GATES on 09Sep26. It used to run here-minus-500-lines, before every
+# check, so any gate that failed left a bumped version in the working tree. build.sh
+# rsyncs the working tree, so that stray version is what reaches the next deploy — the
+# hazard the deployment-archive section of CLAUDE.md describes, reachable through an
+# ordinary failed build. Nothing below the gates needs the version, and nothing above
+# them should be writing to the tree. The SEO optimizer already bumped here.
+MAIN_PHP=$(grep -rl "^ \* Version:" "$REPO_DIR" --include="*.php" 2>/dev/null | grep -v "repo/" | head -1)
+if [ -z "$MAIN_PHP" ]; then
+  echo "ERROR: Could not find main plugin PHP file with Version header."
+  exit 1
+fi
+CURRENT_VER=$(grep "^ \* Version:" "$MAIN_PHP" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -z "$CURRENT_VER" ]; then
+  echo "ERROR: Could not extract version from $MAIN_PHP"
+  exit 1
+fi
+VER_MAJOR=$(echo "$CURRENT_VER" | cut -d. -f1)
+VER_MINOR=$(echo "$CURRENT_VER" | cut -d. -f2)
+VER_PATCH=$(echo "$CURRENT_VER" | cut -d. -f3)
+NEW_VER="$VER_MAJOR.$VER_MINOR.$((VER_PATCH + 1))"
+# Escape dots so the sed pattern is a literal version string, not a regex with
+# wildcards. Without this, "s/2.5.65/.../g" matches "255,255,255,0.15" inside
+# inline CSS rgba() values and mangles them (see commit 623474a, v2.5.28 and
+# v2.5.65 — both fixed the same recurring CSS corruption).
+ESC_VER=$(printf '%s\n' "$CURRENT_VER" | sed 's/\./\\./g')
+# Word-boundary anchors prevent matching version-like substrings inside
+# longer numeric runs (e.g. the "2.5.65" inside a hypothetical "12.5.654").
+echo "Version bump: $CURRENT_VER → $NEW_VER"
+# Targeted bump ONLY. The old blanket replace-everywhere sed rewrote EVERY
+# occurrence of the previous version — historical @since/@deprecated docblock
+# tags and past readme.txt changelog headings included — so release history
+# was silently rewritten on every build.
+sed -i '' "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
+sed -i '' "s/\(define([[:space:]]*'CLOUDSCALE_CLEANUP_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-cleanup.php"
+sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
+# Promote ONLY the topmost changelog heading written for the pre-bump version;
+# headings for past releases are never dragged forward.
+# A new changelog entry is written as "= Unreleased =" and this stamps it with the
+# version the build produces. No other heading is ever relabelled.
+#
+# This used to promote the topmost heading matching the PRE-bump version, assuming
+# such a heading could only be a freshly written entry. It cannot tell that apart
+# from the previous release's own heading, which is legitimately labelled with that
+# version, so every build that added no entry dragged the last release's heading
+# forward by one. In the SEO plugin a narration entry travelled 4.21.459 -> .460 ->
+# .461 -> .462 that way, and the published changelog credited the current release
+# with a change that had shipped three releases earlier.
+if grep -q '^= Unreleased =$' "$REPO_DIR/readme.txt"; then
+  sed -i '' "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
+  echo "  readme.txt changelog: promoted '= Unreleased =' to '= ${NEW_VER} ='"
+else
+  echo "  readme.txt changelog: no '= Unreleased =' entry, headings left untouched"
+fi
+# JS @version headers.
+while IFS= read -r vfile; do
+  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
+done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/")
+# Sync readme.txt and main PHP into repo/ so SVN trunk always has correct version.
+cp "$REPO_DIR/readme.txt" "$REPO_DIR/repo/readme.txt"
+sed -i '' "s/^ \* Version:.*/ * Version:     $NEW_VER/" "$REPO_DIR/repo/cloudscale-cleanup.php"
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Create temp directory with plugin name as wrapper
 mkdir -p "$TEMP_DIR/$PLUGIN_NAME"
