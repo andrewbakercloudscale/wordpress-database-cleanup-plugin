@@ -21,6 +21,29 @@ GITHUB_DIR="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=../.claude-config.sh
 source "$GITHUB_DIR/.claude-config.sh"
 REPO_DIR="$SCRIPT_DIR"
+
+# ── Pre-push hooks are installed ───────────────────────────────────────────
+# Hooks live in .git/hooks and are not version-controlled, so a fresh clone has none and
+# nothing says so. That is how the review hook came to exist in one repo out of five while
+# CLAUDE.md described it as installed in all of them. Same arrangement as
+# check-deploy-archive.php: the step cannot be distributed by committing it, so a gate
+# fails when it is missing. Scoped to THIS repo, so one plugin's clone does not block another's.
+#
+# Placed above the version bump deliberately. Every other gate in this script runs after it,
+# so a late failure leaves a bumped version behind in the working tree; this check has no
+# dependencies and no reason to mutate anything before it runs.
+_HOOKS_CHECK="$GITHUB_DIR/shared-build-tools/install-pre-push-hooks.sh"
+if [ ! -f "$_HOOKS_CHECK" ]; then
+    echo "ERROR: pre-push hook installer not found at $_HOOKS_CHECK"
+    exit 1
+fi
+if ! bash "$_HOOKS_CHECK" --check "$SCRIPT_DIR"; then
+    echo ""
+    echo "ERROR: this repo has no standards-review pre-push hook — build blocked."
+    exit 1
+fi
+echo ""
+
 ZIP_FILE="$SCRIPT_DIR/cloudscale-cleanup.zip"
 PLUGIN_NAME="cloudscale-cleanup"
 TEMP_DIR=$(mktemp -d)
@@ -100,6 +123,7 @@ if [ "$LINT_ERRORS" -ne 0 ]; then
 fi
 echo "PHP syntax: OK"
 echo ""
+
 
 # --- WordPress plugin standards review (opt-in) --------------------------------
 # Off by default for speed; `bash build-review.sh` sets SKIP_REVIEW=0 to enable it.
@@ -410,6 +434,7 @@ fi
 echo ""
 
 # ── Shared class copies must match their canonical source ────────────────────
+
 # CloudScale_Telegram and the model-name map are shared by all five plugins and guarded by
 # class_exists(), so exactly ONE copy loads at runtime. On the live install that copy belongs
 # to cloudscale-backup — so a change to any other plugin's copy is invisible at runtime and
