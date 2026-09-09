@@ -100,6 +100,161 @@ if [ "$LINT_ERRORS" -ne 0 ]; then
 fi
 echo "PHP syntax: OK"
 echo ""
+
+# --- WordPress plugin standards review (opt-in) --------------------------------
+# Off by default for speed; `bash build-review.sh` sets SKIP_REVIEW=0 to enable it.
+#
+# This gate was removed in c0af24b and its wrapper left behind, so build-review.sh
+# silently ran an ordinary build for months. The version restored here differs from
+# the original in the ways that made the original worthless:
+#   - the old code printed "ERROR: ... CRITICAL or HIGH issues" and then carried on
+#     without exit 1, and printed "Standards review: OK" unconditionally afterwards;
+#   - its file lists were hardcoded and had gone stale, so it reviewed files that no
+#     longer existed and never saw the ones that replaced them.
+# Every failure path below exits non-zero, buckets are derived from the shipped tree,
+# and a section returning no BUILD_STATUS is fatal rather than ignored: a review that
+# did not run must never read as a pass.
+SKIP_REVIEW="${SKIP_REVIEW:-1}"
+if [ "$SKIP_REVIEW" != "1" ]; then
+  # Self-contained: the other four build.sh do not define CLAUDE themselves.
+  CLAUDE="${CLAUDE:-${CLAUDE_CLI:-claude}}"
+  echo "Running WordPress plugin standards review..."
+
+  if ! command -v "$CLAUDE" >/dev/null 2>&1 && [ ! -x "$CLAUDE" ]; then
+    echo "ERROR: standards review is enabled but the claude CLI ('$CLAUDE') was not found."
+    echo "       Set CLAUDE_CLI to its path, or build without SKIP_REVIEW=0."
+    exit 1
+  fi
+  if [ -z "${CLAUDE_REVIEW_MODEL:-}" ]; then
+    echo "ERROR: CLAUDE_REVIEW_MODEL is unset — check .claude-config.sh."
+    exit 1
+  fi
+
+  REVIEW_TIMEOUT=""
+  if command -v timeout >/dev/null 2>&1; then REVIEW_TIMEOUT="timeout 900"
+  elif command -v gtimeout >/dev/null 2>&1; then REVIEW_TIMEOUT="gtimeout 900"; fi
+
+  REVIEW_TMPDIR=$(mktemp -d)
+  REVIEW_SECTIONS="${REVIEW_SECTIONS:-6}"
+
+  REVIEW_RULES='BLOCKING RULES — only these trigger BUILD_STATUS: FAIL:
+1. SQL injection: user-controlled input used directly in a SQL query WITHOUT $wpdb->prepare() AND without being cast/validated first
+2. XSS: user-controlled data echoed into HTML WITHOUT esc_html/esc_attr/esc_url/wp_kses
+3. CSRF: an AJAX/form handler that modifies data WITHOUT check_ajax_referer or wp_verify_nonce
+4. Missing ABSPATH guard at the top of a PHP file
+
+NON-BLOCKING (never trigger FAIL, report as informational only):
+- SQL with a phpcs:ignore annotation — already acknowledged, skip entirely
+- Table names via $wpdb->prefix, $wpdb->posts, $wpdb->postmeta — always safe
+- Unicode, em dashes or emoji used as display/placeholder values
+- wp_unslash() + esc_url_raw() on $_SERVER — the correct WP pattern
+- $wpdb->get_results( $wpdb->prepare(...) ) — the correct WP pattern, not redundant
+- implode of integer-cast IDs for IN clauses
+- Missing @since or DocBlock tags — documentation only
+
+End your response with EXACTLY one line reading BUILD_STATUS: PASS or BUILD_STATUS: FAIL'
+
+  # Buckets come from the shipped tree. A hardcoded list is what went stale last time.
+  REVIEW_FILE_COUNT=0
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    idx=$(( REVIEW_FILE_COUNT % REVIEW_SECTIONS ))
+    eval "REVIEW_BUCKET_${idx}=\"\${REVIEW_BUCKET_${idx}:-} \$rel\""
+    REVIEW_FILE_COUNT=$(( REVIEW_FILE_COUNT + 1 ))
+  done < <(
+    find "$REPO_DIR" -name '*.php' \
+      -not -path '*/.*/*' -not -path '*/repo/*' -not -path '*/tests/*' \
+      -not -path '*/archive/*' -not -path '*/node_modules/*' -not -path '*/vendor/*' -print0 2>/dev/null |
+    while IFS= read -r -d '' f; do
+      printf '%s\t%s\n' "$(wc -c < "$f" | tr -d ' ')" "${f#$REPO_DIR/}"
+    done | sort -rn | cut -f2
+  )
+
+  if [ "$REVIEW_FILE_COUNT" -eq 0 ]; then
+    echo "ERROR: standards review found no PHP files to review under $REPO_DIR."
+    rm -rf "$REVIEW_TMPDIR"; exit 1
+  fi
+
+  _review_section() {
+    local label="$1"; shift
+    local files="$*"
+    local rc=0
+    ( cd "$REPO_DIR" && $REVIEW_TIMEOUT "$CLAUDE" --dangerously-skip-permissions \
+        --model "$CLAUDE_REVIEW_MODEL" --print -p \
+        "/wp-plugin-standards-review Review ONLY these files (read no others): ${files}, readme.txt.
+
+${REVIEW_RULES}" ) > "$REVIEW_TMPDIR/$label.out" 2>&1 || rc=$?
+    echo "$rc" > "$REVIEW_TMPDIR/$label.rc"
+  }
+
+  REVIEW_RAN=0
+  i=0
+  while [ "$i" -lt "$REVIEW_SECTIONS" ]; do
+    eval "bucket=\"\${REVIEW_BUCKET_${i}:-}\""
+    if [ -n "$bucket" ]; then
+      _review_section "s$i" $bucket &
+      REVIEW_RAN=$(( REVIEW_RAN + 1 ))
+    fi
+    i=$(( i + 1 ))
+  done
+  wait
+
+  echo "  $REVIEW_RAN section(s) over $REVIEW_FILE_COUNT PHP file(s), model $CLAUDE_REVIEW_MODEL."
+
+  # The review body is informational and is always shown, as it was before the gate
+  # was removed: the blocking rules are a floor, and the MEDIUM/LOW notes below them
+  # are the part a human still has to read before a WordPress.org submission.
+  i=0
+  while [ "$i" -lt "$REVIEW_SECTIONS" ]; do
+    [ -f "$REVIEW_TMPDIR/s$i.out" ] && { echo "--- Section s$i ---"; cat "$REVIEW_TMPDIR/s$i.out"; echo ""; }
+    i=$(( i + 1 ))
+  done
+
+  REVIEW_ALL=$(cat "$REVIEW_TMPDIR"/*.out 2>/dev/null || true)
+
+  REVIEW_FAILED=0
+  i=0
+  while [ "$i" -lt "$REVIEW_SECTIONS" ]; do
+    out="$REVIEW_TMPDIR/s$i.out"
+    if [ -f "$out" ]; then
+      rc=$(cat "$REVIEW_TMPDIR/s$i.rc" 2>/dev/null || echo 1)
+      body=$(cat "$out")
+      statuses=$(printf '%s\n' "$body" | grep -c 'BUILD_STATUS: \(PASS\|FAIL\)' || true)
+
+      if [ "$rc" -ne 0 ]; then
+        echo "ERROR: review section s$i exited $rc (timeout or CLI failure)."
+        printf '%s\n' "$body" | tail -15
+        REVIEW_FAILED=1
+      elif printf '%s\n' "$body" | grep -qiE 'API Error|invalid.*model|model.*invalid'; then
+        echo "ERROR: review section s$i hit a model/API error — the review did not run."
+        printf '%s\n' "$body" | tail -15
+        REVIEW_FAILED=1
+      elif [ "$statuses" -eq 0 ]; then
+        echo "ERROR: review section s$i returned no BUILD_STATUS — output incomplete."
+        printf '%s\n' "$body" | tail -15
+        REVIEW_FAILED=1
+      elif printf '%s\n' "$body" | grep -q 'BUILD_STATUS: FAIL'; then
+        echo "ERROR: review section s$i reported BUILD_STATUS: FAIL."
+        printf '%s\n' "$body"
+        REVIEW_FAILED=1
+      fi
+    fi
+    i=$(( i + 1 ))
+  done
+
+  rm -rf "$REVIEW_TMPDIR"
+  if [ "$REVIEW_FAILED" -ne 0 ]; then
+    echo ""
+    echo "Standards review: FAILED — fix the issues above before building."
+    exit 1
+  fi
+  if printf '%s\n' "$REVIEW_ALL" | grep -qiE '[1-9][0-9]* medium'; then
+    echo "WARNING: standards review noted MEDIUM issues — read them before submitting to WordPress.org."
+  fi
+  echo "  standards review: OK ($REVIEW_RAN section(s), $REVIEW_FILE_COUNT file(s), 0 blocking issue(s))"
+  echo ""
+fi
+
 # PHP runtime include test — catches TypeError/fatal that php -l misses.
 echo "Checking PHP runtime includes..."
 RUNTIME_ERRORS=0
