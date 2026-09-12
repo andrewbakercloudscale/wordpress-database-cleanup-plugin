@@ -28,3 +28,6 @@ rollback-wordpress.sh
 generate-help-docs.sh
 docs/screenshots/
 repo/
+
+# oh-my-claudecode working state, local tooling only
+.omc/
