@@ -474,6 +474,26 @@ if ! php "$_TG_TIME_CHECK" "$REPO_DIR"; then
 fi
 echo ""
 
+# ── An alert says which environment it came from ────────────────────────────
+# DR shares production's bot token AND its chat id (measured 2026-09-13: both held
+# chat 7916189835), and DR is deliberately made to fail because it is where restores
+# are tested. Muting it is the wrong fix — it is the box most likely to be the one
+# failing — so it labels itself instead, in the first line, ahead of the domain,
+# which is the part a lock-screen preview shows before it truncates. Asserted both
+# ways: the label lands where it must, and an install that never sets it renders
+# byte-for-byte what it did before.
+_TG_ENV_CHECK="$GITHUB_DIR/shared-build-tools/check-telegram-env-label.php"
+echo "Checking Telegram alerts name their environment..."
+if [ ! -f "$_TG_ENV_CHECK" ]; then
+    echo "ERROR: telegram env-label checker not found at $_TG_ENV_CHECK"
+    exit 1
+fi
+if ! php "$_TG_ENV_CHECK" "$REPO_DIR"; then
+    echo "ERROR: a DR alert would be indistinguishable from production's (details above)."
+    exit 1
+fi
+echo ""
+
 # ── No alert path can flood the phone ───────────────────────────────────────
 # Every throttle in these plugins was a transient with a 6-hour expiry, on an install with a
 # persistent Redis object cache — so `wp cache flush`, which every deploy runs, deleted the quiet
