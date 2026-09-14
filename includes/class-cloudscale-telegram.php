@@ -136,7 +136,149 @@ class CloudScale_Telegram {
 	const OPTION_ENV_LABEL = 'csdt_alert_env_label';
 
 	/**
+	 * Where the label is kept so that it survives being restored over.
+	 *
+	 * WHY A FILE, AND WHY THIS WAS URGENT
+	 *
+	 * The label was an option, and an option is in the database, and the database of
+	 * a standby is REPLACED BY THE PRIMARY'S on every sync. So the label that exists
+	 * to say "this alert is from the copy, not the real site" was erased by the copy
+	 * being made -- and replaced by production's value, which is empty. After the
+	 * first successful restore, every alert from QA or DR is byte-identical to a
+	 * production alert, and nothing says so.
+	 *
+	 * That was survivable while a standby was refreshed by hand, occasionally. It
+	 * stopped being survivable when the restore became a nightly cron job: the
+	 * protection would have switched itself off on the first night, silently, and
+	 * looking exactly like success.
+	 *
+	 * Same mechanism and same reasoning as wp-content/csbr-site-role.json and
+	 * csbr-failover-mode.json. It is deliberately NOT prefixed to one plugin: it
+	 * describes the MACHINE, all five plugins alert through this class, and the
+	 * restore is taught to skip it by name.
+	 *
+	 * @return string Absolute path.
+	 */
+	const CONSTANT_ENV_LABEL = 'CLOUDSCALE_ALERT_ENV_LABEL';
+
+	public static function env_label_path(): string {
+		// phpcs:ignore WordPress.WP.DiscouragedConstants.WP_CONTENT_DIRUsed -- must sit beside the role and failover markers, outside the uploads tree a restore replaces
+		$dir = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
+		return rtrim( (string) $dir, '/' ) . '/cloudscale-alert-env-label.json';
+	}
+
+	/**
+	 * The label as stored on disk, or '' when there is no marker.
+	 *
+	 * @return string Raw, unsanitised; env_label() does the capping.
+	 */
+	private static function env_label_marker(): string {
+		$path = self::env_label_path();
+		if ( ! is_readable( $path ) ) {
+			return '';
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a small marker the plugin owns, read on cron and shutdown paths where WP_Filesystem is unavailable
+		$raw = file_get_contents( $path );
+		if ( false === $raw || '' === trim( (string) $raw ) ) {
+			return '';
+		}
+		$data = json_decode( (string) $raw, true );
+		return is_array( $data ) ? (string) ( $data['label'] ?? '' ) : '';
+	}
+
+	/**
+	 * Is the label stored somewhere a restore cannot erase?
+	 *
+	 * Read by the admin screen so a customer whose wp-content is read-only is TOLD
+	 * their label will not survive, rather than believing in protection they do not
+	 * have. That is the same stance the secret store and the failover switch take.
+	 *
+	 * @return bool True when the durable marker is in force, or no label is set at all.
+	 */
+	public static function env_label_is_durable(): bool {
+		if ( defined( self::CONSTANT_ENV_LABEL ) && '' !== trim( (string) constant( self::CONSTANT_ENV_LABEL ) ) ) {
+			return true;
+		}
+		if ( '' !== self::env_label_marker() ) {
+			return true;
+		}
+		// No marker. Durable only if there is nothing to lose.
+		return '' === trim( (string) get_option( self::OPTION_ENV_LABEL, '' ) );
+	}
+
+	/**
+	 * Set or clear the label, preferring the durable marker.
+	 *
+	 * @param string $label Label, or '' to clear. Sanitised and capped by env_label().
+	 * @return array{ok: bool, durable: bool, error: string}
+	 */
+	public static function set_env_label( string $label ): array {
+		$label = trim( (string) preg_replace( '/\s+/', ' ', sanitize_text_field( $label ) ) );
+		$path  = self::env_label_path();
+		$dir   = dirname( $path );
+
+		if ( ! is_dir( $dir ) || ! is_writable( $dir ) ) {
+			/*
+			 * REFUSED, and pointed at a constant, rather than quietly stored in an
+			 * option. The option would be erased by the next restore, which is the
+			 * entire failure being fixed, so saving one here would hand back the
+			 * appearance of protection and none of it.
+			 *
+			 * This is the same answer the site-role marker gives in the same
+			 * situation, for the same reason, and it keeps this shared class from
+			 * creating a WordPress option on behalf of five different plugins.
+			 */
+			return array(
+				'ok'      => false,
+				'durable' => false,
+				'error'   => 'wp-content is not writable, so this label cannot be stored anywhere a restore will not erase. Add define( \'' . self::CONSTANT_ENV_LABEL . '\', \'' . $label . '\' ); to wp-config.php instead, which survives everything.',
+			);
+		}
+
+		if ( '' === $label ) {
+			if ( file_exists( $path ) ) {
+				wp_delete_file( $path );
+			}
+			delete_option( self::OPTION_ENV_LABEL );
+			return array( 'ok' => true, 'durable' => true, 'error' => '' );
+		}
+
+		$payload = wp_json_encode(
+			array(
+				'label'  => $label,
+				'set_at' => gmdate( 'c' ),
+				'readme' => 'CloudScale plugins put this label at the front of the first line of every Telegram alert, so an alert from a standby is distinguishable from one from the live site in a lock-screen preview. It is deliberately NOT stored in the database: a standby\'s database is replaced by the primary\'s on every restore, which would erase this label and make the copy\'s alerts identical to the real site\'s. Deleting this file removes the label.',
+			),
+			JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+		);
+
+		/*
+		 * Both annotations below cover only the line IMMEDIATELY beneath them, so they
+		 * cannot be stacked: the first would then cover the second instead of the code.
+		 * The submission marker takes the line above, and PHPCS's takes the end of the
+		 * code line itself. Getting this wrong is silent -- the build reported the same
+		 * violation with a correct, carefully worded exemption two lines away from the
+		 * statement it was exempting.
+		 */
+		// csdt-submission-ok: writes ONE marker this plugin owns, into wp-content beside the site-role and failover markers, and nowhere else. It cannot live under wp_upload_dir(): uploads is restored wholesale from the primary's backup, and this marker exists precisely to survive that restore. The path is a fixed constant, never user input.
+		if ( false === file_put_contents( $path, $payload . "\n" ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- the plugin's own marker; must not depend on WP_Filesystem credentials so the toggle cannot half-apply
+			return array( 'ok' => false, 'durable' => false, 'error' => 'Could not write ' . $path );
+		}
+
+		// One answer to "what is the label". Two stores that can disagree is how
+		// every silent-wrong gate in this estate started.
+		delete_option( self::OPTION_ENV_LABEL );
+		return array( 'ok' => true, 'durable' => true, 'error' => '' );
+	}
+
+	/**
 	 * The environment label, sanitised and length-capped.
+	 *
+	 * Precedence: the constant, then the marker, then the legacy option. The option
+	 * remains readable so an install
+	 * that set one before this existed keeps its label until it is re-saved, rather
+	 * than silently losing it at the moment this ships -- which on QA and DR would
+	 * have been the exact outage this change exists to prevent.
 	 *
 	 * Capped because the header shares Telegram's 4096-char budget with the alert
 	 * itself: a label long enough to matter would truncate the body, and the body
@@ -145,7 +287,20 @@ class CloudScale_Telegram {
 	 * containing one would push the domain off it.
 	 */
 	private static function env_label(): string {
-		$label = sanitize_text_field( (string) get_option( self::OPTION_ENV_LABEL, '' ) );
+		$label = '';
+		if ( defined( self::CONSTANT_ENV_LABEL ) ) {
+			$label = (string) constant( self::CONSTANT_ENV_LABEL );
+		}
+		if ( '' === trim( $label ) ) {
+			$label = self::env_label_marker();
+		}
+		if ( '' === trim( $label ) ) {
+			// Legacy only. Existing installs set one before the marker existed and
+			// must not lose it the moment this ships -- on QA and DR that would have
+			// been the exact outage this change prevents.
+			$label = (string) get_option( self::OPTION_ENV_LABEL, '' );
+		}
+		$label = sanitize_text_field( $label );
 		$label = trim( preg_replace( '/\s+/', ' ', $label ) );
 		if ( '' === $label ) {
 			return '';
@@ -420,7 +575,7 @@ class CloudScale_Telegram {
 	 * where it is running, so this prefers, in order:
 	 *
 	 *   1. CSBR_HOST_LABEL, a constant or environment variable set by whoever runs
-	 *      the container, e.g. "andrew-pi-5" or "andrew-pi-5 (192.168.0.24)";
+	 *      the container, e.g. "web-01" or "web-01 (10.0.0.24)";
 	 *   2. gethostname(), when it does not look like a container id;
 	 *   3. the container id, clearly labelled as one, so the reader is not misled
 	 *      into thinking it names a machine.

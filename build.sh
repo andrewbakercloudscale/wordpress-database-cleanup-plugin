@@ -482,6 +482,27 @@ echo ""
 # which is the part a lock-screen preview shows before it truncates. Asserted both
 # ways: the label lands where it must, and an install that never sets it renders
 # byte-for-byte what it did before.
+# ── A copy of another site must not act like the original ──────────────────
+# Five plugins run on every box here, and on a standby all five inherit the
+# primary's database -- which is where WP-Cron keeps its events. So a standby
+# acquires schedules by being RESTORED ONTO, which is neither activation nor a
+# settings save, and therefore invisible to any check that runs at schedule time.
+# Measured on QA and DR before this existed: the SEO AI batch armed and due on both,
+# spending real money into databases the next restore deletes.
+# The gate DERIVES what each plugin schedules and fails on anything neither
+# suppressed nor declared safe, so a new cron job is covered the day it is written.
+_STANDBY_CHECK="$GITHUB_DIR/shared-build-tools/check-standby-suppression.php"
+echo "Checking a standby does not act like the primary..."
+if [ ! -f "$_STANDBY_CHECK" ]; then
+    echo "ERROR: standby suppression checker not found at $_STANDBY_CHECK"
+    exit 1
+fi
+if ! php "$_STANDBY_CHECK" "$GITHUB_DIR"; then
+    echo "ERROR: a scheduled job is unaccounted for on a standby (details above)."
+    exit 1
+fi
+echo ""
+
 _TG_ENV_CHECK="$GITHUB_DIR/shared-build-tools/check-telegram-env-label.php"
 echo "Checking Telegram alerts name their environment..."
 if [ ! -f "$_TG_ENV_CHECK" ]; then

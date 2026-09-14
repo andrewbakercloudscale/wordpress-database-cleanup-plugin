@@ -4,8 +4,8 @@
  *
  * WHY THIS EXISTS
  * ---------------
- * Every timeout these plugins set is in SECONDS — `wp_remote_post( $url, array( 'timeout' => 20 ) )`
- * — and the error WordPress hands back when one fires is in milliseconds, because that is what
+ * Every timeout these plugins set is in SECONDS, `wp_remote_post( $url, array( 'timeout' => 20 ) )`,
+ * and the error WordPress hands back when one fires is in milliseconds, because that is what
  * curl says:
  *
  *   cURL error 28: Operation timed out after 20000 milliseconds with 0 bytes received
@@ -18,8 +18,8 @@
  * APPLIED TO EVERY WP_Error MESSAGE WE RENDER, not only the ones from HTTP calls. Deciding
  * per call site which WP_Error might carry a curl string is a judgement that has to be made
  * correctly 176 times and then re-made by whoever adds the 177th. The conversion is a no-op on
- * text with no millisecond duration in it — `wp_insert_post()` failures pass through
- * byte-identical — so the uniform rule costs nothing and cannot be applied wrongly.
+ * text with no millisecond duration in it, `wp_insert_post()` failures pass through
+ * byte-identical, so the uniform rule costs nothing and cannot be applied wrongly.
  *
  * NOT SHARED WITH THE PROXY, deliberately. api.cloudscale.consulting runs without WordPress
  * loaded and its copy (cs_seconds_not_ms in text-lib.php) sits beside the failover

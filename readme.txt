@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.108
+Stable tag: 2.5.110
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,12 +36,12 @@ Choose any combination of:
 **Image Optimisation**
 
 * Resize and recompress JPEG and PNG images exceeding configurable maximum dimensions or quality thresholds
-* Destructive operation — requires explicit confirmation before running
+* Destructive operation, requires explicit confirmation before running
 * Back up your uploads folder before using this feature
 
 **Dry Run Preview**
 
-Always run a dry run first. The plugin scans your database and reports exactly what it found — counts per category, individual post IDs, titles, and dates — without touching anything. Toggle states are respected so the dry run accurately reflects what the actual cleanup will do.
+Always run a dry run first. The plugin scans your database and reports exactly what it found, counts per category, individual post IDs, titles, and dates, without touching anything. Toggle states are respected so the dry run accurately reflects what the actual cleanup will do.
 
 **Chunked Processing**
 
@@ -53,7 +53,7 @@ Each category has an independent toggle. Green means included, grey means skippe
 
 **Configurable Thresholds**
 
-Every time-based category has an age cutoff to prevent deleting recent items. Defaults are conservative — adjust to match your workflow.
+Every time-based category has an age cutoff to prevent deleting recent items. Defaults are conservative, adjust to match your workflow.
 
 **Scheduled Cleanup**
 
@@ -80,7 +80,7 @@ Telegram Bot API documentation: https://core.telegram.org/bots/api
 
 == Installation ==
 
-**Option 1 — WordPress admin (recommended)**
+**Option 1, WordPress admin (recommended)**
 
 1. Download `cloudscale-cleanup.zip`
 2. In your WordPress admin, go to **Plugins > Add New Plugin > Upload Plugin**
@@ -88,7 +88,7 @@ Telegram Bot API documentation: https://core.telegram.org/bots/api
 4. Click **Activate Plugin**
 5. Go to **Tools > CloudScale Cleanup**
 
-**Option 2 — Manual via FTP/SFTP**
+**Option 2, Manual via FTP/SFTP**
 
 1. Unzip `cloudscale-cleanup.zip`
 2. Upload the `cloudscale-cleanup` folder to `/wp-content/plugins/`
@@ -107,7 +107,7 @@ Yes. All cleanup operations use chunked processing that queues items in a transi
 
 = What does "orphaned post meta" mean? =
 
-When a post is deleted from WordPress, its associated meta rows in `wp_postmeta` are usually cleaned up too — but not always. Over time, rows can accumulate in `wp_postmeta` referencing post IDs that no longer exist. These rows are safe to delete and can add up to significant database bloat on active sites.
+When a post is deleted from WordPress, its associated meta rows in `wp_postmeta` are usually cleaned up too, but not always. Over time, rows can accumulate in `wp_postmeta` referencing post IDs that no longer exist. These rows are safe to delete and can add up to significant database bloat on active sites.
 
 = What does "orphaned filesystem files" mean? =
 
@@ -132,16 +132,16 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 = 2.5.1 =
 * NEW: Cron Management section in Settings tab
-* NEW: 24-hour cron job timeline — canvas graph showing every scheduled job's fire times, coloured by hook
-* NEW: Cron Congestion detection — highlights 5-minute windows where 3 or more jobs fire simultaneously
+* NEW: 24-hour cron job timeline, canvas graph showing every scheduled job's fire times, coloured by hook
+* NEW: Cron Congestion detection, highlights 5-minute windows where 3 or more jobs fire simultaneously
 * NEW: All Scheduled Events table (all WP cron events, not just CSC) with overdue flagging and Refresh button
-* NEW: Manual Triggers — fire DB Cleanup or Media Cleanup immediately without waiting for schedule
+* NEW: Manual Triggers, fire DB Cleanup or Media Cleanup immediately without waiting for schedule
 * NEW: Server Cron Setup card with copy-ready crontab command prefilled with site URL
 * NEW: WP-Cron health banner with RAG status (OK / Warning / Congestion detected)
 
 = 2.4.38 =
 * PCP compliance: removed inline script blocks, added wp_unslash(), replaced date() with gmdate(), escaped all output variables
-* Table overhead RAG thresholds updated: amber 12–28 MB, red > 28 MB
+* Table overhead RAG thresholds updated: amber 12-28 MB, red > 28 MB
 * readme.txt tags reduced to 5; CHANGELOG brought up to date
 * Explain modal text now displays in normal case (fixed uppercase inheritance)
 
@@ -149,7 +149,7 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 * Site Health tab header styled purple to match CloudScale plugin family theme
 
 = 2.4.0 =
-* Filename-based cache busting for admin JS and CSS — no more stale assets after updates
+* Filename-based cache busting for admin JS and CSS, no more stale assets after updates
 
 = 2.3.5 =
 * FIX: MutationObserver now correctly removes stale single-span Max Resource rows on re-render
@@ -179,7 +179,7 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 * Renamed Runway / Wks Left labels to Est. Time to Storage Full for clarity
 
 = 2.1.1 =
-* NEW: Media recycle bin — moved-to-trash images held for configurable days before permanent deletion
+* NEW: Media recycle bin, moved-to-trash images held for configurable days before permanent deletion
 * Manifest hardening and terminology updates throughout
 
 == Upgrade Notice ==

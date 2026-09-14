@@ -1326,12 +1326,12 @@ function cscOrphanToggle(el, type) {
     $('#btn-run-regen-thumb').on('click', function () {
         var $btn = $(this);
         // A confirmation, not a warning: this is reversible work (it only ADDS missing sizes)
-        // and the point is the wait, not risk — so primary styling and honest copy about the
+        // and the point is the wait, not risk, so primary styling and honest copy about the
         // time. $btn is already captured above, so the callback keeps it.
         cscConfirmModal({
             icon:         '⚙️',
             title:        'Regenerate missing thumbnail sizes?',
-            body:         '<p>This regenerates missing sizes for every affected image. Nothing existing is replaced.</p><p>It may take a minute or two — leave this tab open.</p>',
+            body:         '<p>This regenerates missing sizes for every affected image. Nothing existing is replaced.</p><p>It may take a minute or two, leave this tab open.</p>',
             confirmLabel: 'Regenerate',
             confirmClass: 'csc-btn-primary'
         }, function () {
@@ -2688,7 +2688,7 @@ function cscOrphanToggle(el, type) {
             } else {
                 cscShowModal('Could not move the cron job', resp.data || 'Unknown error');
             }
-        }).fail(function() { cscShowModal('Network error', 'The cron job was not moved — the request did not reach the server.'); });
+        }).fail(function() { cscShowModal('Network error', 'The cron job was not moved, the request did not reach the server.'); });
         });
     }
 
@@ -2722,7 +2722,7 @@ function cscOrphanToggle(el, type) {
     // Permanently delete button in recycle bin
     $(document).on('click', '.csc-cron-purge-btn', function() {
         // READ $(this) BEFORE THE MODAL. cscConfirmModal() calls back from a click on the modal's
-        // own confirm button, where `this` is that button and not this row's Delete — so reading
+        // own confirm button, where `this` is that button and not this row's Delete, so reading
         // the id inside the callback would post id: undefined, purge nothing, and report success.
         // Every confirm converted here has that hazard; it is the reason these were left as
         // a native browser dialog rather than converted with the rest.
@@ -2902,7 +2902,7 @@ function cscOrphanToggle(el, type) {
                         padding: '3px 7px', 'font-size': '13px', cursor: 'pointer', color: '#d32f2f', 'line-height': '1'
                     }).html('&#128465;').attr('title', 'Move to Storage Recycle Bin').on('click', function(e) {
                         e.stopPropagation();
-                        // Captured before the modal — see the note on the cron purge handler.
+                        // Captured before the modal, see the note on the cron purge handler.
                         var $btn = $(this);
                         // Primary, not danger: this move is reversible and the copy says so. The old
                         // the native dialog said it too, and styling a reversible action as a deletion
@@ -2924,7 +2924,7 @@ function cscOrphanToggle(el, type) {
                                 $btn.prop('disabled', false).html('&#128465;');
                             }
                         }).fail(function() {
-                            cscShowModal('Network error', 'The folder was not moved — the request did not reach the server.');
+                            cscShowModal('Network error', 'The folder was not moved, the request did not reach the server.');
                             $btn.prop('disabled', false).html('&#128465;');
                         });
                         });
@@ -3001,13 +3001,13 @@ function cscOrphanToggle(el, type) {
                                 cscShowModal('Restore failed', res.data || 'Restore failed.');
                                 $btn.prop('disabled', false).text('↩ Restore');
                             }
-                        }).fail(function() { cscShowModal('Network error', 'The file was not restored — the request did not reach the server.'); $btn.prop('disabled', false).text('↩ Restore'); });
+                        }).fail(function() { cscShowModal('Network error', 'The file was not restored, the request did not reach the server.'); $btn.prop('disabled', false).text('↩ Restore'); });
                     });
                     var $purge = $('<button>').css({
                         background: '#ffebee', border: '1px solid #e53935', 'border-radius': '4px',
                         padding: '4px 8px', 'font-size': '12px', cursor: 'pointer', color: '#c62828', 'white-space': 'nowrap'
                     }).text('🗑 Delete Forever').on('click', function() {
-                        // Captured before the modal — see the note on the cron purge handler.
+                        // Captured before the modal, see the note on the cron purge handler.
                         var $btn = $(this);
                         cscConfirmModal({
                             icon:         '🗑',
@@ -3024,7 +3024,7 @@ function cscOrphanToggle(el, type) {
                                 cscShowModal('Delete failed', res.data || 'Delete failed.');
                                 $btn.prop('disabled', false).text('🗑 Delete Forever');
                             }
-                        }).fail(function() { cscShowModal('Network error', 'The file could not be deleted — the request did not reach the server.'); $btn.prop('disabled', false).text('🗑 Delete Forever'); });
+                        }).fail(function() { cscShowModal('Network error', 'The file could not be deleted, the request did not reach the server.'); $btn.prop('disabled', false).text('🗑 Delete Forever'); });
                         });
                     });
                     $r.append($('<td>').css({ padding: '8px 12px', 'text-align': 'center', 'white-space': 'nowrap' }).append($restore).append($purge));
@@ -3036,7 +3036,7 @@ function cscOrphanToggle(el, type) {
     }
 
     $('#btn-storage-bin-empty').on('click', function() {
-        // Captured before the modal — see the note on the cron purge handler above.
+        // Captured before the modal, see the note on the cron purge handler above.
         var $btn = $(this);
         cscConfirmModal({
             icon:         '🗑',
@@ -3109,17 +3109,17 @@ jQuery(function($) {
             $('#hm-weeks-left').text(wl + ' weeks').css('color', wlColor);
         } else if (d.growth_per_week <= 0 && d.weekly_count >= 2) {
             $('#hm-weeks-left').text('Stable').css('color', '#2e7d32');
-        } else { $('#hm-weeks-left').text('—').css('color',''); }
-        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '—';
+        } else { $('#hm-weeks-left').text('-').css('color',''); }
+        var cpuNow = d.cpu_pct_now >= 0 ? d.cpu_pct_now+'%' : '-';
         if (d.cpu_load_now >= 0) cpuNow += ' (load '+d.cpu_load_now.toFixed(2)+')';
         $('#hm-cpu-now').text(cpuNow);
-        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '—');
-        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '—');
-        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '—';
+        $('#hm-cpu-24h').text(d.cpu_pct_max_24h >= 0 ? d.cpu_pct_max_24h+'%' : '-');
+        $('#hm-cpu-7d').text(d.cpu_pct_max_7d >= 0 ? d.cpu_pct_max_7d+'%' : '-');
+        var memNow = d.mem_pct_now >= 0 ? d.mem_pct_now+'%' : '-';
         if (d.mem_used_now >= 0 && d.mem_total > 0) memNow += ' ('+fmt(d.mem_used_now)+' / '+fmt(d.mem_total)+')';
         $('#hm-mem-now').text(memNow);
-        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '—');
-        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '—');
+        $('#hm-mem-24h').text(d.mem_pct_max_24h >= 0 ? d.mem_pct_max_24h+'%' : '-');
+        $('#hm-mem-7d').text(d.mem_pct_max_7d >= 0 ? d.mem_pct_max_7d+'%' : '-');
 
         if (d.max_resource_now !== undefined) {
             $('[style*="grid-column:1/-1"]').filter(function(){ return $(this).text().indexOf('Max Resource') >= 0; }).remove();

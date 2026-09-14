@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.108
+ * Version:     2.5.110
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -33,7 +33,7 @@ add_action( 'init', function () {
     //
     // There are two ways to get this wrong and this filter has now had both. array_diff()
     // against the single literal 'https://s.w.org' stopped removing anything the moment core
-    // used the other form it has shipped, '//s.w.org' — a registered filter quietly doing
+    // used the other form it has shipped, '//s.w.org', a registered filter quietly doing
     // nothing. Replacing it with strpos() then over-matched in the other direction:
     // 'ps.w.org' CONTAINS 's.w.org', and ps.w.org is a real WordPress host, so a hint naming
     // it would have been stripped as well.
@@ -41,8 +41,8 @@ add_action( 'init', function () {
     // Entries arrive in more than one shape and all of them have to be handled: a full URL,
     // a scheme-relative '//host', and a BARE host with no scheme at all, because the
     // dns-prefetch list is assembled from parsed hostnames rather than URLs. Preconnect
-    // entries may instead be an attribute array keyed 'href'. Anything unrecognised is KEPT
-    // — the job here is to remove one known hint, so in doubt it must not remove.
+    // entries may instead be an attribute array keyed 'href'. Anything unrecognised is KEPT,
+    // the job here is to remove one known hint, so in doubt it must not remove.
     add_filter( 'wp_resource_hints', function ( $urls ) {
         if ( ! is_array( $urls ) ) {
             return $urls;
@@ -74,20 +74,21 @@ add_action( 'init', function () {
 
 // wp-admin/includes/admin-filters.php re-registers the admin_print_scripts/
 // admin_print_styles emoji hooks, and that file loads after `init` has already
-// fired — so the removal above never catches them on admin pages. Remove again
+// fired, so the removal above never catches them on admin pages. Remove again
 // on admin_init, which runs after admin-filters.php has loaded.
 add_action( 'admin_init', function () {
     remove_action( 'admin_print_scripts', 'print_emoji_detection_script' );
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.108' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.110' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
 
 // Error text in the units the timeouts are set in: WordPress reports a 10-second ceiling as
 // "10000 milliseconds". Required before the shared Telegram class, which uses it too.
+require_once __DIR__ . '/includes/class-cloudscale-site-role.php';
 require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cloudscale-error-text.php';
 require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cloudscale-telegram.php';
 
@@ -142,7 +143,7 @@ define( 'CSCC_CHUNK_OPTIMISE',  5 );
  * is strictly more robust than assuming an unlimited request.
  *
  * The reserve is the important part. Where an item is claimed before it is processed, a request
- * killed mid-item drops that item silently — so the deadline is checked only BETWEEN items, and
+ * killed mid-item drops that item silently, so the deadline is checked only BETWEEN items, and
  * enough time is held back for one whole worst-case item. On this plugin's target hardware a
  * single image can take 30-60s, which is why callers pass a large reserve rather than a token one.
  *
@@ -165,7 +166,7 @@ function cscc_chunk_deadline( int $reserve ): int {
 
 // PNG to JPEG converter constants
 // These carried a third prefix (cspj_) alongside this plugin's own cscc_, which WordPress.org
-// flags: one distinctive prefix per plugin. Renaming the CONSTANTS is free — they persist
+// flags: one distinctive prefix per plugin. Renaming the CONSTANTS is free, they persist
 // nothing. The option KEY is different: 'cspj_chunk_mb' is a live row in wp_options, so the new
 // name is what gets written and the old one is still READ as a fallback. Nothing deletes the old
 // row here, so downgrading keeps working; uninstall.php removes both.
@@ -713,8 +714,34 @@ function cscc_next_run_timestamp( $days, $hour ) {
 }
 
 // Cron handlers, run synchronously (no HTTP chunking needed in a cron context)
+/*
+ * Neither scheduled cleanup may run on a copy of another site.
+ *
+ * Both delete PERMANENTLY -- wp_delete_post( $id, true ) over revisions, drafts,
+ * trashed posts and autodrafts, wp_delete_comment( $id, true ) over spam and trash,
+ * plus orphaned post and user meta -- and on a standby every one of those rows is
+ * about to be replaced by the primary's copy anyway, so the work is pure waste that
+ * also muddies what the next restore actually restored. The failure path alerts, and
+ * on a copy that alert carries the primary's domain.
+ *
+ * Disarmed on init rather than at schedule time: a standby acquires these events by
+ * RESTORING THE PRIMARY'S DATABASE, which is neither activation nor a settings save.
+ * They are not armed on this estate's standbys today, and they are one toggle on
+ * production away from being armed on both, silently, with nothing watching.
+ */
+add_action( 'init', static function (): void {
+    if ( class_exists( 'CloudScale_Site_Role' ) ) {
+        CloudScale_Site_Role::disarm( array( 'cscc_scheduled_db_cleanup', 'cscc_scheduled_img_cleanup' ), 'cscc' );
+    }
+}, 7 );
+
 add_action( 'cscc_scheduled_db_cleanup', 'cscc_cron_db_cleanup' );
 function cscc_cron_db_cleanup() {
+    // Refused as well as disarmed: a direct do_action or `wp cron event run`
+    // reaches the handler without going through the scheduler.
+    if ( class_exists( 'CloudScale_Site_Role' ) && CloudScale_Site_Role::is_standby() ) {
+        return;
+    }
     try {
         $ids = cscc_build_db_id_list();
         foreach ( $ids['revisions']      as $id ) { wp_delete_post( intval( $id ), true ); }
@@ -741,6 +768,11 @@ function cscc_cron_db_cleanup() {
 
 add_action( 'cscc_scheduled_img_cleanup', 'cscc_cron_img_cleanup' );
 function cscc_cron_img_cleanup() {
+    // Refused as well as disarmed: a direct do_action or `wp cron event run`
+    // reaches the handler without going through the scheduler.
+    if ( class_exists( 'CloudScale_Site_Role' ) && CloudScale_Site_Role::is_standby() ) {
+        return;
+    }
     try {
         $used = cscc_get_used_attachment_ids();
         $all  = get_posts( array(
@@ -1879,7 +1911,7 @@ function cscc_ajax_regen_thumb_batch() {
 
     // ACTUAL work done, not the nominal batch size. This used to advance by $batch_size on the
     // assumption that every image in the slice was handled; now that the loop can stop early,
-    // that assumption would silently SKIP the unprocessed images rather than retry them — a
+    // that assumption would silently SKIP the unprocessed images rather than retry them, a
     // worse outcome than the timeout this replaced, and invisible in the UI.
     $next_offset = $offset + max( 1, $processed );
     wp_send_json_success( array(
@@ -2352,7 +2384,7 @@ function cscc_ajax_img_chunk() {
     //     never retried and nothing said so.
     //   - It used to write the manifest ONCE, after the loop. A kill between deleting an
     //     attachment's rows and that write left the files sitting in the recycle directory with
-    //     no manifest entry — deleted from the media library and NOT restorable. That is the one
+    //     no manifest entry, deleted from the media library and NOT restorable. That is the one
     //     outcome this feature must never produce, since "recycle" is a promise it can be undone.
     //
     // Now: files moved -> manifest written -> rows deleted -> item popped. A kill at any point
@@ -2411,7 +2443,7 @@ function cscc_ajax_img_chunk() {
             $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $id . ', ' . $e->getMessage() );
         }
 
-        // Popped whether it succeeded or errored — an item that cannot be processed must not sit
+        // Popped whether it succeeded or errored, an item that cannot be processed must not sit
         // at the head of the queue forever, because the client loops on `remaining` and would
         // retry it indefinitely. The failure is reported in `lines` either way.
         array_shift( $queue );
@@ -3429,7 +3461,7 @@ function cscc_ajax_optimise_chunk() {
     // NO deadline check and no time-limit lift here, and both omissions are deliberate.
     //
     // This handler does exactly ONE image per request, so there is no boundary between items to
-    // yield on — the unit of work is already as small as it goes. Raising the ceiling is what
+    // yield on, the unit of work is already as small as it goes. Raising the ceiling is what
     // WordPress.org rejects, and it was protecting the wrong thing anyway: the danger was never
     // the request ending, it was WHERE it ended. So instead of buying more time, the commit
     // sequence below was made safe to be killed at any point (see the notes on each rename).
@@ -3502,7 +3534,7 @@ function cscc_ajax_optimise_chunk() {
             //
             // ORDER MATTERS, and it changed: the database is pointed at the new file BEFORE the
             // old one is deleted. It used to delete the .png first, so a request killed in the gap
-            // left the attachment pointing at a file that no longer existed — a permanently broken
+            // left the attachment pointing at a file that no longer existed, a permanently broken
             // image. Now the worst a kill in that gap leaves is an orphaned .png on disk, which
             // costs a little space and breaks nothing.
             @rename( $tmp_file, $new_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
@@ -3545,7 +3577,7 @@ function cscc_ajax_optimise_chunk() {
             // A single rename, NOT delete-then-rename. rename() over an existing path on the same
             // filesystem is atomic: the file is either the old one or the new one, never absent.
             // The previous delete-then-rename opened a window in which the original was already
-            // gone and the replacement not yet in place — and a request killed in that window
+            // gone and the replacement not yet in place, and a request killed in that window
             // destroyed the image outright, with no copy anywhere. That window is why this handler
             // appeared to need a raised time limit; closing it is what let the limit go.
             @rename( $tmp_file, $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
@@ -3573,7 +3605,7 @@ function cscc_ajax_optimise_chunk() {
     // Advance the queue now, after the attempt rather than before it. Popped whether the image
     // succeeded, was skipped or errored: the client loops on `remaining`, so an item left at the
     // head would be retried forever. A request killed before reaching this line leaves the image
-    // still queued and gets retried once — which the commit ordering above makes safe.
+    // still queued and gets retried once, which the commit ordering above makes safe.
     array_shift( $queue );
 
     $run['queue'] = $queue;
@@ -4094,7 +4126,7 @@ function cscc_ajax_cspj_delete_converted() {
 // Cron: cleanup stale chunks.
 // Both names are hooked during the transition: an install upgraded mid-cycle still has the
 // legacy event sitting in cron, and a scheduled event whose handler has been renamed away runs
-// forever doing nothing — which is how the chunk directory silently stops being cleaned.
+// forever doing nothing, which is how the chunk directory silently stops being cleaned.
 add_action( 'cscc_cleanup_chunks', 'cscc_cspj_cron_cleanup' );
 add_action( 'cspj_cleanup_chunks', 'cscc_cspj_cron_cleanup' );
 function cscc_cspj_cron_cleanup() {
