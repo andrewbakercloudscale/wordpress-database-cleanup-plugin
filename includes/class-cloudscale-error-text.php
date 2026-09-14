@@ -34,9 +34,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( class_exists( 'CloudScale_Error_Text' ) ) {
-	return;
-}
+/*
+ * WRAPPED, not guarded by an early return.
+ *
+ * This file shipped in all five plugins with `if ( class_exists(...) ) { return; }`
+ * above an unconditional `class ... {`, which reads as correct and is not. A
+ * top-level class declaration with no parent is a candidate for OPcache's early
+ * binding: the class is bound when the file is included, BEFORE the return
+ * statement above it executes. So the second plugin to load fataled with "Cannot
+ * declare class CloudScale_Error_Text, because the name is already in use" --
+ * pointing at the very line the guard exists to protect.
+ *
+ * Measured on the local mirror, 2026-09-14, the moment a second CloudScale plugin
+ * was activated alongside cyber-devtools: every admin page 500'd. It does not
+ * reproduce under the CLI, which has no opcache, which is exactly why a guard that
+ * looked right survived this long.
+ *
+ * A class declared INSIDE a conditional is never early-bound, so this is the form
+ * that actually holds.
+ */
+if ( ! class_exists( 'CloudScale_Error_Text' ) ) {
 
 /**
  * Turns a machine's error text into something stated in the units we configured.
@@ -76,4 +93,6 @@ class CloudScale_Error_Text {
 			$msg
 		);
 	}
+}
+
 }

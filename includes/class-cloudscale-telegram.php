@@ -13,9 +13,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( class_exists( 'CloudScale_Telegram' ) ) {
-	return;
-}
+/*
+ * WRAPPED, not guarded by an early return. See class-cloudscale-error-text.php for
+ * the full account: an unconditional top-level class is a candidate for OPcache's
+ * early binding, so it is declared when the file is INCLUDED, before the guard's
+ * `return` ever runs. The second CloudScale plugin to load then fataled with
+ * "Cannot declare class ..., because the name is already in use", pointing at the
+ * line the guard existed to protect. It does not reproduce under the CLI, which has
+ * no opcache, which is why the wrong form survived in four shared classes.
+ *
+ * A class declared inside a conditional is never early-bound.
+ */
+if ( ! class_exists( 'CloudScale_Telegram' ) ) {
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- shared cross-plugin utility; CloudScale IS the brand prefix
 class CloudScale_Telegram {
@@ -1205,4 +1214,6 @@ class CloudScale_Telegram {
 			}
 		}
 	}
+}
+
 }
