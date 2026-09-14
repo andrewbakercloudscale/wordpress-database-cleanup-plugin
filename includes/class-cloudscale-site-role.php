@@ -152,6 +152,68 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 		}
 
 		/**
+		 * Stop a copy emailing anybody, and say what it swallowed.
+		 *
+		 * WHY THIS IS NOT OPTIONAL ON A REFRESHED COPY
+		 *
+		 * A copy holds the primary's USERS, ORDERS AND HOOKS. Nothing in WordPress
+		 * distinguishes "this is a test database" from the real one, so a password
+		 * reset, an order confirmation, a comment notification or any plugin's
+		 * lifecycle mail goes to the real customer, from a machine nobody thinks of
+		 * as live. It is the one suppression whose blast radius reaches people
+		 * outside the estate.
+		 *
+		 * WHY IT IS NOT A BLANKET BLOCK ON EVERY STANDBY
+		 *
+		 * A HOT STANDBY is expected to become the live site, and a site that cannot
+		 * send a password reset the moment it takes over is broken exactly when it
+		 * matters. So this is driven by the caller's purpose, not by is_standby()
+		 * alone: refreshed copies are silenced, hot standbys are not.
+		 *
+		 * WHY IT LOGS RATHER THAN JUST DROPPING
+		 *
+		 * A copy that silently eats mail looks identical to a copy whose mail is
+		 * broken. When somebody asks "did the test send the invoice?", the answer has
+		 * to be findable. wp_mail_failed carries the recipient and subject so the
+		 * record says what was stopped, not merely that something was.
+		 *
+		 * @param string $reason Human-readable reason, used in the failure notice.
+		 * @return void
+		 */
+		public static function block_outbound_mail( string $reason ): void {
+			add_filter(
+				'pre_wp_mail',
+				static function ( $short_circuit, $atts ) use ( $reason ) {
+					$to      = is_array( $atts['to'] ?? '' ) ? implode( ', ', $atts['to'] ) : (string) ( $atts['to'] ?? '' );
+					$subject = (string) ( $atts['subject'] ?? '' );
+
+					if ( function_exists( 'error_log' ) ) {
+						// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational: a copy that silently eats mail is indistinguishable from one whose mail is broken
+						error_log( '[CloudScale] Outbound email BLOCKED on a copy: to=' . $to . ' subject=' . $subject . ' (' . $reason . ')' );
+					}
+
+					/**
+					 * Fires when a copy refuses to send an email.
+					 *
+					 * @param string $to      Recipient(s).
+					 * @param string $subject Subject line.
+					 * @param string $reason  Why it was blocked.
+					 */
+					do_action( 'cloudscale_outbound_mail_blocked', $to, $subject, $reason );
+
+					// true short-circuits wp_mail() and reports success to the caller,
+					// which is deliberate: a plugin that treats a mail failure as a
+					// hard error would otherwise break checkout flows on the copy, and
+					// the point is to make the copy USABLE for testing, not to make it
+					// throw. The log and the hook are where the truth lives.
+					return true;
+				},
+				5,
+				2
+			);
+		}
+
+		/**
 		 * Disarm a cron hook that must not run on a copy.
 		 *
 		 * ON EVERY REQUEST, not at schedule time. A standby does not acquire a schedule
