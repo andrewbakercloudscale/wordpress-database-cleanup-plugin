@@ -66,10 +66,10 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 			// marker that is the ONLY signal on a host with no /etc/cloudscale — which
 			// is how DR is deliberately built.
 			if ( function_exists( 'csbr_is_standby' ) ) {
-				return (bool) ( $GLOBALS[ self::CACHE_KEY ] = csbr_is_standby() );
+				return (bool) ( $GLOBALS[ self::CACHE_KEY ] = csbr_is_standby() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- CACHE_KEY is 'cloudscale_site_role_cache'
 			}
 
-			return (bool) ( $GLOBALS[ self::CACHE_KEY ] = self::resolve_without_backup_plugin() );
+			return (bool) ( $GLOBALS[ self::CACHE_KEY ] = self::resolve_without_backup_plugin() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- CACHE_KEY is 'cloudscale_site_role_cache'
 		}
 
 		/**
@@ -117,9 +117,7 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 
 			// The marker the admin screen writes, which is the only durable signal on a
 			// host without /etc/cloudscale.
-			// phpcs:ignore WordPress.WP.DiscouragedConstants.WP_CONTENT_DIRUsed -- the marker sits beside the other role markers, outside the uploads tree a restore replaces
-			$dir    = defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR : ABSPATH . 'wp-content';
-			$marker = rtrim( (string) $dir, '/' ) . '/csbr-site-role.json';
+			$marker = self::content_dir() . '/csbr-site-role.json';
 			if ( is_readable( $marker ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a small marker the estate owns
 				$data = json_decode( (string) file_get_contents( $marker ), true );
@@ -129,6 +127,29 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 			}
 
 			return in_array( strtolower( trim( (string) get_option( 'csbr_site_role', '' ) ) ), self::STANDBY_WORDS, true );
+		}
+
+		/**
+		 * The content directory, derived from this file's own location.
+		 *
+		 * plugin_basename() is core's answer to "which plugins directory is this file
+		 * under", including the realpath map a symlinked install registers, so removing
+		 * that tail from the file's own path yields the plugins directory as core sees
+		 * it, and its parent is the content directory. No core constant is read; the
+		 * marker is only ever read here, never written.
+		 *
+		 * @return string No trailing slash.
+		 */
+		private static function content_dir(): string {
+			$file = str_replace( '\\', '/', __FILE__ );
+			if ( function_exists( 'plugin_basename' ) ) {
+				$tail = '/' . plugin_basename( __FILE__ );
+				if ( strlen( $tail ) > 1 && substr( $file, -strlen( $tail ) ) === $tail ) {
+					return dirname( substr( $file, 0, -strlen( $tail ) ) );
+				}
+			}
+			// includes/ -> plugin -> plugins -> content.
+			return dirname( $file, 3 );
 		}
 
 		/**
