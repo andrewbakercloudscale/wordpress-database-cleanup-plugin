@@ -674,7 +674,7 @@ class CloudScale_Telegram {
 	/**
 	 * The WordPress account attached to this request, when there is one.
 	 *
-	 * "From: 41.198.157.47" alone reads as an unknown attacker even when the request carried a
+	 * "From: 203.0.113.7" alone reads as an unknown attacker even when the request carried a
 	 * valid, currently-authenticated admin session, the one piece of context that actually
 	 * answers "is this me" was missing from every alert. Added rather than assumed: wp-cron and
 	 * WP-CLI genuinely have no session, and a request whose auth cookie has not been processed
