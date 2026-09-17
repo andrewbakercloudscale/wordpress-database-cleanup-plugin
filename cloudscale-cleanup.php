@@ -2443,8 +2443,10 @@ function cscc_ajax_img_chunk() {
                 $lines[] = array( 'type' => 'deleted', 'text' => $msg );
             }
         } catch ( Exception $e ) {
+            // no-alert: one attachment failing must not abort a batch of thousands. The failure IS reported: it goes into $lines as an 'error' row, which the success payload below carries to the browser and the run log prints in red beside the item's ID.
             $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $id . ', ' . $e->getMessage() );
         } catch ( Throwable $e ) {
+            // no-alert: as above, reported per item through $lines rather than by failing the whole request.
             $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $id . ', ' . $e->getMessage() );
         }
 
@@ -2616,9 +2618,11 @@ function cscc_ajax_media_restore() {
             $restored++;
 
         } catch ( Exception $e ) {
+            // no-alert: one attachment failing must not abort the rest of the batch. The failure IS reported: an 'error' row in $lines, shown in red in the run log, and counted into the "N error(s)" summary line the payload below carries.
             $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $att_id . ', ' . $e->getMessage() );
             $errors++;
         } catch ( Throwable $e ) {
+            // no-alert: as above, reported per item through $lines and the error count rather than by failing the whole request.
             $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $att_id . ', ' . $e->getMessage() );
             $errors++;
         }
@@ -2753,9 +2757,11 @@ function cscc_ajax_media_purge() {
             $lines[] = array( 'type' => 'deleted', 'text' => '  [DELETED] ID ' . $att_id . ', ' . esc_html( $title ) . ' (' . $file_deleted . ' file(s))' );
             $deleted++;
         } catch ( Exception $e ) {
+            // no-alert: one attachment failing must not abort the rest of the batch. The failure IS reported: an 'error' row in $lines, shown in red in the run log, and counted into the "N error(s)" summary line the payload below carries.
             $lines[] = array( 'type' => 'error', 'text' => '  [EXCEPTION] ID ' . $att_id . ', ' . $e->getMessage() );
             $errors++;
         } catch ( Throwable $e ) {
+            // no-alert: as above, reported per item through $lines and the error count rather than by failing the whole request.
             $lines[] = array( 'type' => 'error', 'text' => '  [FATAL] ID ' . $att_id . ', ' . $e->getMessage() );
             $errors++;
         }
