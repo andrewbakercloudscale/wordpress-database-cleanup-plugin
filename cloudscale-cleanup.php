@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.116
+ * Version:     2.5.119
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -81,10 +81,15 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.116' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.119' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
+define( 'CSCC_PLUGIN_FILE', __FILE__ );
+
+// The path accessor: the only file in this plugin that reads a core path constant.
+// See its header for why WordPress.org asks for that shape.
+require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cscc-paths.php';
 
 // Error text in the units the timeouts are set in: WordPress reports a 10-second ceiling as
 // "10000 milliseconds". Required before the shared Telegram class, which uses it too.
@@ -4065,7 +4070,7 @@ function cscc_ajax_scan_broken_images() {
 
             // Convert URL to file path
             $rel_path = preg_replace( '#^https?://[^/]+/#', '', $url );
-            $file_path = ABSPATH . $rel_path;
+            $file_path = CSCC_Paths::root_file( $rel_path );
 
             // Also try matching via upload_url
             if ( strpos( $url, $upload_url ) === 0 ) {
@@ -4176,7 +4181,7 @@ define( 'CSCC_HEALTH_MAX_AGE',     180 ); // days, expire data older than 6 mont
  * Falls back to du on the wp-content directory if available.
  */
 function cscc_health_get_disk_usage_bytes(): int {
-    return cscc_health_dir_size( WP_CONTENT_DIR );
+    return cscc_health_dir_size( CSCC_Paths::content_dir() );
 }
 
 /**
@@ -4222,7 +4227,7 @@ function cscc_autoload_rag( int $bytes ): string {
  * Get free disk space on the partition containing wp-content.
  */
 function cscc_health_get_disk_free_bytes(): int {
-    $free = @disk_free_space( WP_CONTENT_DIR );
+    $free = @disk_free_space( CSCC_Paths::content_dir() );
     return $free !== false ? intval( $free ) : 0;
 }
 
@@ -4230,7 +4235,7 @@ function cscc_health_get_disk_free_bytes(): int {
  * Get total disk space on the partition containing wp-content.
  */
 function cscc_health_get_disk_total_bytes(): int {
-    $total = @disk_total_space( WP_CONTENT_DIR );
+    $total = @disk_total_space( CSCC_Paths::content_dir() );
     return $total !== false ? intval( $total ) : 0;
 }
 
