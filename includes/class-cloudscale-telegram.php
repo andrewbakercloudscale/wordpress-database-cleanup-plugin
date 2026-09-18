@@ -369,6 +369,19 @@ class CloudScale_Telegram {
 	const MAX_PER_HOUR = 6;
 	const MAX_PER_DAY  = 24;
 
+	/**
+	 * Sources whose alerts are counted in a pool of their own.
+	 *
+	 * One pool for everything meant a burst of CSP violations or slow-page reports
+	 * spent the six slots a compromise alert needed, and the compromise alert was
+	 * the one held back. The cap itself is unchanged and still has no bypass: a
+	 * security source gets the SAME six an hour, counted separately, so noise from
+	 * elsewhere cannot starve it and it cannot starve the rest. Matched on the
+	 * exact source string a call site passes, so a new security feature opts in by
+	 * naming itself here, not by picking a level.
+	 */
+	const SECURITY_SOURCES = [ 'CloudScale Cyber Devtools', 'Login Monitor', 'Security Scan', 'Firewall' ];
+
 	/*
 	 * There is deliberately NO bypass parameter. Every alert that goes through send() is capped,
 	 * including criticals, a level that could opt out would become the level everything uses. The
@@ -415,8 +428,10 @@ class CloudScale_Telegram {
 		if ( ! is_array( $led ) ) {
 			$led = [];
 		}
+		// Which pool this alert is counted in. See SECURITY_SOURCES.
+		$pool = in_array( $source, self::SECURITY_SOURCES, true ) ? 'sent_security' : 'sent';
 		$sent = array_values( array_filter(
-			array_map( 'intval', (array) ( $led['sent'] ?? [] ) ),
+			array_map( 'intval', (array) ( $led[ $pool ] ?? [] ) ),
 			static function ( $t ) use ( $now ) {
 				return $t > 0 && ( $now - $t ) < DAY_IN_SECONDS;
 			}
@@ -446,10 +461,10 @@ class CloudScale_Telegram {
 		}
 
 		if ( '' !== $blocked ) {
-			$led['held'] = $held + 1;
-			$led['dups'] = $dups + ( 'dup' === $blocked ? 1 : 0 );
-			$led['sent'] = $sent;
-			$led['sigs'] = $sigs;
+			$led['held']  = $held + 1;
+			$led['dups']  = $dups + ( 'dup' === $blocked ? 1 : 0 );
+			$led[ $pool ] = $sent;
+			$led['sigs']  = $sigs;
 			self::opt_write( self::OPTION_RATE, self::LEGACY_RATE, $led, false );
 			return null;
 		}
@@ -463,12 +478,14 @@ class CloudScale_Telegram {
 			}
 		}
 		$sent[] = $now;
-		self::opt_write(
-			self::OPTION_RATE,
-			self::LEGACY_RATE,
-			[ 'sent' => $sent, 'sigs' => $sigs, 'held' => 0, 'dups' => 0 ],
-			false
-		);
+		// The OTHER pool is carried, not dropped: rewriting the ledger from scratch
+		// here would forget every security alert sent this hour the moment an
+		// ordinary one went out, and the cap would stop being a cap.
+		$led[ $pool ] = $sent;
+		$led['sigs']  = $sigs;
+		$led['held']  = 0;
+		$led['dups']  = 0;
+		self::opt_write( self::OPTION_RATE, self::LEGACY_RATE, $led, false );
 
 		if ( $held > 0 ) {
 			// Said on the alert that DOES go out, rather than as a message of its own: a digest that
