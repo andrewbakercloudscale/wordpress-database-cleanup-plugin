@@ -307,6 +307,21 @@ if ! php "$_ARCHIVE_CHECK" "$SCRIPT_DIR"; then
 fi
 echo ""
 
+_WPCLI_USER_CHECK="$GITHUB_DIR/shared-build-tools/check-wp-cli-user.php"
+echo "Checking the deploy scripts run WP-CLI as www-data..."
+if [ ! -f "$_WPCLI_USER_CHECK" ]; then
+    echo "ERROR: WP-CLI user checker not found at $_WPCLI_USER_CHECK"
+    exit 1
+fi
+if ! php "$_WPCLI_USER_CHECK" "$SCRIPT_DIR"; then
+    echo ""
+    echo "ERROR: WP-CLI user check failed — build blocked."
+    echo "  A local deploy script runs WP-CLI as root (--allow-root) or through the retired"
+    echo "  docroot phar path. Root-owned artefacts broke the secrets lock and QA backups."
+    exit 1
+fi
+echo ""
+
 _ROLLBACK_CHECK="$GITHUB_DIR/shared-build-tools/check-rollback-safety.php"
 echo "Checking deploy/rollback cannot silently restore the wrong version..."
 if [ ! -f "$_ROLLBACK_CHECK" ]; then
