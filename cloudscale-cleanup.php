@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.120
+ * Version:     2.5.121
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -81,7 +81,7 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.120' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.121' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -5619,7 +5619,18 @@ function cscc_ajax_space_scan(): void {
 				$sub_rel    = ltrim( substr( (string) $f->getPathname(), strlen( $real ) ), '/\\' );
 				$all_files[] = [ 'path' => $sub_rel, 'name' => $f->getFilename(), 'size' => $size, 'ext' => $ext ];
 			}
-		} catch ( Exception $e ) {} // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch,Squiz.Commenting.EmptyCatchComment.Missing -- intentional: fall through silently if operation fails
+		} catch ( Exception $e ) {
+			// A directory the web server cannot enter mid-walk (an UnexpectedValueException
+			// from the iterator) used to be swallowed here, and the panel then showed a
+			// partial breakdown as if it were the whole thing. Say so instead: a smaller
+			// number that looks complete is the kind of answer that gets acted on.
+			wp_send_json_error( sprintf(
+				/* translators: 1: folder shown in the space explorer, 2: the underlying error */
+				__( 'Could not read every file under %1$s, so the breakdown would be incomplete. %2$s', 'cloudscale-cleanup' ),
+				$rel,
+				$e->getMessage()
+			) );
+		}
 
 		// Sort descending by size, return top 100.
 		usort( $all_files, static fn( $a, $b ) => $b['size'] <=> $a['size'] );
