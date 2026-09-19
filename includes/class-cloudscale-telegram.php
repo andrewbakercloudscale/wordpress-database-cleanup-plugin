@@ -1167,69 +1167,23 @@ class CloudScale_Telegram {
 		</div>
 		<?php if ( ! $js_output ) {
 			$js_output = true;
-			$telegram_settings_js =
-				"(function(){\n"
-				. "\t['cs-telegram-token','cs-telegram-chat-id'].forEach(function(inputId){\n"
-				. "\t\tvar toggleId=inputId==='cs-telegram-token'?'cs-telegram-token-toggle':'cs-telegram-chat-toggle';\n"
-				. "\t\tvar inp=document.getElementById(inputId);\n"
-				. "\t\tvar btn=document.getElementById(toggleId);\n"
-				. "\t\tif(!inp||!btn)return;\n"
-				. "\t\tbtn.addEventListener('click',function(){\n"
-				. "\t\t\tvar shown=inp.type==='text';\n"
-				. "\t\t\tinp.type=shown?'password':'text';\n"
-				. "\t\t\tbtn.textContent=shown?'Show':'Hide';\n"
-				. "\t\t});\n"
-				. "\t});\n"
-				. "\tvar fetchBtn=document.getElementById('cs-telegram-fetch-btn');\n"
-				. "\tif(fetchBtn){\n"
-				. "\t\tfetchBtn.addEventListener('click',function(){\n"
-				. "\t\t\tvar btn=this;\n"
-				. "\t\t\tvar token=(document.getElementById('cs-telegram-token').value||'').trim();\n"
-				. "\t\t\tvar msg=document.getElementById('cs-telegram-fetch-msg');\n"
-				. "\t\t\tvar chatIn=document.getElementById('cs-telegram-chat-id');\n"
-				. "\t\t\tif(!token){msg.textContent='Enter bot token first.';msg.style.color='#c00';return;}\n"
-				. "\t\t\tbtn.disabled=true;\n"
-				. "\t\t\tmsg.textContent='Fetching...';msg.style.color='#666';\n"
-				. "\t\t\tvar fd=new FormData();\n"
-				. "\t\t\tfd.append('action','cloudscale_telegram_fetch_chat_id');\n"
-				. "\t\t\tfd.append('nonce',btn.dataset.nonce);\n"
-				. "\t\t\tfd.append('telegram_token',token);\n"
-				. "\t\t\tfetch(ajaxurl,{method:'POST',body:fd})\n"
-				. "\t\t\t\t.then(function(r){return r.json();})\n"
-				. "\t\t\t\t.then(function(d){\n"
-				. "\t\t\t\t\tif(d.success){chatIn.value=d.data.chat_id;msg.textContent='Chat ID found: '+d.data.chat_id;msg.style.color='#0a5';}\n"
-				. "\t\t\t\t\telse{msg.textContent=d.data||'Failed.';msg.style.color='#c00';}\n"
-				. "\t\t\t\t})\n"
-				. "\t\t\t\t.catch(function(){msg.textContent='Request error.';msg.style.color='#c00';})\n"
-				. "\t\t\t\t.finally(function(){btn.disabled=false;});\n"
-				. "\t\t});\n"
-				. "\t}\n"
-				. "\tvar testBtn=document.getElementById('cs-telegram-test-btn');\n"
-				. "\tif(testBtn){\n"
-				. "\t\ttestBtn.addEventListener('click',function(){\n"
-				. "\t\t\tvar btn=this;\n"
-				. "\t\t\tvar msg=document.getElementById('cs-telegram-test-msg');\n"
-				. "\t\t\tbtn.disabled=true;\n"
-				. "\t\t\tif(msg){msg.textContent='Sending...';msg.style.color='#666';}\n"
-				. "\t\t\tvar fd=new FormData();\n"
-				. "\t\t\tfd.append('action','cloudscale_telegram_test');\n"
-				. "\t\t\tfd.append('nonce',btn.dataset.nonce);\n"
-				. "\t\t\tfd.append('test_source',btn.dataset.source||'');\n"
-				. "\t\t\tfetch(ajaxurl,{method:'POST',body:fd})\n"
-				. "\t\t\t\t.then(function(r){return r.json();})\n"
-				. "\t\t\t\t.then(function(d){\n"
-				. "\t\t\t\t\tif(msg){msg.textContent=d.success?(d.data&&d.data.msg?d.data.msg:'Sent.'):(d.data||'Failed.');msg.style.color=d.success?'#0a5':'#c00';}\n"
-				. "\t\t\t\t})\n"
-				. "\t\t\t\t.catch(function(){if(msg){msg.textContent='Request error.';msg.style.color='#c00';}})\n"
-				. "\t\t\t\t.finally(function(){btn.disabled=false;});\n"
-				. "\t\t});\n"
-				. "\t}\n"
-				. "})();\n";
-			// phpcs:ignore WordPress.WP.EnqueuedResourceParameters.NoExplicitVersion -- virtual inline-only handle, no src URL, no cache-busting needed
-			wp_register_script( 'cloudscale-telegram-ui', false, array(), false, true );
-			wp_add_inline_script( 'cloudscale-telegram-ui', $telegram_settings_js );
+			// The card's behaviour is a real asset, cloudscale-telegram.js, beside this
+			// class. It used to be fifty lines of JavaScript in a PHP string attached as
+			// inline script to a src-less handle, which WordPress.org read as bypassing
+			// the enqueue API (28Aug26). The nonces travel as data attributes on the
+			// buttons and ajaxurl is the admin global, so nothing needs localising.
+			//
+			// Resolved from THIS file, not from a plugin constant: only one of the five
+			// copies of this class ever loads (the class_exists guard above), and on the
+			// live install it is cloudscale-backup's, whichever plugin's page is being
+			// rendered. Every copy ships the JS beside itself in includes/, so the copy
+			// that loaded always finds its own file. The version is the file's mtime, the
+			// house pattern for an asset with no plugin version constant in scope; the sync
+			// script rewrites the mtime whenever the source changes, so the cache busts.
+			$js_file = __DIR__ . '/cloudscale-telegram.js';
+			$js_ver  = is_readable( $js_file ) ? (string) filemtime( $js_file ) : '1';
 			if ( ! wp_script_is( 'cloudscale-telegram-ui', 'enqueued' ) ) {
-				wp_enqueue_script( 'cloudscale-telegram-ui' );
+				wp_enqueue_script( 'cloudscale-telegram-ui', plugins_url( 'cloudscale-telegram.js', __FILE__ ), array(), $js_ver, true );
 			}
 		}
 	}
