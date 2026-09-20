@@ -28,6 +28,17 @@ if ( ! class_exists( 'CloudScale_Telegram' ) ) {
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- shared cross-plugin utility; CloudScale IS the brand prefix
 class CloudScale_Telegram {
+
+	/**
+	 * User-Agent for the Bot API calls this class makes.
+	 *
+	 * WordPress's default is `WordPress/<ver>; https://<site-url>`, which puts the site's
+	 * address in the request header of every alert. The alert body carries the site URL on
+	 * purpose and the readme says so, but the header is undeclared, and this class is shared
+	 * by five plugins so it cannot borrow any one of their version constants.
+	 */
+	const USER_AGENT = 'CloudScale-Telegram';
+
 // phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
 
 	/**
@@ -931,6 +942,7 @@ class CloudScale_Telegram {
 		$response = wp_remote_post(
 			'https://api.telegram.org/bot' . rawurlencode( $token ) . '/sendMessage',
 			[
+				'user-agent' => self::USER_AGENT,
 				'timeout' => 10,
 				'headers' => [ 'Content-Type' => 'application/json' ],
 				'body'    => wp_json_encode( [ 'chat_id' => $chat_id, 'text' => $full ] ),
@@ -1013,7 +1025,7 @@ class CloudScale_Telegram {
 
 				$response = wp_remote_get(
 					'https://api.telegram.org/bot' . rawurlencode( $token ) . '/getUpdates',
-					[ 'timeout' => 10 ]
+					[ 'user-agent' => self::USER_AGENT, 'timeout' => 10 ]
 				);
 
 				if ( is_wp_error( $response ) ) {
@@ -1084,6 +1096,7 @@ class CloudScale_Telegram {
 			$response = wp_remote_post(
 				'https://api.telegram.org/bot' . rawurlencode( $token ) . '/sendMessage',
 				[
+					'user-agent' => self::USER_AGENT,
 					'timeout' => 10,
 					'headers' => [ 'Content-Type' => 'application/json' ],
 					'body'    => wp_json_encode( [ 'chat_id' => $chat_id, 'text' => $prefix . 'Test message sent successfully. Alerts are working.' ] ),
