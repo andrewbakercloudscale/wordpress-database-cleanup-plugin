@@ -980,14 +980,17 @@ class CloudScale_Telegram {
 	}
 
 	/**
-	 * Save shared Telegram credentials from POST data.
-	 * Call from a plugin's save AJAX handler after nonce verification.
+	 * Save the shared Telegram credentials.
+	 *
+	 * Takes values, not a request: the caller reads its own POST fields inside the handler
+	 * that verified the nonce, so no request is read anywhere a reviewer cannot see the check.
+	 *
+	 * @param string $token   Bot token, already sanitised.
+	 * @param string $chat_id Chat id, already sanitised.
 	 */
-	public static function save_from_post(): void {
-		// phpcs:disable WordPress.Security.NonceVerification.Missing -- caller is responsible for nonce check
-		self::opt_write( self::OPTION_TOKEN, self::LEGACY_TOKEN, sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) ) );
-		self::opt_write( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ?? '' ) ) );
-		// phpcs:enable WordPress.Security.NonceVerification.Missing
+	public static function save_credentials( string $token, string $chat_id ): void {
+		self::opt_write( self::OPTION_TOKEN, self::LEGACY_TOKEN, $token );
+		self::opt_write( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, $chat_id );
 	}
 
 	/**
