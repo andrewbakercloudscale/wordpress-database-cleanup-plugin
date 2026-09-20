@@ -213,15 +213,6 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 						error_log( '[CloudScale] Outbound email BLOCKED on a copy: to=' . $to . ' subject=' . $subject . ' (' . $reason . ')' );
 					}
 
-					/**
-					 * Fires when a copy refuses to send an email.
-					 *
-					 * @param string $to      Recipient(s).
-					 * @param string $subject Subject line.
-					 * @param string $reason  Why it was blocked.
-					 */
-					do_action( 'cloudscale_outbound_mail_blocked', $to, $subject, $reason );
-
 					// true short-circuits wp_mail() and reports success to the caller,
 					// which is deliberate: a plugin that treats a mail failure as a
 					// hard error would otherwise break checkout flows on the copy, and
