@@ -13,5 +13,14 @@
   "path_accessor": "includes/class-cscc-paths.php",
   "path_accessor_reason": "The only shipped file that may read a core path constant. This plugin needs two locations and had four reads of them: the install root, to complete a wp-content/uploads/ URL whose host has been stripped when checking whether an <img> in a post still has a file behind it; and the content directory, for the three Site Health disk metrics, which are measured at wp-content rather than at uploads on purpose -- uploads can sit on another partition, and the number reported is about the partition this plugin's cleanup frees space on. It returns core's own value whenever the constant is defined and derives only as a fallback: a disk metric taken at a path core disagrees with is a wrong number reported confidently, and a file-existence check against the wrong root deletes the wrong thing.",
   "finding_budget": {},
-  "_finding_budget_note": "Empty, and deliberately PRESENT rather than removed: with the key here any new finding of any class fails the build immediately. The 3 runtime-config entries it used to hold were the @set_time_limit(120) calls in the thumbnail-regen, media-recycle and image-optimise handlers, all removed 2026-08-19 in favour of a host-derived wall-clock budget (cscc_chunk_deadline) plus crash-safe commit ordering. NOTE: --tighten cannot clear a stale budget once a plugin is clean, because the checker exits on its clean path before reaching the ratchet; this was set by hand."
+  "_finding_budget_note": "Empty, and deliberately PRESENT rather than removed: with the key here any new finding of any class fails the build immediately. The 3 runtime-config entries it used to hold were the @set_time_limit(120) calls in the thumbnail-regen, media-recycle and image-optimise handlers, all removed 2026-08-19 in favour of a host-derived wall-clock budget (cscc_chunk_deadline) plus crash-safe commit ordering. NOTE: --tighten cannot clear a stale budget once a plugin is clean, because the checker exits on its clean path before reaching the ratchet; this was set by hand.",
+  "_known_offloading_hosts_reason": "Hosts on WordPress.org's own offloading-host list (Plugin Check's OffloadingServicesTrait) that appear as strings in the shipped tree. The reviewer's scanner matches every string in every file, comments and JavaScript included, and honours no phpcs annotation, so a string that is never fetched still has to be explained rather than hidden. 'fetched': true means a real request, and then 'disclosed_as' must name the endpoint readme.txt carries.",
+  "known_offloading_hosts": [
+    {
+      "file": "cloudscale-cleanup.php",
+      "host": "s.w.org",
+      "fetched": false,
+      "reason": "Not fetched. WordPress core's twemoji polyfill rewrites native emoji into <img> tags served from this host; the filter here matches that host in order to REMOVE those URLs from the page, and the plugin never issues a request to it. The literal cannot be avoided: core has shipped the reference as both 'https://s.w.org' and '//s.w.org', and matching one form silently stopped removing anything when core used the other."
+    }
+  ]
 }
