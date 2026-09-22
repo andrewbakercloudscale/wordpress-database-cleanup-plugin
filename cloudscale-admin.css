@@ -1,12 +1,12 @@
 /* =====================================================================
    CloudScale Admin Design System  (SINGLE SOURCE OF TRUTH)
    ---------------------------------------------------------------------
-   Authored once here, then synced into every plugin's asset folder by
-   sync-admin-css.sh and enqueued (first, before each plugin's own CSS)
+   Authored once here, then synced into every plugin's asset folder by the
+   shared sync step and enqueued (first, before each plugin's own CSS)
    on its admin screens.
 
    To restyle ALL CloudScale plugin admin UIs in future: edit the tokens
-   in :root below, then run  bash sync-admin-css.sh  and redeploy.
+   in :root below, then run the shared sync step and redeploy.
    Do NOT edit the copies inside individual plugins; they are overwritten.
 
    Two layers:
