@@ -366,6 +366,67 @@ class CloudScale_Telegram {
 	];
 
 	/**
+	 * Words from other severity vocabularies, a scanner's low/medium/high, a caller's
+	 * "urgent", and the one of the four levels each means.
+	 *
+	 * One map for the marker AND the duplicate window. The window used to be looked up
+	 * on the caller's raw word, so "urgent" and "high" missed DUP_WINDOW and fell to the
+	 * 6h warning window while the marker beside them said critical/error.
+	 */
+	const LEVEL_ALIASES = [
+		'success' => 'info',
+		'notice'  => 'info',
+		'low'     => 'warning',
+		'medium'  => 'warning',
+		'high'    => 'error',
+		'urgent'  => 'critical',
+		'alert'   => 'critical',
+		'fatal'   => 'critical',
+	];
+
+	/**
+	 * What the last send() did, readable through last_outcome().
+	 *
+	 * send() answers a bool, and false covered five different things: muted, not
+	 * configured, held by the duplicate window or the cap, and a delivery that really
+	 * failed. A caller recording "did the channel work?" read a held repeat as a broken
+	 * channel and raised an alert about a healthy one; a caller clearing its queue on
+	 * true could not tell "try again later" from "never going to work". The bool stays
+	 * for the callers in all five plugins that only want it; this says which false.
+	 */
+	const OUTCOME_SENT         = 'sent';
+	const OUTCOME_MUTED        = 'muted';
+	const OUTCOME_UNCONFIGURED = 'unconfigured';
+	const OUTCOME_HELD         = 'held';
+	const OUTCOME_FAILED       = 'failed';
+
+	/** @var string One of the OUTCOME_* values, '' before the first send() in this request. */
+	private static $last_outcome = '';
+
+	/**
+	 * The outcome of the most recent send() in this request. See OUTCOME_SENT.
+	 *
+	 * Callers must check method_exists() first: whichever plugin loads first supplies
+	 * this class, and an older copy has no such method.
+	 */
+	public static function last_outcome(): string {
+		return self::$last_outcome;
+	}
+
+	/**
+	 * One of info, warning, error, critical for any word a caller passes.
+	 *
+	 * @param string $level Caller's severity word.
+	 */
+	private static function normalise_level( string $level ): string {
+		$key = strtolower( trim( $level ) );
+		if ( '' === $key ) {
+			return 'info';
+		}
+		return self::LEVEL_ALIASES[ $key ] ?? $key;
+	}
+
+	/**
 	 * The hard ceiling, whatever the callers do.
 	 *
 	 * Duplicate suppression alone cannot bound the volume: fifty DIFFERENT alerts in a minute is
@@ -452,7 +513,7 @@ class CloudScale_Telegram {
 		$dups = (int) ( $led['dups'] ?? 0 );
 
 		$sig    = self::rate_signature( $text, $source, $level );
-		$window = self::DUP_WINDOW[ $level ] ?? self::DUP_WINDOW['warning'];
+		$window = self::DUP_WINDOW[ self::normalise_level( $level ) ] ?? self::DUP_WINDOW['warning'];
 		$last   = (int) ( $sigs[ $sig ] ?? 0 );
 
 		$blocked = '';
@@ -545,25 +606,9 @@ class CloudScale_Telegram {
 			'error'    => "\u{274C}",
 			'critical' => "\u{1F6A8}",
 		];
-		// Words that arrived from another severity vocabulary, a scanner's
-		// low/medium/high, a caller's "urgent", resolve to one of the four rather
-		// than falling through to the tick.
-		$aliases = [
-			'success' => 'info',
-			'notice'  => 'info',
-			'low'     => 'warning',
-			'medium'  => 'warning',
-			'high'    => 'error',
-			'urgent'  => 'critical',
-			'alert'   => 'critical',
-			'fatal'   => 'critical',
-		];
-		$key = strtolower( trim( $level ) );
-		if ( '' === $key ) {
-			$key = 'info';
-		}
-		$key   = $aliases[ $key ] ?? $key;
-		$emoji = $emojis[ $key ] ?? $emojis['warning'];
+		// Words that arrived from another severity vocabulary resolve to one of the
+		// four rather than falling through to the tick. See LEVEL_ALIASES.
+		$emoji = $emojis[ self::normalise_level( $level ) ] ?? $emojis['warning'];
 		// The caller's own word is what prints: "HIGH" carries more than "ERROR"
 		// would, and rewriting it would hide which vocabulary the alert came from.
 		// Only the marker is derived.
@@ -904,13 +949,18 @@ class CloudScale_Telegram {
 		// Before anything else, and before any call site's own toggle: a muted install
 		// sends nothing at all. See OPTION_MUTED for why this belongs here and not at
 		// the ~20 call sites.
+		// FAILED until proved otherwise, so a throw part-way through cannot leave the
+		// previous send's SENT behind for the caller to read.
+		self::$last_outcome = self::OUTCOME_FAILED;
 		if ( self::is_muted() ) {
+			self::$last_outcome = self::OUTCOME_MUTED;
 			return false;
 		}
 
 		$token   = trim( (string) self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN, '' ) );
 		$chat_id = trim( (string) self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, '' ) );
 		if ( ! $token || ! $chat_id ) {
+			self::$last_outcome = self::OUTCOME_UNCONFIGURED;
 			return false;
 		}
 
@@ -920,6 +970,7 @@ class CloudScale_Telegram {
 		// 123 call sites.
 		$gated = self::rate_gate( $text, $source, $level );
 		if ( null === $gated ) {
+			self::$last_outcome = self::OUTCOME_HELD;
 			return false;
 		}
 		$text = $gated;
@@ -954,6 +1005,7 @@ class CloudScale_Telegram {
 			// fire-and-forget callers that don't check the return value still leave a
 			// trace the operator can grep. Without this, a Telegram outage is invisible.
 			self::log_transport_failure( 'transport', CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
+			self::$last_outcome = self::OUTCOME_FAILED;
 			return false;
 		}
 
@@ -961,9 +1013,11 @@ class CloudScale_Telegram {
 		if ( 200 !== $http_code ) {
 			// Non-200 (401 bad token, 429 Telegram rate limit, etc.). Same reason as above.
 			self::log_transport_failure( "HTTP {$http_code}", wp_remote_retrieve_body( $response ) );
+			self::$last_outcome = self::OUTCOME_FAILED;
 			return false;
 		}
 
+		self::$last_outcome = self::OUTCOME_SENT;
 		return true;
 	}
 
