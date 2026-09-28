@@ -715,6 +715,14 @@ rm -f "$ZIP_FILE"
 cd "$TEMP_DIR"
 zip -r "$ZIP_FILE" "$PLUGIN_NAME/"
 
+# WordPress.org reads the slug from the zip's folder and expects the header in <slug>/<slug>.php.
+# cyber-devtools shipped it in cs-code-block.php until the WP.org review of 2026-09-28 asked, and
+# no gate here checked. Reads the zip, since the folder that defines the slug exists only there.
+if ! php "$SCRIPT_DIR/../shared-build-tools/check-main-file-slug.php" "$ZIP_FILE"; then
+    echo "ERROR: the main plugin file does not match the slug, build blocked."
+    exit 1
+fi
+
 # Cleanup
 rm -rf "$TEMP_DIR"
 
