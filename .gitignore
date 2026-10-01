@@ -31,3 +31,9 @@ repo/
 
 # oh-my-claudecode working state, local tooling only
 .omc/
+
+# Deploy records beside each archived zip, written by shared-build-tools/record-uncommitted.sh.
+# Local recovery data like the zips themselves; never committed.
+archive/*.manifest.txt
+archive/*.uncommitted.patch
+archive/*.untracked.tgz
