@@ -735,8 +735,8 @@ function cscc_next_run_timestamp( $days, $hour ) {
  * production away from being armed on both, silently, with nothing watching.
  */
 add_action( 'init', static function (): void {
-    if ( class_exists( 'CloudScale_Site_Role' ) ) {
-        CloudScale_Site_Role::disarm( array( 'cscc_scheduled_db_cleanup', 'cscc_scheduled_img_cleanup' ), 'cscc' );
+    if ( class_exists( 'CSCC_Site_Role' ) ) {
+        CSCC_Site_Role::disarm( array( 'cscc_scheduled_db_cleanup', 'cscc_scheduled_img_cleanup' ), 'cscc' );
     }
 }, 7 );
 
@@ -744,7 +744,7 @@ add_action( 'cscc_scheduled_db_cleanup', 'cscc_cron_db_cleanup' );
 function cscc_cron_db_cleanup() {
     // Refused as well as disarmed: a direct do_action or `wp cron event run`
     // reaches the handler without going through the scheduler.
-    if ( class_exists( 'CloudScale_Site_Role' ) && CloudScale_Site_Role::is_standby() ) {
+    if ( class_exists( 'CSCC_Site_Role' ) && CSCC_Site_Role::is_standby() ) {
         return;
     }
     try {
@@ -763,7 +763,7 @@ function cscc_cron_db_cleanup() {
         cscc_schedule_crons();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[CSC] cron "cscc_scheduled_db_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-        CloudScale_Telegram::send(
+        CSCC_Telegram::send(
             "Scheduled database cleanup cron failed.\n\nError: " . $e->getMessage(),
             'CloudScale Cleanup',
             'error'
@@ -775,7 +775,7 @@ add_action( 'cscc_scheduled_img_cleanup', 'cscc_cron_img_cleanup' );
 function cscc_cron_img_cleanup() {
     // Refused as well as disarmed: a direct do_action or `wp cron event run`
     // reaches the handler without going through the scheduler.
-    if ( class_exists( 'CloudScale_Site_Role' ) && CloudScale_Site_Role::is_standby() ) {
+    if ( class_exists( 'CSCC_Site_Role' ) && CSCC_Site_Role::is_standby() ) {
         return;
     }
     try {
@@ -823,7 +823,7 @@ function cscc_cron_img_cleanup() {
         cscc_schedule_crons();
     } catch ( \Throwable $e ) {
         error_log( sprintf( '[CSC] cron "cscc_scheduled_img_cleanup" exception (%s): %s in %s line %d', get_class( $e ), $e->getMessage(), $e->getFile(), $e->getLine() ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- operational cron logging
-        CloudScale_Telegram::send(
+        CSCC_Telegram::send(
             "Scheduled image cleanup cron failed.\n\nError: " . $e->getMessage(),
             'CloudScale Cleanup',
             'error'
@@ -1906,7 +1906,7 @@ function cscc_ajax_regen_thumb_batch() {
         }
         $new_meta = wp_generate_attachment_metadata( $id, $file );
         if ( is_wp_error( $new_meta ) ) {
-            $batch[] = array( 'id' => $id, 'ok' => false, 'skipped' => false, 'error' => CloudScale_Error_Text::in_seconds( $new_meta->get_error_message() ) );
+            $batch[] = array( 'id' => $id, 'ok' => false, 'skipped' => false, 'error' => CSCC_Error_Text::in_seconds( $new_meta->get_error_message() ) );
         } else {
             wp_update_attachment_metadata( $id, $new_meta );
             $batch[]  = array( 'id' => $id, 'ok' => true, 'skipped' => false, 'regenerated' => true );
@@ -2592,7 +2592,7 @@ function cscc_ajax_media_restore() {
             $new_id = wp_insert_post( $post_data, true );
 
             if ( is_wp_error( $new_id ) ) {
-                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $att_id . ', ' . esc_html( $title ) . ': ' . CloudScale_Error_Text::in_seconds( $new_id->get_error_message() ) );
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $att_id . ', ' . esc_html( $title ) . ': ' . CSCC_Error_Text::in_seconds( $new_id->get_error_message() ) );
                 $errors++;
                 continue;
             }
@@ -2680,7 +2680,7 @@ function cscc_ajax_media_restore_single() {
         $post_data['import_id'] = intval( $att_id );
         $new_id = wp_insert_post( $post_data, true );
         if ( is_wp_error( $new_id ) ) {
-            wp_send_json_error( 'Failed to restore post: ' . CloudScale_Error_Text::in_seconds( $new_id->get_error_message() ) );
+            wp_send_json_error( 'Failed to restore post: ' . CSCC_Error_Text::in_seconds( $new_id->get_error_message() ) );
         }
 
         // Restore meta
@@ -3509,7 +3509,7 @@ function cscc_ajax_optimise_chunk() {
 
         $editor = wp_get_image_editor( $file );
         if ( is_wp_error( $editor ) ) {
-            $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CloudScale_Error_Text::in_seconds( $editor->get_error_message() ) );
+            $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $editor->get_error_message() ) );
             continue;
         }
 
@@ -3526,7 +3526,7 @@ function cscc_ajax_optimise_chunk() {
             $tmp_file = $new_file . '.csc-tmp';
             $result   = $editor->save( $tmp_file, 'image/jpeg' );
             if ( is_wp_error( $result ) ) {
-                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' PNG→JPEG: ' . CloudScale_Error_Text::in_seconds( $result->get_error_message() ) );
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' PNG→JPEG: ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
             }
             $actual_path = $result['path'];
@@ -3560,7 +3560,7 @@ function cscc_ajax_optimise_chunk() {
             $tmp_file    = $file . '.csc-tmp';
             $result      = $editor->save( $tmp_file );
             if ( is_wp_error( $result ) ) {
-                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CloudScale_Error_Text::in_seconds( $result->get_error_message() ) );
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
             }
             $actual_path = $result['path'];
@@ -3948,7 +3948,7 @@ function cscc_ajax_cspj_chunk_finish() {
     cscc_cspj_delete_dir( $dir );
 
     if ( is_wp_error( $result ) ) {
-        wp_send_json_error( CloudScale_Error_Text::in_seconds( $result->get_error_message() ) );
+        wp_send_json_error( CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
     }
 
     // Track conversions
@@ -4011,7 +4011,7 @@ function cscc_ajax_cspj_add_to_library() {
         'post_status'    => 'inherit',
     );
     $attach_id = wp_insert_attachment( $attachment, $final_path );
-    if ( is_wp_error( $attach_id ) ) { wp_send_json_error( CloudScale_Error_Text::in_seconds( $attach_id->get_error_message() ) ); }
+    if ( is_wp_error( $attach_id ) ) { wp_send_json_error( CSCC_Error_Text::in_seconds( $attach_id->get_error_message() ) ); }
 
     require_once ABSPATH . 'wp-admin/includes/image.php';
     wp_update_attachment_metadata( $attach_id, wp_generate_attachment_metadata( $attach_id, $final_path ) );

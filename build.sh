@@ -396,7 +396,7 @@ echo ""
 
 # ── Shared class copies must match their canonical source ────────────────────
 
-# CloudScale_Telegram and the model-name map are shared by all five plugins and guarded by
+# CSCC_Telegram and the model-name map are shared by all five plugins and guarded by
 # class_exists(), so exactly ONE copy loads at runtime. On the live install that copy belongs
 # to cloudscale-backup — so a change to any other plugin's copy is invisible at runtime and
 # would deploy as a feature that quietly does nothing. Edit shared-admin-ui/<file> and run
@@ -456,7 +456,7 @@ echo ""
 # site owner reading that cannot match 20000 to anything in the code, and the proxy had the
 # same fault on its own breaker alerts (240000 for a 240s ceiling, 2026-08-17). All 115 call
 # sites across the five plugins were converted in one pass through
-# CloudScale_Error_Text::in_seconds(); this gate exists for the 116th, which will be written
+# CSCC_Error_Text::in_seconds(); this gate exists for the 116th, which will be written
 # by copying one of the other 115.
 _ERRTXT_CHECK="$GITHUB_DIR/shared-build-tools/check-error-text-units.php"
 if [ ! -f "$_ERRTXT_CHECK" ]; then
@@ -475,7 +475,7 @@ echo ""
 # Alerts arrive on a phone, at night, read by someone in the site's own timezone —
 # and they quoted UTC ("Last heartbeat: 2026-08-05 02:30:01 UTC" during a real
 # outage), so the reader had to do arithmetic before judging how old a failure was.
-# Stamped centrally in CloudScale_Telegram::send() so a new alert cannot ship
+# Stamped centrally in CSCC_Telegram::send() so a new alert cannot ship
 # without one; asserted against THIS plugin's synced copy so drift fails here.
 _TG_TIME_CHECK="$GITHUB_DIR/shared-build-tools/check-telegram-local-time.php"
 echo "Checking Telegram alerts carry local time..."
@@ -534,7 +534,7 @@ echo ""
 # Every throttle in these plugins was a transient with a 6-hour expiry, on an install with a
 # persistent Redis object cache — so `wp cache flush`, which every deploy runs, deleted the quiet
 # window and the next failure reported an ongoing incident as new. The ceiling now lives in
-# CloudScale_Telegram::send() (an option, not a transient), ahead of every call site including the
+# CSCC_Telegram::send() (an option, not a transient), ahead of every call site including the
 # ones that never had a throttle. Asserted both ways: repeats and storms are quiet, and a different
 # alert, a later hour and a held-message count all still arrive.
 _TG_RATE_CHECK="$GITHUB_DIR/shared-build-tools/check-alert-rate-limit.php"

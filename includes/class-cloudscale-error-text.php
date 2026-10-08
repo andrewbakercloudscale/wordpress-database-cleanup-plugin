@@ -42,7 +42,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * top-level class declaration with no parent is a candidate for OPcache's early
  * binding: the class is bound when the file is included, BEFORE the return
  * statement above it executes. So the second plugin to load fataled with "Cannot
- * declare class CloudScale_Error_Text, because the name is already in use" --
+ * declare class CSCC_Error_Text, because the name is already in use" --
  * pointing at the very line the guard exists to protect.
  *
  * Measured on the local mirror, 2026-09-14, the moment a second CloudScale plugin
@@ -53,12 +53,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * A class declared INSIDE a conditional is never early-bound, so this is the form
  * that actually holds.
  */
-if ( ! class_exists( 'CloudScale_Error_Text' ) ) {
+if ( ! class_exists( 'CSCC_Error_Text' ) ) {
 
 /**
  * Turns a machine's error text into something stated in the units we configured.
  */
-class CloudScale_Error_Text {
+class CSCC_Error_Text {
 
 	/**
 	 * Restate any millisecond duration in the message as seconds.

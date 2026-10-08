@@ -24,10 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * A class declared inside a conditional is never early-bound.
  */
-if ( ! class_exists( 'CloudScale_Telegram' ) ) {
+if ( ! class_exists( 'CSCC_Telegram' ) ) {
 
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound -- shared cross-plugin utility; CloudScale IS the brand prefix
-class CloudScale_Telegram {
+class CSCC_Telegram {
 
 	/**
 	 * User-Agent for the Bot API calls this class makes.
@@ -39,17 +38,16 @@ class CloudScale_Telegram {
 	 */
 	const USER_AGENT = 'CloudScale-Telegram';
 
-// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
-
 	/**
 	 * Option names, and why there are two sets of them.
 	 *
 	 * WordPress.org named `cloudscale_telegram_bot_token` and `cloudscale_telegram_chat_id` in
 	 * its 18 Aug 2026 review as options not carrying the plugin's declared prefix, so the live
 	 * names moved to `csdt_`. These four options are DELIBERATELY shared by all five plugins,
-	 * one Telegram configuration for the whole suite, and only one copy of this class ever loads
-	 * (see the class_exists() guard), so they cannot be prefixed per-plugin without splitting
-	 * one config into five.
+	 * one Telegram configuration for the whole suite. Every plugin loads its own copy of this
+	 * class under its own prefix (the sync script stamps it), and every copy reads and writes
+	 * these same rows, so they cannot be prefixed per-plugin without splitting one config
+	 * into five.
 	 *
 	 * Renaming a live option is the dangerous part: the token, chat id and mute switch are what
 	 * make alerting work at all, and the five plugins do not deploy at the same instant. So every
@@ -1004,7 +1002,7 @@ class CloudScale_Telegram {
 			// Transport failure (timeout, DNS, connection refused). Log internally so the
 			// fire-and-forget callers that don't check the return value still leave a
 			// trace the operator can grep. Without this, a Telegram outage is invisible.
-			self::log_transport_failure( 'transport', CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
+			self::log_transport_failure( 'transport', CSCC_Error_Text::in_seconds( $response->get_error_message() ) );
 			self::$last_outcome = self::OUTCOME_FAILED;
 			return false;
 		}
@@ -1036,7 +1034,7 @@ class CloudScale_Telegram {
 		}
 		$logged[ $kind ] = true;
 
-		$msg = 'CloudScale_Telegram: delivery failed (' . $kind . ')';
+		$msg = 'CSCC_Telegram: delivery failed (' . $kind . ')';
 		if ( '' !== $detail ) {
 			// Truncate: Telegram error bodies can be long, and the log is one line.
 			$msg .= ': ' . substr( $detail, 0, 200 );
@@ -1060,16 +1058,17 @@ class CloudScale_Telegram {
 	}
 
 	/**
-	 * Register the shared AJAX handlers (test + fetch-chat-id).
-	 * Safe to call from multiple plugins; handlers are registered only once.
+	 * Register this plugin's AJAX handlers (test + fetch-chat-id).
+	 * The action names carry the plugin's prefix, stamped by the sync script, so each
+	 * plugin's copy owns its own pair. Safe to call twice; handlers are registered once.
 	 */
 	public static function register_ajax(): void {
-		if ( ! has_action( 'wp_ajax_cloudscale_telegram_fetch_chat_id' ) ) {
-			add_action( 'wp_ajax_cloudscale_telegram_fetch_chat_id', static function (): void {
+		if ( ! has_action( 'wp_ajax_cscc_telegram_fetch_chat_id' ) ) {
+			add_action( 'wp_ajax_cscc_telegram_fetch_chat_id', static function (): void {
 				if ( ! current_user_can( 'manage_options' ) ) {
 					wp_send_json_error( 'Forbidden', 403 );
 				}
-				check_ajax_referer( 'cloudscale_telegram_fetch', 'nonce' );
+				check_ajax_referer( 'cscc_telegram_fetch', 'nonce' );
 
 				$token = sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) );
 				if ( ! $token ) {
@@ -1083,7 +1082,7 @@ class CloudScale_Telegram {
 				);
 
 				if ( is_wp_error( $response ) ) {
-					wp_send_json_error( 'Request failed: ' . CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
+					wp_send_json_error( 'Request failed: ' . CSCC_Error_Text::in_seconds( $response->get_error_message() ) );
 					return;
 				}
 
@@ -1122,14 +1121,14 @@ class CloudScale_Telegram {
 			} );
 		}
 
-		if ( has_action( 'wp_ajax_cloudscale_telegram_test' ) ) {
+		if ( has_action( 'wp_ajax_cscc_telegram_test' ) ) {
 			return;
 		}
-		add_action( 'wp_ajax_cloudscale_telegram_test', static function (): void {
+		add_action( 'wp_ajax_cscc_telegram_test', static function (): void {
 			if ( ! current_user_can( 'manage_options' ) ) {
 				wp_send_json_error( 'Forbidden', 403 );
 			}
-			check_ajax_referer( 'cloudscale_telegram_test', 'nonce' );
+			check_ajax_referer( 'cscc_telegram_test', 'nonce' );
 
 			// phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified above
 			$token   = sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) );
@@ -1158,7 +1157,7 @@ class CloudScale_Telegram {
 			);
 
 			if ( is_wp_error( $response ) ) {
-				wp_send_json_error( 'Telegram request failed: ' . CloudScale_Error_Text::in_seconds( $response->get_error_message() ) );
+				wp_send_json_error( 'Telegram request failed: ' . CSCC_Error_Text::in_seconds( $response->get_error_message() ) );
 				return;
 			}
 
@@ -1185,8 +1184,8 @@ class CloudScale_Telegram {
 
 		$token       = esc_attr( (string) self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN, '' ) );
 		$chat_id     = esc_attr( (string) self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, '' ) );
-		$test_nonce  = wp_create_nonce( 'cloudscale_telegram_test' );
-		$fetch_nonce = wp_create_nonce( 'cloudscale_telegram_fetch' );
+		$test_nonce  = wp_create_nonce( 'cscc_telegram_test' );
+		$fetch_nonce = wp_create_nonce( 'cscc_telegram_fetch' );
 		?>
 		<div style="border-radius:8px;overflow:hidden;border:1px solid #b3e5fc;">
 			<div style="background:linear-gradient(135deg,#0277bd 0%,#039be5 100%);padding:8px 14px;display:flex;align-items:center;gap:8px;">
@@ -1243,17 +1242,16 @@ class CloudScale_Telegram {
 			// the enqueue API (28Aug26). The nonces travel as data attributes on the
 			// buttons and ajaxurl is the admin global, so nothing needs localising.
 			//
-			// Resolved from THIS file, not from a plugin constant: only one of the five
-			// copies of this class ever loads (the class_exists guard above), and on the
-			// live install it is cloudscale-backup's, whichever plugin's page is being
-			// rendered. Every copy ships the JS beside itself in includes/, so the copy
-			// that loaded always finds its own file. The version is the file's mtime, the
+			// Resolved from THIS file, not from a plugin constant: this class is one
+			// source stamped into every plugin, so it cannot name any plugin's constants.
+			// Every copy ships the JS beside itself in includes/, stamped with the same
+			// prefix, so a copy always finds its own file. The version is the file's mtime, the
 			// house pattern for an asset with no plugin version constant in scope; the sync
 			// script rewrites the mtime whenever the source changes, so the cache busts.
 			$js_file = __DIR__ . '/cloudscale-telegram.js';
 			$js_ver  = is_readable( $js_file ) ? (string) filemtime( $js_file ) : '1';
-			if ( ! wp_script_is( 'cloudscale-telegram-ui', 'enqueued' ) ) {
-				wp_enqueue_script( 'cloudscale-telegram-ui', plugins_url( 'cloudscale-telegram.js', __FILE__ ), array(), $js_ver, true );
+			if ( ! wp_script_is( 'cscc-telegram-ui', 'enqueued' ) ) {
+				wp_enqueue_script( 'cscc-telegram-ui', plugins_url( 'cloudscale-telegram.js', __FILE__ ), array(), $js_ver, true );
 			}
 		}
 	}

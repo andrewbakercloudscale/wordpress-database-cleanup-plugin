@@ -1,7 +1,7 @@
 /**
  * CloudScale shared Telegram settings behaviour.
  *
- * Wires the card that CloudScale_Telegram::render_settings_fields() renders: the
+ * Wires the card that CSCC_Telegram::render_settings_fields() renders: the
  * Show/Hide toggles on the token and chat-id fields, Fetch Chat ID and Send Test.
  * The nonces travel as data attributes on the buttons and ajaxurl is the admin
  * global, so nothing is localised and the file carries no per-site data.
@@ -50,7 +50,7 @@
                 btn.disabled = true;
                 msg.textContent = 'Fetching...'; msg.style.color = '#666';
                 var fd = new FormData();
-                fd.append( 'action', 'cloudscale_telegram_fetch_chat_id' );
+                fd.append( 'action', 'cscc_telegram_fetch_chat_id' );
                 fd.append( 'nonce', btn.dataset.nonce );
                 fd.append( 'telegram_token', token );
                 fetch( ajaxurl, { method: 'POST', body: fd } )
@@ -73,7 +73,7 @@
                 btn.disabled = true;
                 if ( msg ) { msg.textContent = 'Sending...'; msg.style.color = '#666'; }
                 var fd = new FormData();
-                fd.append( 'action', 'cloudscale_telegram_test' );
+                fd.append( 'action', 'cscc_telegram_test' );
                 fd.append( 'nonce', btn.dataset.nonce );
                 fd.append( 'test_source', btn.dataset.source || '' );
                 fetch( ajaxurl, { method: 'POST', body: fd } )

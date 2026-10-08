@@ -39,18 +39,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
+if ( ! class_exists( 'CSCC_Site_Role' ) ) {
 
 	/**
 	 * Is this install a copy of another site?
 	 */
-	class CloudScale_Site_Role {
+	class CSCC_Site_Role {
 
 		/** Words people actually reach for, all meaning "not the live site". */
 		const STANDBY_WORDS = array( 'standby', 'stand-by', 'slave', 'replica', 'secondary', 'qa', 'staging', 'dr', 'passive', 'test' );
 
-		/** Cached for the request. A global, not a static, so tests can clear it. */
-		const CACHE_KEY = 'cloudscale_site_role_cache';
+		/**
+		 * Cached for the request; reset_cache() clears it. A static, not a global: every
+		 * plugin ships this class under its own prefix, so each copy keeps its own answer
+		 * and nothing is written to the global scope.
+		 *
+		 * @var bool|null
+		 */
+		private static $cache = null;
 
 		/**
 		 * True when this site must not act on the primary's behalf.
@@ -58,18 +64,18 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 		 * @return bool
 		 */
 		public static function is_standby(): bool {
-			if ( isset( $GLOBALS[ self::CACHE_KEY ] ) ) {
-				return (bool) $GLOBALS[ self::CACHE_KEY ];
+			if ( null !== self::$cache ) {
+				return self::$cache;
 			}
 
 			// The backup plugin owns the canonical chain, including the wp-content
 			// marker that is the ONLY signal on a host with no /etc/cloudscale — which
 			// is how DR is deliberately built.
 			if ( function_exists( 'csbr_is_standby' ) ) {
-				return (bool) ( $GLOBALS[ self::CACHE_KEY ] = csbr_is_standby() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- CACHE_KEY is 'cloudscale_site_role_cache'
+				return self::$cache = (bool) csbr_is_standby();
 			}
 
-			return (bool) ( $GLOBALS[ self::CACHE_KEY ] = self::resolve_without_backup_plugin() ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- CACHE_KEY is 'cloudscale_site_role_cache'
+			return self::$cache = self::resolve_without_backup_plugin();
 		}
 
 		/**
@@ -78,7 +84,7 @@ if ( ! class_exists( 'CloudScale_Site_Role' ) ) {
 		 * @return void
 		 */
 		public static function reset_cache(): void {
-			unset( $GLOBALS[ self::CACHE_KEY ] );
+			self::$cache = null;
 		}
 
 		/**
