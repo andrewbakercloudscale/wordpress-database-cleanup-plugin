@@ -4,6 +4,14 @@
 # which is the structure WordPress expects for plugin upload
 set -e
 
+# In-place sed that works with both BSD sed (macOS) and GNU sed (the Pi, where the
+# Telegram deploy bot runs this build). `sed -i ''` is macOS-only: GNU sed takes the
+# empty string as the script and the expression as a file to read.
+# Usage: sed_inplace <expression> <file>
+sed_inplace() {
+    sed -i.sedbak "$1" "$2" && rm -f "$2.sedbak"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Guard against diverged history caused by parallel sessions on the same machine.
 if git -C "$SCRIPT_DIR" fetch origin main --quiet 2>/dev/null; then
@@ -641,9 +649,9 @@ echo "Version bump: $CURRENT_VER → $NEW_VER"
 # occurrence of the previous version — historical @since/@deprecated docblock
 # tags and past readme.txt changelog headings included — so release history
 # was silently rewritten on every build.
-sed -i '' "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
-sed -i '' "s/\(define([[:space:]]*'CLOUDSCALE_CLEANUP_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-cleanup.php"
-sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
+sed_inplace "s/^\( \* Version:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$MAIN_PHP"
+sed_inplace "s/\(define([[:space:]]*'CLOUDSCALE_CLEANUP_VERSION',[[:space:]]*'\)${ESC_VER}'/\1${NEW_VER}'/" "$REPO_DIR/cloudscale-cleanup.php"
+sed_inplace "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/readme.txt"
 # Promote ONLY the topmost changelog heading written for the pre-bump version;
 # headings for past releases are never dragged forward.
 # A new changelog entry is written as "= Unreleased =" and this stamps it with the
@@ -657,18 +665,18 @@ sed -i '' "s/^\(Stable tag:[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$REPO_DIR/
 # .461 -> .462 that way, and the published changelog credited the current release
 # with a change that had shipped three releases earlier.
 if grep -q '^= Unreleased =$' "$REPO_DIR/readme.txt"; then
-  sed -i '' "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
+  sed_inplace "1,/^= Unreleased =\$/ s/^= Unreleased =\$/= ${NEW_VER} =/" "$REPO_DIR/readme.txt"
   echo "  readme.txt changelog: promoted '= Unreleased =' to '= ${NEW_VER} ='"
 else
   echo "  readme.txt changelog: no '= Unreleased =' entry, headings left untouched"
 fi
 # JS @version headers.
 while IFS= read -r vfile; do
-  sed -i '' "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
+  sed_inplace "s/\(@version[[:space:]]*\)${ESC_VER}\$/\1${NEW_VER}/" "$vfile"
 done < <(grep -rl "@version[[:space:]]*$CURRENT_VER" "$REPO_DIR" --include="*.js" 2>/dev/null | grep -v "\.git" | grep -v "/repo/")
 # Sync readme.txt and main PHP into repo/ so SVN trunk always has correct version.
 cp "$REPO_DIR/readme.txt" "$REPO_DIR/repo/readme.txt"
-sed -i '' "s/^ \* Version:.*/ * Version:     $NEW_VER/" "$REPO_DIR/repo/cloudscale-cleanup.php"
+sed_inplace "s/^ \* Version:.*/ * Version:     $NEW_VER/" "$REPO_DIR/repo/cloudscale-cleanup.php"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Create temp directory with plugin name as wrapper
@@ -714,6 +722,14 @@ fi
 rm -f "$ZIP_FILE"
 cd "$TEMP_DIR"
 zip -r "$ZIP_FILE" "$PLUGIN_NAME/"
+
+echo "Checking build and deploy scripts also run on Linux (the Pi)..."
+if ! bash "$REPO_DIR/../shared-build-tools/check-linux-portable.sh" "$REPO_DIR"; then
+    echo ""
+    echo "ERROR: a script uses a macOS-only command. Build blocked."
+    echo "  A deploy started from Telegram runs these scripts on the Pi and would fail there."
+    exit 1
+fi
 
 echo "Checking a production deploy also refreshes the public download..."
 if ! bash "$REPO_DIR/../shared-build-tools/check-public-download.sh" "$REPO_DIR" "$REPO_DIR/../CloudScaleWpPluginHelpDocs/plugins/database-cleanup/generate.js"; then
