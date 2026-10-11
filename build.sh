@@ -715,6 +715,15 @@ rm -f "$ZIP_FILE"
 cd "$TEMP_DIR"
 zip -r "$ZIP_FILE" "$PLUGIN_NAME/"
 
+echo "Checking a production deploy also refreshes the public download..."
+if ! bash "$REPO_DIR/../shared-build-tools/check-public-download.sh" "$REPO_DIR" "$REPO_DIR/../CloudScaleWpPluginHelpDocs/plugins/database-cleanup/generate.js"; then
+    echo ""
+    echo "ERROR: public download checks failed. Build blocked."
+    echo "  The zip behind the help site's Download button would stay on an old release,"
+    echo "  or the upload script would copy files to the Pi outside the deploy."
+    exit 1
+fi
+
 # WordPress.org reads the slug from the zip's folder and expects the header in <slug>/<slug>.php.
 # cyber-devtools shipped it in cs-code-block.php until the WP.org review of 2026-09-28 asked, and
 # no gate here checked. Reads the zip, since the folder that defines the slug exists only there.
