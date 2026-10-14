@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.127] - 2026-10-15
 
 ### Changed
 - **Alert settings stored under this plugin's own prefix.** The Telegram bot token, chat ID,

@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.126
+Stable tag: 2.5.127
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -130,7 +130,7 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
-= Unreleased =
+= 2.5.127 =
 * Changed: alert settings (Telegram, environment label, mute) are stored under this plugin's own prefix, migrated automatically, and kept in sync with the other CloudScale plugins.
 
 = 2.5.1 =
