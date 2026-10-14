@@ -148,7 +148,7 @@ class CSCC_Telegram {
 		}
 		$suffix = substr( $name, strlen( self::OWN_PREFIX ) );
 		if ( in_array( $suffix, self::SHARED_SUFFIXES, true ) && function_exists( 'apply_filters' ) ) {
-			$from = apply_filters( self::OWN_PREFIX . 'alert_settings_from_siblings', array() );
+			$from = apply_filters( 'cscc_alert_settings_from_siblings', array() );
 			if ( is_array( $from ) && isset( $from[ $suffix ] ) && self::has_value( $from[ $suffix ] ) ) {
 				update_option( $name, $from[ $suffix ], false );
 				return $from[ $suffix ];
@@ -175,7 +175,7 @@ class CSCC_Telegram {
 	 */
 	private static function broadcast( array $settings ): void {
 		if ( function_exists( 'do_action' ) ) {
-			do_action( self::OWN_PREFIX . 'alert_settings_saved', $settings );
+			do_action( 'cscc_alert_settings_saved', $settings );
 		}
 	}
 
@@ -292,7 +292,7 @@ class CSCC_Telegram {
 			return true;
 		}
 		return function_exists( 'apply_filters' )
-			&& (bool) apply_filters( self::OWN_PREFIX . 'alert_muted_by_sibling', false );
+			&& (bool) apply_filters( 'cscc_alert_muted_by_sibling', false );
 	}
 
 	/**
