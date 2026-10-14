@@ -39,64 +39,221 @@ class CSCC_Telegram {
 	const USER_AGENT = 'CloudScale-Telegram';
 
 	/**
-	 * Option names, and why there are two sets of them.
+	 * Option names: every one carries this plugin's own prefix.
 	 *
-	 * WordPress.org named `cloudscale_telegram_bot_token` and `cloudscale_telegram_chat_id` in
-	 * its 18 Aug 2026 review as options not carrying the plugin's declared prefix, so the live
-	 * names moved to `csdt_`. These four options are DELIBERATELY shared by all five plugins,
-	 * one Telegram configuration for the whole suite. Every plugin loads its own copy of this
-	 * class under its own prefix (the sync script stamps it), and every copy reads and writes
-	 * these same rows, so they cannot be prefixed per-plugin without splitting one config
-	 * into five.
+	 * WordPress.org requires everything a plugin stores to carry its own prefix. These rows
+	 * used to be shared by all five plugins under one name (`cloudscale_` until 18 Aug 2026,
+	 * then Cyber DevTools' `csdt_`), and WordPress.org flagged both in reviews of the other
+	 * plugins. So the canonical source writes `cscc_` and the shared-code sync
+	 * stamps each plugin's prefix over it when copying this file in: Backup &
+	 * Restore stores `csbr_telegram_bot_token`, Cyber DevTools `csdt_telegram_bot_token`, and
+	 * so on. check-shared-copies.php fails the build if a copy stores a name without its
+	 * plugin's prefix, so this cannot regress by hand.
 	 *
-	 * Renaming a live option is the dangerous part: the token, chat id and mute switch are what
-	 * make alerting work at all, and the five plugins do not deploy at the same instant. So every
-	 * read falls back to the legacy name and every write updates BOTH, which means an install
-	 * running any mix of old and new copies keeps working in either direction.
-	 *
-	 * The legacy writes can be dropped once all five plugins have shipped with the new names,
-	 * not before. The disaster-recovery restore process also writes the legacy mute key from outside PHP, which is the
-	 * specific reason is_muted() honours either name rather than preferring one.
+	 * One Telegram configuration for the whole suite is kept by hooks rather than by a shared
+	 * row (see register_siblings()): a save in any plugin is offered to the others, and a
+	 * plugin with nothing configured asks the others. Only two of the five plugins have a
+	 * Telegram settings card, so without this the other three could never alert.
 	 */
-	const OPTION_TOKEN   = 'csdt_telegram_bot_token'; // pragma:allow-secret
-	const OPTION_CHAT_ID = 'csdt_telegram_chat_id';
+	const OPTION_TOKEN   = 'cscc_telegram_bot_token'; // pragma:allow-secret
+	const OPTION_CHAT_ID = 'cscc_telegram_chat_id';
 
-	const LEGACY_TOKEN   = 'cloudscale_telegram_bot_token'; // pragma:allow-secret
-	const LEGACY_CHAT_ID = 'cloudscale_telegram_chat_id';
-	const LEGACY_MUTED   = 'cloudscale_alerts_muted';
-	const LEGACY_RATE    = 'cloudscale_alert_rate';
+	/** Set once this copy has adopted the values stored under the old names. */
+	const OPTION_MIGRATED = 'cscc_alert_options_migrated';
 
 	/**
-	 * Reads the new option name, falling back to the legacy one while both may exist.
-	 *
-	 * An option that is present but empty counts as absent here: a half-migrated install can
-	 * hold an empty new-style row alongside a populated legacy one, and preferring the empty
-	 * value would disarm alerting silently, the failure mode this whole class exists to avoid.
-	 *
-	 * @param string $new    New option name.
-	 * @param string $legacy Legacy option name.
-	 * @param mixed  $fallback Returned when neither is set.
-	 * @return mixed
+	 * This plugin's own prefix, as stamped. Hook names are built from it.
 	 */
-	private static function opt_read( string $new, string $legacy, $fallback = '' ) {
-		$value = get_option( $new, null );
-		if ( null !== $value && '' !== $value && array() !== $value ) {
-			return $value;
+	const OWN_PREFIX = 'cscc_';
+
+	/**
+	 * The prefixes of the five plugins that carry this class, for the sibling hooks.
+	 *
+	 * These are prefixes of OTHER plugins' hooks this copy listens to, which WordPress allows
+	 * any plugin to do; nothing is stored or declared under them.
+	 */
+	const SIBLING_PREFIXES = array( 'csdt_', 'csbr_', 'cscc_', 'cspv_', 'cs_seo_' );
+
+	/** Settings that are one configuration for the whole suite, by option suffix. */
+	const SHARED_SUFFIXES = array( 'telegram_bot_token', 'telegram_chat_id', 'alert_env_label' );
+
+	/** @var bool Whether maybe_migrate() has run in this request. */
+	private static $migration_checked = false;
+
+	/**
+	 * Adopts the values an earlier version stored under the suite-wide names. Runs once.
+	 *
+	 * The ONLY place the old names appear. A site that configured Telegram before the rename
+	 * keeps alerting the moment this ships, with no re-entry, including a site where this is the
+	 * only CloudScale plugin. The old rows are read, never written or deleted: an older copy of
+	 * another CloudScale plugin on the same site may still be using them.
+	 */
+	private static function maybe_migrate(): void {
+		if ( self::$migration_checked || ! function_exists( 'get_option' ) ) {
+			return;
 		}
-		return get_option( $legacy, $fallback );
+		self::$migration_checked = true;
+		if ( '1' === (string) get_option( self::OPTION_MIGRATED, '' ) ) {
+			return;
+		}
+		$old_names = array(
+			self::OPTION_TOKEN     => array( 'csdt_telegram_bot_token', 'cloudscale_telegram_bot_token' ), // pragma:allow-secret
+			self::OPTION_CHAT_ID   => array( 'csdt_telegram_chat_id', 'cloudscale_telegram_chat_id' ),
+			self::OPTION_MUTED     => array( 'csdt_alerts_muted', 'cloudscale_alerts_muted' ),
+			self::OPTION_ENV_LABEL => array( 'csdt_alert_env_label' ),
+		);
+		foreach ( $old_names as $own => $olds ) {
+			if ( self::has_value( get_option( $own, null ) ) ) {
+				continue;
+			}
+			foreach ( $olds as $old ) {
+				if ( $old === $own ) {
+					continue;
+				}
+				$value = get_option( $old, null );
+				if ( self::has_value( $value ) ) {
+					update_option( $own, $value, false );
+					break;
+				}
+			}
+		}
+		update_option( self::OPTION_MIGRATED, '1', true );
 	}
 
 	/**
-	 * Writes both the new and the legacy option name.
+	 * An option that is present but empty counts as absent: preferring an empty value over a
+	 * populated one would disarm alerting silently, the failure mode this class exists to avoid.
 	 *
-	 * @param string $new      New option name.
-	 * @param string $legacy   Legacy option name.
-	 * @param mixed  $value    Value to store.
-	 * @param bool   $autoload Autoload flag, passed through to both rows.
+	 * @param mixed $value Option value, or null when absent.
 	 */
-	private static function opt_write( string $new, string $legacy, $value, bool $autoload = false ): void {
-		update_option( $new, $value, $autoload );
-		update_option( $legacy, $value, $autoload );
+	private static function has_value( $value ): bool {
+		return null !== $value && false !== $value && '' !== $value && array() !== $value;
+	}
+
+	/**
+	 * Reads one of this plugin's options.
+	 *
+	 * A suite-wide setting this plugin has never stored is asked of the other CloudScale
+	 * plugins and kept, so it survives one of them being deactivated.
+	 *
+	 * @param string $name     Option name (one of the OPTION_ constants).
+	 * @param mixed  $fallback Returned when there is no value anywhere.
+	 * @return mixed
+	 */
+	private static function opt_read( string $name, $fallback = '' ) {
+		self::maybe_migrate();
+		$value = get_option( $name, null );
+		if ( self::has_value( $value ) ) {
+			return $value;
+		}
+		$suffix = substr( $name, strlen( self::OWN_PREFIX ) );
+		if ( in_array( $suffix, self::SHARED_SUFFIXES, true ) && function_exists( 'apply_filters' ) ) {
+			$from = apply_filters( self::OWN_PREFIX . 'alert_settings_from_siblings', array() );
+			if ( is_array( $from ) && isset( $from[ $suffix ] ) && self::has_value( $from[ $suffix ] ) ) {
+				update_option( $name, $from[ $suffix ], false );
+				return $from[ $suffix ];
+			}
+		}
+		return $fallback;
+	}
+
+	/**
+	 * Writes one of this plugin's options.
+	 *
+	 * @param string $name     Option name (one of the OPTION_ constants).
+	 * @param mixed  $value    Value to store.
+	 * @param bool   $autoload Autoload flag.
+	 */
+	private static function opt_write( string $name, $value, bool $autoload = false ): void {
+		update_option( $name, $value, $autoload );
+	}
+
+	/**
+	 * Offers a changed suite-wide setting to the other CloudScale plugins on this site.
+	 *
+	 * @param array $settings Option suffix => value; '' clears it.
+	 */
+	private static function broadcast( array $settings ): void {
+		if ( function_exists( 'do_action' ) ) {
+			do_action( self::OWN_PREFIX . 'alert_settings_saved', $settings );
+		}
+	}
+
+	/**
+	 * Listens to the other CloudScale plugins' alert hooks. Called once, when this file loads.
+	 *
+	 * Three hooks per sibling, all declared by that sibling under its own prefix:
+	 *  - `{prefix}alert_settings_saved`: it saved a suite-wide setting, so store it here too.
+	 *  - `{prefix}alert_settings_from_siblings`: it has none stored, so answer with ours.
+	 *  - `{prefix}alert_muted_by_sibling`: it asks whether any plugin here is muted.
+	 */
+	public static function register_siblings(): void {
+		static $done = false;
+		if ( $done || ! function_exists( 'add_filter' ) ) {
+			return;
+		}
+		$done = true;
+		foreach ( self::SIBLING_PREFIXES as $prefix ) {
+			if ( self::OWN_PREFIX === $prefix ) {
+				continue;
+			}
+			add_action( $prefix . 'alert_settings_saved', array( __CLASS__, 'receive_settings' ) );
+			add_filter( $prefix . 'alert_settings_from_siblings', array( __CLASS__, 'provide_settings' ) );
+			add_filter( $prefix . 'alert_muted_by_sibling', array( __CLASS__, 'provide_muted' ) );
+		}
+	}
+
+	/**
+	 * Stores the suite-wide settings another CloudScale plugin just saved. Not re-broadcast.
+	 *
+	 * @param mixed $settings Option suffix => value.
+	 */
+	public static function receive_settings( $settings ): void {
+		if ( ! is_array( $settings ) ) {
+			return;
+		}
+		foreach ( self::SHARED_SUFFIXES as $suffix ) {
+			if ( ! array_key_exists( $suffix, $settings ) ) {
+				continue;
+			}
+			$value = is_scalar( $settings[ $suffix ] ) ? sanitize_text_field( (string) $settings[ $suffix ] ) : '';
+			if ( '' === $value ) {
+				delete_option( self::OWN_PREFIX . $suffix );
+			} else {
+				update_option( self::OWN_PREFIX . $suffix, $value, false );
+			}
+		}
+	}
+
+	/**
+	 * Answers another CloudScale plugin that has no suite-wide settings stored.
+	 *
+	 * @param mixed $carry What earlier siblings answered; their values win.
+	 * @return array
+	 */
+	public static function provide_settings( $carry ): array {
+		$carry = is_array( $carry ) ? $carry : array();
+		self::maybe_migrate();
+		foreach ( self::SHARED_SUFFIXES as $suffix ) {
+			if ( isset( $carry[ $suffix ] ) && self::has_value( $carry[ $suffix ] ) ) {
+				continue;
+			}
+			$value = get_option( self::OWN_PREFIX . $suffix, null );
+			if ( self::has_value( $value ) ) {
+				$carry[ $suffix ] = $value;
+			}
+		}
+		return $carry;
+	}
+
+	/**
+	 * Answers another CloudScale plugin asking whether this site is muted.
+	 *
+	 * @param mixed $muted What earlier siblings answered.
+	 */
+	public static function provide_muted( $muted ): bool {
+		self::maybe_migrate();
+		return (bool) $muted || '1' === (string) get_option( self::OPTION_MUTED, '' );
 	}
 
 	/**
@@ -120,18 +277,22 @@ class CSCC_Telegram {
 	 * rather than at the call sites, because the point is that no future call site
 	 * can forget it. The disaster-recovery restore process sets it on every copy it builds.
 	 */
-	const OPTION_MUTED = 'csdt_alerts_muted';
+	const OPTION_MUTED = 'cscc_alerts_muted';
 
 	/**
 	 * Is this install muted? True on restored copies (see OPTION_MUTED).
 	 *
-	 * EITHER name muting is enough. That process writes the legacy key directly, and a copy
-	 * that believes it is production is exactly the case where guessing wrong pages a human at
-	 * 3am, so this errs toward silence rather than toward preferring the new name.
+	 * ANY CloudScale plugin on the site being muted is enough. The restore process writes
+	 * every plugin's key, but a copy that believes it is production is exactly the case where
+	 * guessing wrong pages a human at 3am, so this errs toward silence.
 	 */
 	public static function is_muted(): bool {
-		return '1' === (string) get_option( self::OPTION_MUTED, '' )
-			|| '1' === (string) get_option( self::LEGACY_MUTED, '' );
+		self::maybe_migrate();
+		if ( '1' === (string) get_option( self::OPTION_MUTED, '' ) ) {
+			return true;
+		}
+		return function_exists( 'apply_filters' )
+			&& (bool) apply_filters( self::OWN_PREFIX . 'alert_muted_by_sibling', false );
 	}
 
 	/**
@@ -151,7 +312,7 @@ class CSCC_Telegram {
 	 * Empty on production, which is every install that never sets it, so the
 	 * default is the current behaviour exactly.
 	 */
-	const OPTION_ENV_LABEL = 'csdt_alert_env_label';
+	const OPTION_ENV_LABEL = 'cscc_alert_env_label';
 
 	/**
 	 * How the label survives being restored over.
@@ -164,7 +325,11 @@ class CSCC_Telegram {
 	 * silently, and looking exactly like success.
 	 *
 	 * The durable store is therefore a constant in wp-config.php, which no restore
-	 * touches: define( 'CLOUDSCALE_ALERT_ENV_LABEL', 'DR>' ). The option is kept as
+	 * touches, under each plugin's own prefix: define( 'CSBR_ALERT_ENV_LABEL', 'DR>' ) for
+	 * Backup & Restore, CSDT_ for Cyber DevTools, and so on.
+	 * CLOUDSCALE_ALERT_ENV_LABEL, the one constant every plugin read before the names were
+	 * prefixed, is still read after the plugin's own, so a wp-config.php that already sets
+	 * it keeps its label. Neither is ever defined by a plugin. The option is kept as
 	 * the non-durable store, and set_env_label() says plainly which of the two it
 	 * managed to use. Until 1.10.837 this class also wrote a JSON marker into the
 	 * content directory; WordPress.org does not allow a plugin to write outside the
@@ -172,7 +337,32 @@ class CSCC_Telegram {
 	 * still READ, so an install that relied on one keeps its label until the
 	 * constant is added.
 	 */
-	const CONSTANT_ENV_LABEL = 'CLOUDSCALE_ALERT_ENV_LABEL';
+	const CONSTANT_ENV_LABEL = 'CSCC_ALERT_ENV_LABEL';
+
+	/** The suite-wide constant read before the per-plugin one existed. Read only. */
+	const SUITE_CONSTANT_ENV_LABEL = 'CLOUDSCALE_ALERT_ENV_LABEL';
+
+	/**
+	 * The label set in wp-config.php, or ''. This plugin's constant wins over the suite's.
+	 */
+	private static function env_label_constant(): string {
+		foreach ( array( self::CONSTANT_ENV_LABEL, self::SUITE_CONSTANT_ENV_LABEL ) as $name ) {
+			if ( defined( $name ) && '' !== trim( (string) constant( $name ) ) ) {
+				return (string) constant( $name );
+			}
+		}
+		return '';
+	}
+
+	/** The name of whichever wp-config.php constant is setting the label, or ''. */
+	private static function env_label_constant_name(): string {
+		foreach ( array( self::CONSTANT_ENV_LABEL, self::SUITE_CONSTANT_ENV_LABEL ) as $name ) {
+			if ( defined( $name ) && '' !== trim( (string) constant( $name ) ) ) {
+				return $name;
+			}
+		}
+		return '';
+	}
 
 	/**
 	 * Where a marker written by a version before 1.10.837 would be. Read only.
@@ -235,14 +425,14 @@ class CSCC_Telegram {
 	 *              is in force, or no label is set at all.
 	 */
 	public static function env_label_is_durable(): bool {
-		if ( defined( self::CONSTANT_ENV_LABEL ) && '' !== trim( (string) constant( self::CONSTANT_ENV_LABEL ) ) ) {
+		if ( '' !== self::env_label_constant() ) {
 			return true;
 		}
 		if ( '' !== self::env_label_marker() ) {
 			return true;
 		}
 		// No durable store. Durable only if there is nothing to lose.
-		return '' === trim( (string) get_option( self::OPTION_ENV_LABEL, '' ) );
+		return '' === trim( (string) self::opt_read( self::OPTION_ENV_LABEL, '' ) );
 	}
 
 	/**
@@ -259,14 +449,15 @@ class CSCC_Telegram {
 	 */
 	public static function set_env_label( string $label ): array {
 		$label    = trim( (string) preg_replace( '/\s+/', ' ', sanitize_text_field( $label ) ) );
-		$constant = defined( self::CONSTANT_ENV_LABEL ) && '' !== trim( (string) constant( self::CONSTANT_ENV_LABEL ) );
+		$constant = '' !== self::env_label_constant();
 		$marker   = self::env_label_marker();
 
 		if ( '' === $label ) {
 			delete_option( self::OPTION_ENV_LABEL );
+			self::broadcast( array( 'alert_env_label' => '' ) );
 			$note = '';
 			if ( $constant ) {
-				$note = 'The label is still set by the ' . self::CONSTANT_ENV_LABEL . ' constant in wp-config.php; remove that line to clear it.';
+				$note = 'The label is still set by the ' . self::env_label_constant_name() . ' constant in wp-config.php; remove that line to clear it.';
 			} elseif ( '' !== $marker ) {
 				$note = 'The label is still set by ' . self::env_label_path() . ', a marker an earlier version wrote; delete that file to clear it.';
 			}
@@ -274,6 +465,7 @@ class CSCC_Telegram {
 		}
 
 		update_option( self::OPTION_ENV_LABEL, $label, false );
+		self::broadcast( array( 'alert_env_label' => $label ) );
 		if ( $constant ) {
 			return array( 'ok' => true, 'durable' => true, 'error' => '' );
 		}
@@ -307,10 +499,7 @@ class CSCC_Telegram {
 	 * containing one would push the domain off it.
 	 */
 	private static function env_label(): string {
-		$label = '';
-		if ( defined( self::CONSTANT_ENV_LABEL ) ) {
-			$label = (string) constant( self::CONSTANT_ENV_LABEL );
-		}
+		$label = self::env_label_constant();
 		if ( '' === trim( $label ) ) {
 			$label = self::env_label_marker();
 		}
@@ -318,7 +507,7 @@ class CSCC_Telegram {
 			// Legacy only. Existing installs set one before the marker existed and
 			// must not lose it the moment this ships -- on QA and DR that would have
 			// been the exact outage this change prevents.
-			$label = (string) get_option( self::OPTION_ENV_LABEL, '' );
+			$label = (string) self::opt_read( self::OPTION_ENV_LABEL, '' );
 		}
 		$label = sanitize_text_field( $label );
 		$label = trim( preg_replace( '/\s+/', ' ', $label ) );
@@ -346,7 +535,7 @@ class CSCC_Telegram {
 	 * throttle; the rest could flood freely, and any new one starts with no throttle at all. A
 	 * guarantee that has to be remembered 123 times is not a guarantee.
 	 */
-	const OPTION_RATE = 'csdt_alert_rate';
+	const OPTION_RATE = 'cscc_alert_rate';
 
 	/**
 	 * How long a REPEAT of the same alert stays quiet, by level.
@@ -494,7 +683,7 @@ class CSCC_Telegram {
 	 */
 	private static function rate_gate( string $text, string $source, string $level ): ?string {
 		$now  = time();
-		$led  = self::opt_read( self::OPTION_RATE, self::LEGACY_RATE, [] );
+		$led  = self::opt_read( self::OPTION_RATE, [] );
 		if ( ! is_array( $led ) ) {
 			$led = [];
 		}
@@ -535,7 +724,7 @@ class CSCC_Telegram {
 			$led['dups']  = $dups + ( 'dup' === $blocked ? 1 : 0 );
 			$led[ $pool ] = $sent;
 			$led['sigs']  = $sigs;
-			self::opt_write( self::OPTION_RATE, self::LEGACY_RATE, $led, false );
+			self::opt_write( self::OPTION_RATE, $led, false );
 			return null;
 		}
 
@@ -555,7 +744,7 @@ class CSCC_Telegram {
 		$led['sigs']  = $sigs;
 		$led['held']  = 0;
 		$led['dups']  = 0;
-		self::opt_write( self::OPTION_RATE, self::LEGACY_RATE, $led, false );
+		self::opt_write( self::OPTION_RATE, $led, false );
 
 		if ( $held > 0 ) {
 			// Said on the alert that DOES go out, rather than as a message of its own: a digest that
@@ -571,9 +760,23 @@ class CSCC_Telegram {
 		return $text;
 	}
 
+	/**
+	 * The bot token and chat id this plugin would send with, for callers outside this class
+	 * (a watchdog script, a status panel). Read through opt_read(), so a value stored under the
+	 * old names or by another CloudScale plugin is found; a raw get_option() would not find it.
+	 *
+	 * @return array{token: string, chat_id: string}
+	 */
+	public static function credentials(): array {
+		return array(
+			'token'   => trim( (string) self::opt_read( self::OPTION_TOKEN, '' ) ),
+			'chat_id' => trim( (string) self::opt_read( self::OPTION_CHAT_ID, '' ) ),
+		);
+	}
+
 	public static function is_configured(): bool {
-		return ! empty( self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN ) )
-			&& ! empty( self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID ) );
+		return ! empty( self::opt_read( self::OPTION_TOKEN ) )
+			&& ! empty( self::opt_read( self::OPTION_CHAT_ID ) );
 	}
 
 	/**
@@ -955,8 +1158,8 @@ class CSCC_Telegram {
 			return false;
 		}
 
-		$token   = trim( (string) self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN, '' ) );
-		$chat_id = trim( (string) self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, '' ) );
+		$token   = trim( (string) self::opt_read( self::OPTION_TOKEN, '' ) );
+		$chat_id = trim( (string) self::opt_read( self::OPTION_CHAT_ID, '' ) );
 		if ( ! $token || ! $chat_id ) {
 			self::$last_outcome = self::OUTCOME_UNCONFIGURED;
 			return false;
@@ -1044,7 +1247,7 @@ class CSCC_Telegram {
 	}
 
 	/**
-	 * Save the shared Telegram credentials.
+	 * Save the Telegram credentials, and offer them to the other CloudScale plugins.
 	 *
 	 * Takes values, not a request: the caller reads its own POST fields inside the handler
 	 * that verified the nonce, so no request is read anywhere a reviewer cannot see the check.
@@ -1053,8 +1256,9 @@ class CSCC_Telegram {
 	 * @param string $chat_id Chat id, already sanitised.
 	 */
 	public static function save_credentials( string $token, string $chat_id ): void {
-		self::opt_write( self::OPTION_TOKEN, self::LEGACY_TOKEN, $token );
-		self::opt_write( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, $chat_id );
+		self::opt_write( self::OPTION_TOKEN, $token );
+		self::opt_write( self::OPTION_CHAT_ID, $chat_id );
+		self::broadcast( array( 'telegram_bot_token' => $token, 'telegram_chat_id' => $chat_id ) );
 	}
 
 	/**
@@ -1137,8 +1341,8 @@ class CSCC_Telegram {
 			// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 			// Fall back to stored credentials (used by the credentials panel test button).
-			if ( ! $token ) { $token   = (string) self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN, '' ); }
-			if ( ! $chat_id ) { $chat_id = (string) self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, '' ); }
+			if ( ! $token ) { $token   = (string) self::opt_read( self::OPTION_TOKEN, '' ); }
+			if ( ! $chat_id ) { $chat_id = (string) self::opt_read( self::OPTION_CHAT_ID, '' ); }
 
 			if ( ! $token || ! $chat_id ) {
 				wp_send_json_error( 'Bot token and chat ID are required.' );
@@ -1182,8 +1386,8 @@ class CSCC_Telegram {
 	public static function render_settings_fields( string $text_domain, string $source = '' ): void {
 		static $js_output = false;
 
-		$token       = esc_attr( (string) self::opt_read( self::OPTION_TOKEN, self::LEGACY_TOKEN, '' ) );
-		$chat_id     = esc_attr( (string) self::opt_read( self::OPTION_CHAT_ID, self::LEGACY_CHAT_ID, '' ) );
+		$token       = esc_attr( (string) self::opt_read( self::OPTION_TOKEN, '' ) );
+		$chat_id     = esc_attr( (string) self::opt_read( self::OPTION_CHAT_ID, '' ) );
 		$test_nonce  = wp_create_nonce( 'cscc_telegram_test' );
 		$fetch_nonce = wp_create_nonce( 'cscc_telegram_fetch' );
 		?>
@@ -1257,4 +1461,5 @@ class CSCC_Telegram {
 	}
 }
 
+CSCC_Telegram::register_siblings();
 }

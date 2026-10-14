@@ -538,6 +538,23 @@ if ! php "$_TG_ENV_CHECK" "$REPO_DIR"; then
 fi
 echo ""
 
+# ── One Telegram configuration across the CloudScale plugins ─────────────────
+# Each plugin stores its alert settings under its own prefix (WordPress.org), and the copies keep
+# one configuration by hooks. Database Cleanup and Analytics have no Telegram card, so if the hooks
+# break they silently never alert. Loads three real stamped copies together and checks migration,
+# save propagation, pulling from a sibling, and a mute in any plugin silencing them all.
+_TG_SIB_CHECK="$GITHUB_DIR/shared-build-tools/check-telegram-siblings.php"
+echo "Checking the CloudScale plugins share one Telegram configuration..."
+if [ ! -f "$_TG_SIB_CHECK" ]; then
+    echo "ERROR: telegram siblings checker not found at $_TG_SIB_CHECK"
+    exit 1
+fi
+if ! php "$_TG_SIB_CHECK" "$GITHUB_DIR"; then
+    echo "ERROR: the plugins no longer share one Telegram configuration (details above)."
+    exit 1
+fi
+echo ""
+
 # ── No alert path can flood the phone ───────────────────────────────────────
 # Every throttle in these plugins was a transient with a 6-hour expiry, on an install with a
 # persistent Redis object cache — so `wp cache flush`, which every deploy runs, deleted the quiet

@@ -130,6 +130,9 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
+= Unreleased =
+* Changed: alert settings (Telegram, environment label, mute) are stored under this plugin's own prefix, migrated automatically, and kept in sync with the other CloudScale plugins.
+
 = 2.5.1 =
 * NEW: Cron Management section in Settings tab
 * NEW: 24-hour cron job timeline, canvas graph showing every scheduled job's fire times, coloured by hook

@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Alert settings stored under this plugin's own prefix.** The Telegram bot token, chat ID,
+  environment label and mute switch were shared rows under one plugin's name, which
+  WordPress.org's prefixing rule does not allow. Each CloudScale plugin now stores its own copy,
+  migrated automatically from the old rows on first load (the old rows are left in place), and
+  the plugins keep one configuration between them: a save, label or mute in one reaches the
+  others. The `CSCC_ALERT_ENV_LABEL` constant names the environment; the suite-wide
+  `CLOUDSCALE_ALERT_ENV_LABEL` is still honoured.
+
 ## 2.5.72 — 2026-06-14
 - DOCS: declared Telegram Bot API as an external service — added Telegram to a new External Services section in readme.txt as required by WordPress.org guidelines
 
