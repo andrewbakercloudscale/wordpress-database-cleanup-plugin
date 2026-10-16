@@ -70,9 +70,11 @@ class CSCC_Telegram {
 	 * The prefixes of the five plugins that carry this class, for the sibling hooks.
 	 *
 	 * These are prefixes of OTHER plugins' hooks this copy listens to, which WordPress allows
-	 * any plugin to do; nothing is stored or declared under them.
+	 * any plugin to do; nothing is stored or declared under them. The SEO plugin moved from
+	 * cs_seo_ to cloudscale_seo_ai_optimizer_ in 4.21.670; both are listed so a site running an
+	 * older SEO copy beside a newer sibling, or the other way round, still connects.
 	 */
-	const SIBLING_PREFIXES = array( 'csdt_', 'csbr_', 'cscc_', 'cspv_', 'cs_seo_' );
+	const SIBLING_PREFIXES = array( 'csdt_', 'csbr_', 'cscc_', 'cspv_', 'cloudscale_seo_ai_optimizer_', 'cs_seo_' );
 
 	/** Settings that are one configuration for the whole suite, by option suffix. */
 	const SHARED_SUFFIXES = array( 'telegram_bot_token', 'telegram_chat_id', 'alert_env_label' );

@@ -5011,6 +5011,7 @@ function cscc_resolve_cron_hook_plugin( $hook ) {
 			// ── CloudScale (this plugin family) ──────────────────────────────
 			array( 'p' => 'cscc_',                                'n' => 'CloudScale Cleanup',        's' => 'cloudscale-cleanup',                        'c' => false ),
 			array( 'p' => 'cspj_',                               'n' => 'CloudScale Post Janitor',   's' => 'cloudscale-post-janitor',                   'c' => false ),
+			array( 'p' => 'cloudscale_seo_ai_optimizer_',        'n' => 'CloudScale SEO',            's' => 'cloudscale-seo',                            'c' => false ),
 			array( 'p' => 'cs_seo_',                             'n' => 'CloudScale SEO',            's' => 'cloudscale-seo',                            'c' => false ),
 			array( 'p' => 'cs_scheduled_ami_backup',             'n' => 'CloudScale Backup & Restore', 's' => 'cloudscale-backup',                       'c' => false ),
 			array( 'p' => 'cs_scheduled_backup',                 'n' => 'CloudScale Backup & Restore', 's' => 'cloudscale-backup',                       'c' => false ),
