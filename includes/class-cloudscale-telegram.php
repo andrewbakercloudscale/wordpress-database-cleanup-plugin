@@ -518,6 +518,17 @@ class CSCC_Telegram {
 	}
 
 	/**
+	 * The label alerts are sent with, for a settings card or checklist to show.
+	 *
+	 * Status panels used to read the option row directly, which skips the wp-config.php
+	 * constant, the one-time migration from the old names and the copy held by another
+	 * CloudScale plugin, so a panel could show no label while alerts carried one.
+	 */
+	public static function current_env_label(): string {
+		return self::env_label();
+	}
+
+	/**
 	 * The rate ledger: what has actually been sent, and what has been held back.
 	 *
 	 * AN OPTION, NOT A TRANSIENT, and that is the whole reason this exists centrally.
