@@ -1487,3 +1487,26 @@
 .csc-cron-del-btn:hover { opacity: 1; }
 
 #csc-cron-timeline { cursor: default; }
+
+/* Tab colours and health metric styles (moved from an inline block in PHP). */
+.csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
+.csc-tab:nth-child(1).active { background: linear-gradient(135deg, #6a1b9a 0%, #9c27b0 100%) !important; border-top-color: #ce93d8 !important; }
+.csc-tab:nth-child(1):hover:not(.active) { border-top-color: #ce93d8 !important; }
+.csc-tab:nth-child(6) { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%) !important; border-top-color: #90caf9 !important; }
+.csc-tab:nth-child(6).active { background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%) !important; border-top-color: #90caf9 !important; }
+.csc-tab:nth-child(6):hover:not(.active) { border-top-color: #90caf9 !important; }
+.csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
+.csc-tab:nth-child(7).active { background: linear-gradient(135deg, #4e342e 0%, #6d4c41 100%) !important; border-top-color: #bcaaa4 !important; }
+.csc-tab:nth-child(7):hover:not(.active) { border-top-color: #bcaaa4 !important; }
+@media (max-width: 782px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } .csc-help-btn { padding:6px 12px !important; font-size:12px !important; } .csc-header-version { display:none !important; } }
+div[style*="#fff3e0"] .csc-health-metric,
+div[style*="#e3f2fd"] .csc-health-metric,
+div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
+div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
+div[style*="#fff3e0"] .csc-health-metric-value { color: #e65100 !important; }
+div[style*="#efebe9"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
+div[style*="#efebe9"] .csc-health-metric-label { color: #4e342e !important; }
+div[style*="#efebe9"] .csc-health-metric-value:not(#hm-weeks-left) { color: #4e342e !important; }
+div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
+div[style*="#f3e5f5"] .csc-health-metric-value { color: #7b1fa2 !important; }
+.csc-health-metric { border: none !important; }

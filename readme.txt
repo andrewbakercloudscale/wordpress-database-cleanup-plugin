@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.129
+Stable tag: 2.5.130
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,22 +61,33 @@ WordPress Cron-based scheduler runs database cleanup automatically on selected d
 
 **Site Health Panel**
 
-Live server metrics panel showing disk usage, storage runway estimate, and CPU/memory data via `sysstat` (`sar`) where available.
+Live server metrics panel showing disk usage, storage runway estimate, and CPU and memory usage, read from the server's load average and `/proc/meminfo` where the host exposes them.
+
+**Optional: turn off the WordPress emoji script**
+
+An opt-in setting (Cron tab, Site Options) removes WordPress's emoji detection script, its styles and its DNS prefetch hint, so emoji are drawn by the browser instead of being swapped for images from the WordPress.org emoji CDN. It is off by default and WordPress behaves as normal until you tick it.
 
 == External Services ==
 
-= Telegram Bot API =
+= Telegram Bot API (optional, error alerts only) =
 
-**Service:** Telegram Messenger Inc.
-**Website:** https://telegram.org
-**Endpoint:** https://api.telegram.org/bot{token}/sendMessage
-**Data sent:** An error summary message containing: the PHP error message, the file name and line number where the error occurred, and the relevant operation context (e.g. which cleanup task failed). No personal visitor data or database content is transmitted.
-**When data is sent:** Only when a plugin error is caught and you have configured a Telegram bot token and chat ID in the plugin's Notifications settings. No data is sent if the Telegram integration is not configured.
-**Purpose:** Sends real-time error alert notifications to a Telegram chat of your choosing so site owners can respond to cleanup failures quickly.
+This plugin has no Telegram settings screen of its own. When another CloudScale plugin on the same site has a Telegram bot token and chat ID configured, this plugin reuses them for its own error alerts. Nothing is sent while no bot token and chat ID are configured.
+
+**Service:** Telegram Messenger Inc., Telegram Bot API (api.telegram.org)
+**Endpoint:** the Bot API sendMessage method, at the path /bot followed by your bot token and /sendMessage on api.telegram.org
+**When data is sent:** only when one of this plugin's scheduled cleanups (database or media) fails with an error.
+**Data sent:** the bot token and chat ID, and an alert containing the error message, the plugin name and alert level, the site's domain, the optional environment label, the server's hostname and IP address, and, for the request that raised the alert, its HTTP method and request URL, the client IP address and the logged-in user's username if there is one. No database content or post content is transmitted.
+**Purpose:** real-time error alerts to a Telegram chat of your choosing, so site owners can respond to cleanup failures quickly.
+
+The shared alert class this plugin ships also contains the getUpdates ("Fetch Chat ID") and test-message calls that the other CloudScale plugins' settings screens use. This plugin never registers those actions, so it never makes either call.
 
 Telegram Privacy Policy: https://telegram.org/privacy
 Telegram Terms of Service: https://telegram.org/tos
 Telegram Bot API documentation: https://core.telegram.org/bots/api
+
+= Links to the plugin author's site (never requested) =
+
+The admin screen has a Help button linking to https://help.cloudscale.consulting/plugin-help/database-cleanup/ and a link to https://cloudscale.consulting, and the optional front-end widget shows a link to https://cloudscale.consulting only when its "Show credit link" box is ticked. These are ordinary links a person can click. The plugin never requests either site and sends them no data.
 
 == Installation ==
 
@@ -129,6 +140,15 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 4. Site Health panel showing disk usage, storage runway, and server resource metrics.
 
 == Changelog ==
+
+= 2.5.130 =
+* Changed: the WordPress emoji script is no longer removed by default. Turning it off is now an opt-in setting (Cron tab, Site Options).
+* Fixed: unticking "Enable scheduled cleanup" or "Convert PNGs to JPEG" and saving now actually turns them off.
+* Fixed: unused-media and orphaned-file scans find image references on sites whose uploads folder is not wp-content/uploads, including multisite subsites.
+* Fixed: PNG to JPEG optimisation no longer overwrites an existing JPEG of the same name.
+* Fixed: the "Test Metrics" button on the Site Health tab reports the real readings; several button and badge colours that had been corrupted are restored.
+* Changed: file moves and folder removal use the WordPress filesystem API; deactivating the plugin now stops its scheduled events; uninstall removes every option the plugin created.
+* Readme: External Services and Privacy sections now list exactly what a Telegram alert contains.
 
 = 2.5.127 =
 * Changed: alert settings (Telegram, environment label, mute) are stored under this plugin's own prefix, migrated automatically, and kept in sync with the other CloudScale plugins.
@@ -192,4 +212,4 @@ New: Cron Management section with 24-hour timeline graph, Cron Congestion detect
 
 == Privacy Policy ==
 
-CloudScale Cleanup does not collect or transmit any data outside your server except when the optional Telegram notification integration is configured. If you enter a Telegram bot token and chat ID, the plugin will send error alert notifications to that Telegram chat when cleanup errors occur. No data is sent to Telegram if the integration is not configured. No other external requests are made by this plugin.
+CloudScale Cleanup does not collect or transmit any data outside your server except when Telegram alerts are configured in another CloudScale plugin on the same site. In that case, when a scheduled cleanup fails, this plugin sends an alert to that Telegram chat containing the error message, the site's domain, the server's hostname and IP address, and the HTTP method, request URL, client IP address and logged-in username of the request that raised it (see External Services). No data is sent to Telegram if no bot token and chat ID are configured. No other external requests are made by this plugin.

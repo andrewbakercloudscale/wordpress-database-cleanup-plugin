@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.129
+ * Version:     2.5.130
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -15,11 +15,15 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-// Our UI uses plain native emoji characters everywhere. WP's built-in twemoji
-// polyfill replaces them with <img> tags from s.w.org when it (sometimes wrongly)
-// decides a browser lacks native emoji support; if that CDN is ever unreachable
-// the images break. Native rendering is all we need, so skip the polyfill outright.
+// WordPress's emoji script swaps emoji characters for images from the WordPress.org emoji
+// CDN when it (sometimes wrongly) decides a browser lacks native emoji support; if that CDN
+// is unreachable the images break. This is an opt-in setting (Cron tab, Site Options card,
+// "Turn off the WordPress emoji script"), off by default, so core's behaviour is unchanged
+// unless the site owner asks for it.
 add_action( 'init', function () {
+    if ( '1' !== get_option( 'cscc_disable_emoji_polyfill', '0' ) ) {
+        return;
+    }
     remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
     remove_action( 'wp_print_styles', 'print_emoji_styles' );
     remove_action( 'embed_head', 'print_emoji_detection_script' );
@@ -32,11 +36,10 @@ add_action( 'init', function () {
     // Matched on the host EXACTLY: not on a substring, and not on one exact URL.
     //
     // There are two ways to get this wrong and this filter has now had both. array_diff()
-    // against the single literal 'https://s.w.org' stopped removing anything the moment core
-    // used the other form it has shipped, '//s.w.org', a registered filter quietly doing
-    // nothing. Replacing it with strpos() then over-matched in the other direction:
-    // 'ps.w.org' CONTAINS 's.w.org', and ps.w.org is a real WordPress host, so a hint naming
-    // it would have been stripped as well.
+    // against one exact URL stopped removing anything the moment core used the other,
+    // scheme-relative form it has shipped. Replacing it with strpos() then over-matched in
+    // the other direction: a longer WordPress.org host name contains this one as a
+    // substring, so its hints would have been stripped as well.
     //
     // Entries arrive in more than one shape and all of them have to be handled: a full URL,
     // a scheme-relative '//host', and a BARE host with no scheme at all, because the
@@ -77,11 +80,14 @@ add_action( 'init', function () {
 // fired, so the removal above never catches them on admin pages. Remove again
 // on admin_init, which runs after admin-filters.php has loaded.
 add_action( 'admin_init', function () {
+    if ( '1' !== get_option( 'cscc_disable_emoji_polyfill', '0' ) ) {
+        return;
+    }
     remove_action( 'admin_print_scripts', 'print_emoji_detection_script' );
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.129' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.130' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -97,12 +103,74 @@ require_once __DIR__ . '/includes/class-cloudscale-site-role.php';
 require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cloudscale-error-text.php';
 require_once CLOUDSCALE_CLEANUP_DIR . 'includes/class-cloudscale-telegram.php';
 
+/**
+ * The plugin's filesystem handle: WP_Filesystem's direct transport.
+ *
+ * Every path this plugin moves, removes or tests is a local file it owns under
+ * wp_upload_dir() (recycle bins, chunk folders, converted images), so the direct
+ * transport is the right one whatever FS_METHOD says: an FTP or SSH transport needs
+ * credentials that no AJAX or cron request carries, and would fail the very cleanup
+ * it was asked to do. Only methods that need no FS_CHMOD_* constant are used.
+ *
+ * @since 2.5.130
+ * @return WP_Filesystem_Direct
+ */
+function cscc_fs() {
+    static $fs = null;
+    if ( null === $fs ) {
+        require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
+        require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
+        $fs = new WP_Filesystem_Direct( null );
+    }
+    return $fs;
+}
+
+/**
+ * The uploads folder as it appears in a URL path, relative to the site, with a trailing
+ * slash: 'wp-content/uploads/' on a default install, 'wp-content/uploads/sites/2/' on a
+ * multisite subsite, whatever UPLOADS points at where it has been moved.
+ *
+ * Content is matched on this path rather than on the full base URL so that a reference
+ * written under an old domain, over http, or through a CDN host still counts. Taken from
+ * wp_upload_dir() rather than written out, because a literal 'wp-content/uploads/' missed
+ * every reference on a site with a relocated uploads folder, and the unused-media scan
+ * treats a missed reference as an unused file.
+ *
+ * @since 2.5.130
+ * @return string
+ */
+function cscc_uploads_url_marker(): string {
+    static $marker = null;
+    if ( null === $marker ) {
+        $path = trim( (string) wp_parse_url( wp_upload_dir()['baseurl'], PHP_URL_PATH ), '/' );
+        $site = trim( (string) wp_parse_url( site_url(), PHP_URL_PATH ), '/' );
+        if ( '' !== $site && 0 === strpos( $path . '/', $site . '/' ) ) {
+            $path = substr( $path, strlen( $site ) + 1 );
+        }
+        if ( '' === $path ) {
+            $path = basename( wp_upload_dir()['basedir'] );
+        }
+        $marker = $path . '/';
+    }
+    return $marker;
+}
+
 // Clear opcode cache on activation so updated files take effect immediately
 register_activation_hook( __FILE__, function() {
     if ( function_exists( 'opcache_reset' ) ) {
         opcache_reset();
     }
 } );
+
+// Deactivation stops every schedule this plugin owns; nothing of it should fire while it is
+// switched off. Activation puts them back: the cleanup schedules from the saved settings
+// here, the chunk sweep and health collection from their own activation hooks below.
+register_deactivation_hook( __FILE__, function() {
+    foreach ( array( 'cscc_scheduled_db_cleanup', 'cscc_scheduled_img_cleanup', 'cscc_cleanup_chunks', 'cscc_health_hourly_collect', 'cscc_health_weekly_snapshot' ) as $cscc_hook ) {
+        wp_clear_scheduled_hook( $cscc_hook );
+    }
+} );
+register_activation_hook( __FILE__, 'cscc_schedule_crons' );
 
 // Also clear on every admin page load if version changed
 add_action( 'admin_init', function() {
@@ -203,12 +271,20 @@ function cscc_enqueue_assets( $hook ) {
     // detaches the submenu, and the page is registered as hidden instead). Accepting only
     // tools_page_* loaded no CSS and no JS for such a user, so the panel rendered as raw markup:
     // server-rendered elements were present and every JS-driven one stayed hidden for ever.
+    if ( 'index.php' === $hook ) {
+        // The dashboard widget's hover fade. Attached to a style handle of its own rather
+        // than printed as a <style> tag inside the widget markup.
+        wp_register_style( 'cscc-dashboard', false, array(), CLOUDSCALE_CLEANUP_VERSION );
+        wp_enqueue_style( 'cscc-dashboard' );
+        wp_add_inline_style( 'cscc-dashboard', '.cscc-hov{transition:opacity .15s}.cscc-hov:hover{opacity:.82}' );
+        return;
+    }
     if ( 'tools_page_cloudscale-cleanup' !== $hook && 'admin_page_cloudscale-cleanup' !== $hook ) {
         return;
     }
 
     wp_enqueue_style(
-        'cs-design-system',
+        'cscc-design-system',
         CLOUDSCALE_CLEANUP_URL . 'cloudscale-admin.css',
         array(),
         CLOUDSCALE_CLEANUP_VERSION
@@ -216,7 +292,7 @@ function cscc_enqueue_assets( $hook ) {
     wp_enqueue_style(
         'cloudscale-cleanup-css',
         CLOUDSCALE_CLEANUP_URL . 'admin.css',
-        array( 'cs-design-system' ),
+        array( 'cscc-design-system' ),
         CLOUDSCALE_CLEANUP_VERSION
     );
     wp_enqueue_script(
@@ -250,31 +326,6 @@ function cscc_enqueue_assets( $hook ) {
         . 'console.log("[CSC] Fallback CSC injected inline. wp_localize_script may not have fired.");'
         . '}';
     wp_add_inline_script( 'cloudscale-cleanup-js', $cscc_fallback_js );
-
-    // Tab colours and health metric styles, inline fallback (cache proof).
-    $cscc_inline_css = '
-    .csc-tab:nth-child(1) { background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%) !important; border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(1).active { background: linear-gradient(135deg, #6a1b9a 0%, #9c27b0 100%) !important; border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(1):hover:not(.active) { border-top-color: #ce93d8 !important; }
-    .csc-tab:nth-child(6) { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%) !important; border-top-color: #90caf9 !important; }
-    .csc-tab:nth-child(6).active { background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%) !important; border-top-color: #90caf9 !important; }
-    .csc-tab:nth-child(6):hover:not(.active) { border-top-color: #90caf9 !important; }
-    .csc-tab:nth-child(7) { background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%) !important; border-top-color: #bcaaa4 !important; }
-    .csc-tab:nth-child(7).active { background: linear-gradient(135deg, #4e342e 0%, #6d4c41 100%) !important; border-top-color: #bcaaa4 !important; }
-    .csc-tab:nth-child(7):hover:not(.active) { border-top-color: #bcaaa4 !important; }
-    @media (max-width: 782px) { .csc-help-btn span { display:none !important; } .csc-help-btn::after { content:"Help"; } .csc-help-btn { padding:6px 12px !important; font-size:12px !important; } .csc-header-version { display:none !important; } }
-    div[style*="#fff3e0"] .csc-health-metric,
-    div[style*="#e3f2fd"] .csc-health-metric,
-    div[style*="#f3e5f5"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
-    div[style*="#fff3e0"] .csc-health-metric-label { color: #e65100 !important; }
-    div[style*="#fff3e0"] .csc-health-metric-value { color: #e65100 !important; }
-    div[style*="#efebe9"] .csc-health-metric { background: transparent !important; border-color: transparent !important; }
-    div[style*="#efebe9"] .csc-health-metric-label { color: #4e342e !important; }
-    div[style*="#efebe9"] .csc-health-metric-value:not(#hm-weeks-left) { color: #4e342e !important; }
-    div[style*="#f3e5f5"] .csc-health-metric-label { color: #7b1fa2 !important; }
-    div[style*="#f3e5f5"] .csc-health-metric-value { color: #7b1fa2 !important; }
-    .csc-health-metric { border: none !important; }';
-    wp_add_inline_style( 'cloudscale-cleanup-css', $cscc_inline_css );
 }
 
 // ─── Admin dashboard widget ───────────────────────────────────────────────────
@@ -394,7 +445,6 @@ function cscc_render_dashboard_widget() {
         $runway_col = $rag === 'red' ? '#dc2626' : ( $rag === 'amber' ? '#d97706' : '#0f172a' );
     }
     ?>
-    <style>.cscc-hov{transition:opacity .15s}.cscc-hov:hover{opacity:.82}</style>
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;margin:-12px -12px 0;padding:0">
 
         <!-- Dark header band (full-bleed) -->
@@ -504,7 +554,7 @@ class CSCC_Front_Widget extends WP_Widget {
             'cscc_front_widget',
             'CloudScale Cleanup',
             array(
-                'description' => 'Shows last cleanup run times and links to the CloudScale Cleanup plugin at cloudscale.consulting.',
+                'description' => 'Shows last cleanup run times, with an optional credit link to the plugin author.',
                 'classname'   => 'widget-csc-cleanup',
             )
         );
@@ -558,14 +608,12 @@ class CSCC_Front_Widget extends WP_Widget {
                 </li>
             </ul>
             <div class="csc-fw-links">
-                <a href="https://cloudscale.consulting" target="_blank" rel="noopener" class="csc-fw-link">cloudscale.consulting</a>
+                <?php if ( ! empty( $instance['show_credit'] ) ) : ?><a href="https://cloudscale.consulting" target="_blank" rel="noopener" class="csc-fw-link">cloudscale.consulting</a><?php endif; ?>
                 <?php if ( current_user_can( 'manage_options' ) ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'tools.php?page=cloudscale-cleanup' ) ); ?>" class="csc-fw-link csc-fw-link-admin">Run Cleanup</a>
                 <?php endif; ?>
             </div>
-            <?php if ( ! empty( $instance['show_credit'] ) ) : ?>
-            <p class="csc-fw-credit">Powered by <a href="https://cloudscale.consulting" target="_blank" rel="noopener">CloudScale Cleanup</a></p>
-            <?php endif; ?>
+            <?php if ( ! empty( $instance['show_credit'] ) ) : ?><p class="csc-fw-credit">Powered by <a href="https://cloudscale.consulting" target="_blank" rel="noopener">CloudScale Cleanup</a></p><?php endif; ?>
         </div>
         <?php
         echo wp_kses_post( $args['after_widget'] );
@@ -602,27 +650,18 @@ class CSCC_Front_Widget extends WP_Widget {
     }
 }
 
-// Inline CSS for the front-end widget, only loaded when widget is active
+// Stylesheet for the front-end widget, only loaded when the widget is active
 add_action( 'wp_enqueue_scripts', 'cscc_enqueue_front_widget_styles' );
 function cscc_enqueue_front_widget_styles() {
     if ( ! is_active_widget( false, false, 'cscc_front_widget', true ) ) {
         return;
     }
-    wp_add_inline_style( 'wp-block-library', '
-.csc-front-widget{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13.5px}
-.csc-fw-list{margin:0 0 12px;padding:0;list-style:none}
-.csc-fw-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.07)}
-.csc-fw-list li:last-child{border-bottom:none}
-.csc-fw-label{color:#555;font-size:12.5px}
-.csc-fw-value{font-weight:600;color:#1a1f2e;font-size:12.5px}
-.csc-fw-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.csc-fw-link{display:inline-block;font-size:12px;font-weight:600;padding:6px 12px;border-radius:5px;text-decoration:none;background:#1a1f2e;color:#fff!important;transition:background .15s}
-.csc-fw-link:hover{background:#4a9eff;color:#fff!important}
-.csc-fw-link-admin{background:#27ae60}
-.csc-fw-link-admin:hover{background:#219150}
-.csc-fw-credit{font-size:11px;color:#999;margin:0}
-.csc-fw-credit a{color:#4a9eff;text-decoration:none}
-    ' );
+    wp_enqueue_style(
+        'cscc-front-widget',
+        CLOUDSCALE_CLEANUP_URL . 'front-widget.css',
+        array(),
+        CLOUDSCALE_CLEANUP_VERSION
+    );
 }
 
 // ─── Settings save ────────────────────────────────────────────────────────────
@@ -646,6 +685,7 @@ function cscc_ajax_save_settings() {
     );
     $bools = array(
         'cscc_schedule_db_enabled', 'cscc_schedule_img_enabled', 'cscc_convert_png_to_jpg',
+        'cscc_disable_emoji_polyfill',
     );
     $arrays = array( 'cscc_schedule_db_days', 'cscc_schedule_img_days' );
 
@@ -663,8 +703,11 @@ function cscc_ajax_save_settings() {
             update_option( $f, $val );
         }
     }
+    // The admin script posts every checkbox on the page as '1' or '0', so presence alone is
+    // not "on": an isset() test here saved an unticked box as '1', and a schedule or the PNG
+    // conversion could never be switched off from the settings page.
     foreach ( $bools as $f ) {
-        update_option( $f, isset( $_POST[ $f ] ) ? '1' : '0' );
+        update_option( $f, isset( $_POST[ $f ] ) && '1' === sanitize_key( wp_unslash( $_POST[ $f ] ) ) ? '1' : '0' );
     }
     foreach ( $arrays as $f ) {
         update_option( $f, isset( $_POST[ $f ] ) && is_array( $_POST[ $f ] )
@@ -853,6 +896,7 @@ function cscc_build_db_id_list( $overrides = array() ) {
     };
 
     return array(
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         'revisions'      => $tog( 'cscc_clean_revisions' )      ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type='revision' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $ra ) ) : array(),
         'drafts'         => $tog( 'cscc_clean_drafts' )         ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $da ) ) : array(),
         'trashed'        => $tog( 'cscc_clean_trashed' )        ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='trash' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $ta ) ) : array(),
@@ -864,6 +908,7 @@ function cscc_build_db_id_list( $overrides = array() ) {
 
 function cscc_delete_expired_transients() {
     global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $keys = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%' AND option_value < UNIX_TIMESTAMP()" );
     foreach ( $keys as $k ) { delete_transient( str_replace( '_transient_timeout_', '', $k ) ); }
     return count( $keys );
@@ -871,12 +916,12 @@ function cscc_delete_expired_transients() {
 
 function cscc_delete_orphaned_postmeta() {
     global $wpdb;
-    return (int) $wpdb->query( "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- No user input; table names are trusted $wpdb properties.
+    return (int) $wpdb->query( "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- No user input; table names are trusted $wpdb properties.
 }
 
 function cscc_delete_orphaned_usermeta() {
     global $wpdb;
-    return (int) $wpdb->query( "DELETE um FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- No user input; table names are trusted $wpdb properties.
+    return (int) $wpdb->query( "DELETE um FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- No user input; table names are trusted $wpdb properties.
 }
 
 // Dry run
@@ -894,10 +939,20 @@ function cscc_ajax_scan_db() {
         || isset( $_POST['cscc_clean_drafts'] )
         || isset( $_POST['cscc_clean_transients'] );
 
-    $toggle = function( $opt ) use ( $has_post_toggles ) {
+    // Read here, after the nonce check, so the closure below never touches $_POST itself.
+    $post_toggles = array();
+    foreach ( array(
+        'cscc_clean_revisions', 'cscc_clean_drafts', 'cscc_clean_trashed', 'cscc_clean_autodrafts',
+        'cscc_clean_transients', 'cscc_clean_orphan_post', 'cscc_clean_orphan_user',
+        'cscc_clean_spam_comments', 'cscc_clean_trash_comments',
+    ) as $k ) {
+        $post_toggles[ $k ] = isset( $_POST[ $k ] ) && '1' === sanitize_key( wp_unslash( $_POST[ $k ] ) );
+    }
+
+    $toggle = function( $opt ) use ( $has_post_toggles, $post_toggles ) {
         if ( $has_post_toggles ) {
             // Full UI submission, use POST value, absent = '0' (toggled off)
-            return isset( $_POST[ $opt ] ) && wp_unslash( $_POST[ $opt ] ) === '1'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.NonceVerification.Missing -- boolean toggle, validated via strict comparison; nonce verified in outer function
+            return ! empty( $post_toggles[ $opt ] );
         }
         // No UI data sent (e.g. scheduled run), use DB
         return get_option( $opt, '1' ) === '1';
@@ -919,6 +974,7 @@ function cscc_ajax_scan_db() {
     $lines = array();
 
     if ( $toggle( 'cscc_clean_revisions' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $revisions = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_title, post_date FROM {$wpdb->posts} WHERE post_type='revision' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY post_date DESC LIMIT 1000", $ra ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Post Revisions (older than ' . $ra . ' days)' );
         foreach ( $revisions as $r ) { $lines[] = array( 'type' => 'item', 'text' => '  [REVISION] ID ' . $r->ID . ', ' . esc_html( $r->post_title ) . ' (' . $r->post_date . ')' ); }
@@ -928,6 +984,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_drafts' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $drafts = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_title, post_date FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY post_date DESC LIMIT 500", $da ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Draft Posts (older than ' . $da . ' days)' );
         foreach ( $drafts as $d ) { $lines[] = array( 'type' => 'item', 'text' => '  [DRAFT] ID ' . $d->ID . ', ' . esc_html( $d->post_title ) . ' (' . $d->post_date . ')' ); }
@@ -937,6 +994,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_trashed' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $trashed = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_title, post_modified FROM {$wpdb->posts} WHERE post_status='trash' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY post_modified DESC LIMIT 500", $ta ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Trashed Posts (older than ' . $ta . ' days)' );
         foreach ( $trashed as $t ) { $lines[] = array( 'type' => 'item', 'text' => '  [TRASH] ID ' . $t->ID . ', ' . esc_html( $t->post_title ) . ' (' . $t->post_modified . ')' ); }
@@ -946,6 +1004,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_autodrafts' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $cnt_auto = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status='auto-draft' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $aa ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Auto-Drafts (older than ' . $aa . ' days)' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_auto );
@@ -954,8 +1013,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_transients' ) ) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-        $cnt_t = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%' AND option_value < UNIX_TIMESTAMP()" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no user input, table name is trusted $wpdb property
+        $cnt_t = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_%' AND option_value < UNIX_TIMESTAMP()" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- no user input, table name is trusted $wpdb property
         $lines[] = array( 'type' => 'section', 'text' => 'Expired Transients' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_t );
     } else {
@@ -963,7 +1021,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_orphan_post' ) ) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $cnt_pm = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE p.ID IS NULL" ); // no user input, table names are trusted $wpdb properties
         $lines[] = array( 'type' => 'section', 'text' => 'Orphaned Post Meta' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_pm . ' rows' );
@@ -972,7 +1030,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_orphan_user' ) ) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $cnt_um = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->usermeta} um LEFT JOIN {$wpdb->users} u ON um.user_id = u.ID WHERE u.ID IS NULL" ); // no user input, table names are trusted $wpdb properties
         $lines[] = array( 'type' => 'section', 'text' => 'Orphaned User Meta' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_um . ' rows' );
@@ -981,6 +1039,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_spam_comments' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $cnt_spam = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved='spam' AND comment_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $sa ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Spam Comments (older than ' . $sa . ' days)' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_spam );
@@ -989,6 +1048,7 @@ function cscc_ajax_scan_db() {
     }
 
     if ( $toggle( 'cscc_clean_trash_comments' ) ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $cnt_tc = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved='trash' AND comment_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $tca ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Trashed Comments (older than ' . $tca . ' days)' );
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . $cnt_tc );
@@ -1016,7 +1076,7 @@ function cscc_ajax_db_start() {
     $overrides = array();
     foreach ( $toggle_keys as $k ) {
         if ( isset( $_POST[ $k ] ) ) {
-            $overrides[ $k ] = wp_unslash( $_POST[ $k ] ) === '1' ? '1' : '0'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- boolean toggle, validated via strict comparison
+            $overrides[ $k ] = '1' === sanitize_key( wp_unslash( $_POST[ $k ] ) ) ? '1' : '0';
         }
     }
 
@@ -1123,23 +1183,26 @@ function cscc_ajax_autoload_scan() {
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $total_size  = (int) $wpdb->get_var( "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $total_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
 
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows = $wpdb->get_results( "SELECT option_name, LENGTH(option_value) AS size FROM {$wpdb->options} WHERE autoload NOT IN ('no','off') ORDER BY size DESC LIMIT 20" );
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $expired_count = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d",
         '_transient_timeout_%', time()
     ) );
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $transient_count = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name LIKE %s AND autoload NOT IN ('no','off')",
         '\_transient\_%'
     ) );
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $transient_size  = (int) $wpdb->get_var( $wpdb->prepare(
         "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE option_name LIKE %s AND autoload NOT IN ('no','off')",
         '\_transient\_%'
@@ -1222,7 +1285,7 @@ function cscc_ajax_autoload_chunk() {
                 $lines[] = array( 'type' => 'count', 'text' => '  Deleted ' . $n . ' expired transients.' );
                 break;
             case 'disable_transient_autoload':
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
                 $n       = (int) $wpdb->query( "UPDATE {$wpdb->options} SET autoload='no' WHERE (option_name LIKE '\_transient\_%' OR option_name LIKE '\_site\_transient\_%') AND autoload NOT IN ('no','off')" );
                 $lines[] = array( 'type' => 'count', 'text' => '  Disabled autoload on ' . $n . ' transient rows.' );
                 break;
@@ -1382,7 +1445,7 @@ function cscc_orphan_known_prefix_map(): array {
 function cscc_find_orphaned_options(): array {
     global $wpdb;
 
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows = $wpdb->get_results(
         "SELECT option_name, LENGTH(option_value) AS size FROM {$wpdb->options} ORDER BY size DESC"
     );
@@ -1489,7 +1552,7 @@ function cscc_ajax_orphan_delete() {
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    $names  = isset( $_POST['options'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['options'] ) ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    $names  = isset( $_POST['options'] ) ? array_map( 'sanitize_text_field', wp_unslash( (array) $_POST['options'] ) ) : array(); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
     $batch  = time();
     $bin    = cscc_orphan_bin_get();
     $moved  = 0;
@@ -1498,7 +1561,7 @@ function cscc_ajax_orphan_delete() {
         $name = sanitize_text_field( wp_unslash( $name ) );
         if ( empty( $name ) || cscc_orphan_is_core( $name ) ) { continue; }
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $row = $wpdb->get_row( $wpdb->prepare(
             "SELECT option_value, autoload FROM {$wpdb->options} WHERE option_name = %s",
             $name
@@ -1535,9 +1598,9 @@ function cscc_ajax_orphan_restore() {
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
     $batch     = isset( $_POST['batch'] ) ? (int) sanitize_text_field( wp_unslash( $_POST['batch'] ) ) : 0;
-    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
     $single    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
     $bin       = cscc_orphan_bin_get();
     $restored  = 0;
@@ -1550,7 +1613,7 @@ function cscc_ajax_orphan_restore() {
                        || ( ! $single && ! $batch );
 
         if ( $should_restore ) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
             $wpdb->insert( $wpdb->options, array(
                 'option_name'  => $entry['name'],
                 'option_value' => $entry['raw_value'],
@@ -1636,7 +1699,7 @@ function cscc_table_overhead_rag( int $bytes ): string {
  */
 function cscc_table_overhead_total(): int {
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $total = 0;
     foreach ( $rows as $row ) { $total += (int) $row->Data_free; }
@@ -1655,7 +1718,7 @@ function cscc_ajax_table_scan() {
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows   = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $tables = array();
     $total  = 0;
@@ -1714,7 +1777,7 @@ function cscc_ajax_table_start() {
     if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.SchemaChange -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows  = $wpdb->get_results( $wpdb->prepare( 'SHOW TABLE STATUS WHERE `Name` LIKE %s', $wpdb->esc_like( $wpdb->prefix ) . '%' ) );
     $queue = array();
     foreach ( $rows as $row ) {
@@ -1754,11 +1817,11 @@ function cscc_ajax_table_chunk() {
     $lines = array();
     if ( $item ) {
         $table = $item['table'];
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $before = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.SchemaChange
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.DirectDatabaseQuery.SchemaChange -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $wpdb->query( 'OPTIMIZE TABLE `' . esc_sql( $table ) . '`' );
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $after   = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT Data_free FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s', DB_NAME, $table ) );
         $saved   = max( 0, $before - $after );
         $lines[] = array( 'type' => 'count', 'text' => sprintf( '  %-45s  saved: %s', $table, size_format( $saved ) ) );
@@ -1807,7 +1870,7 @@ function cscc_ajax_regen_thumb_scan() {
     global $wpdb;
 
     // Only check images actively in use as featured images, site logo, or site icon.
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $candidate_ids = array_map( 'intval', $wpdb->get_col(
         "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_thumbnail_id' AND meta_value != '0'"
     ) );
@@ -1937,16 +2000,18 @@ function cscc_get_used_attachment_ids() {
     $used = array();
 
     // Featured images
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     foreach ( $wpdb->get_col( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key='_thumbnail_id'" ) as $id ) {
         $used[ intval( $id ) ] = true;
     }
 
     // Gutenberg block IDs and legacy class-based image references, batch to avoid loading all content at once
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $post_ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status='publish' AND post_type NOT IN ('attachment','revision')" );
     $contents = array();
     foreach ( array_chunk( $post_ids, 50 ) as $batch ) {
         $placeholders = implode( ',', array_fill( 0, count( $batch ), '%d' ) );
-        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is $wpdb->posts (trusted), placeholders are generated %d strings
+        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- table name is $wpdb->posts (trusted), placeholders are generated %d strings; bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         $rows = $wpdb->get_col( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID IN ($placeholders)", $batch ) );
         $contents = array_merge( $contents, $rows );
         unset( $rows );
@@ -1956,7 +2021,7 @@ function cscc_get_used_attachment_ids() {
     $upload_dir  = wp_upload_dir();
     $upload_url  = trailingslashit( $upload_dir['baseurl'] );
     $file_to_id  = array();
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $rows = $wpdb->get_results( "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key='_wp_attached_file'" ); // no user input, table name is trusted $wpdb property
     foreach ( $rows as $row ) {
         $file_to_id[ $row->meta_value ] = intval( $row->post_id );
@@ -1966,6 +2031,7 @@ function cscc_get_used_attachment_ids() {
         $file_to_id[ '__base__' . $dir . '/' . $base ] = intval( $row->post_id );
     }
 
+    $uploads_marker = cscc_uploads_url_marker();
     foreach ( $contents as $c ) {
         // Standard wp-image-NNN class detection
         if ( preg_match_all( '/wp-image-(\d+)/i', $c, $m ) ) {
@@ -1976,13 +2042,13 @@ function cscc_get_used_attachment_ids() {
             foreach ( $m[1] as $id ) { $used[ intval( $id ) ] = true; }
         }
 
-        // URL based detection: find all image URLs in wp-content/uploads and resolve to attachment IDs
-        if ( preg_match_all( '/(?:src|href)=["\']([^"\']*wp-content\/uploads\/[^"\']+)/i', $c, $url_matches ) ) {
+        // URL based detection: find all image URLs in the uploads folder and resolve to attachment IDs
+        if ( preg_match_all( '/(?:src|href)=["\']([^"\']*' . preg_quote( $uploads_marker, '/' ) . '[^"\']+)/i', $c, $url_matches ) ) {
             foreach ( $url_matches[1] as $url ) {
-                // Extract relative path after uploads/
-                $pos = strpos( $url, 'wp-content/uploads/' );
+                // Extract relative path after the uploads folder
+                $pos = strpos( $url, $uploads_marker );
                 if ( $pos === false ) { continue; }
-                $rel = substr( $url, $pos + strlen( 'wp-content/uploads/' ) );
+                $rel = substr( $url, $pos + strlen( $uploads_marker ) );
 
                 // Direct match (original file referenced by URL)
                 if ( isset( $file_to_id[ $rel ] ) ) {
@@ -2009,6 +2075,7 @@ function cscc_get_used_attachment_ids() {
     }
 
     // Widget options and theme mods
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $opts = $wpdb->get_col( "SELECT option_value FROM {$wpdb->options} WHERE option_name LIKE 'widget_%' OR option_name LIKE 'theme_mods_%'" );
     foreach ( $opts as $v ) {
         if ( preg_match_all( '/"id"\s*:\s*(\d+)/i', $v, $m ) ) {
@@ -2143,8 +2210,8 @@ function cscc_media_recycle_ensure_dir(): bool {
     $test_path = $files_dir . '.write-test';
     if ( false === @file_put_contents( $test_path, '' ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- write test, no WP_Filesystem equivalent
         // Attempt chmod in case the dir was created by a different process/user
-        @chmod( $dir, 0755 );
-        @chmod( $files_dir, 0755 );
+        cscc_fs()->chmod( $dir, 0755 );
+        cscc_fs()->chmod( $files_dir, 0755 );
         if ( false === @file_put_contents( $test_path, '' ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- write test after chmod
             error_log( '[CSC] Media recycle files directory is not writable (chmod attempted): ' . $files_dir ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem error logging
             return false;
@@ -2220,6 +2287,10 @@ function cscc_media_recycle_write_manifest( array $manifest ): bool {
         return false;
     }
 
+    // A plain rename(), deliberately: replacing the manifest in one step is what makes this
+    // write atomic. WP_Filesystem::move() with overwrite deletes the destination first, which
+    // would reopen the window in which no manifest exists at all.
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic replace of the plugin's own manifest; move() would delete it first
     if ( ! @rename( $tmp, $path ) ) {
         // Fallback: direct write if rename fails (cross device)
         $written = file_put_contents( $path, $json ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- local atomic write fallback
@@ -2242,6 +2313,7 @@ function cscc_media_recycle_save_attachment( int $id ): array {
     $post = get_post( $id, ARRAY_A );
     if ( ! $post ) { return array( 'error' => 'Attachment post not found for ID ' . $id ); }
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- snapshots every meta row of the attachment verbatim so the recycle bin can restore it exactly
     $meta = $wpdb->get_results(
         $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d", $id ),
         ARRAY_A
@@ -2299,12 +2371,9 @@ function cscc_media_recycle_save_attachment( int $id ): array {
             $errors[] = 'Cannot create dir for: ' . $rel;
             continue;
         }
-        if ( @rename( $src_path, $dest ) ) {
-            $files_moved[]        = $rel;
-            $stored_map[ $rel ]   = $stored_rel;
-        } elseif ( @copy( $src_path, $dest ) ) {
-            // copy succeeded; best-effort remove source (non-fatal if unlink fails)
-            @unlink( $src_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
+        // move() renames, and across filesystems falls back to copy-then-delete, where a
+        // failed delete of the source is non-fatal: the file is safely in the bin either way.
+        if ( cscc_fs()->move( $src_path, $dest, true ) ) {
             $files_moved[]        = $rel;
             $stored_map[ $rel ]   = $stored_rel;
         } else {
@@ -2312,7 +2381,7 @@ function cscc_media_recycle_save_attachment( int $id ): array {
             $src_ok   = file_exists( $src_path ) ? 'Y' : 'N';
             $dest_dir = dirname( $dest );
             $dir_ok   = is_dir( $dest_dir ) ? 'Y' : 'N';
-            $dir_w    = is_writable( $dest_dir ) ? 'Y' : 'N';
+            $dir_w    = cscc_fs()->is_writable( $dest_dir ) ? 'Y' : 'N';
             $errors[] = 'Failed to move: ' . $rel . ' [src=' . $src_ok . ',dir=' . $dir_ok . ',w=' . $dir_w . ']';
             error_log( '[CSC] Cannot move: ' . $src_path . ' -> ' . $dest . ' src=' . $src_ok . ' dir=' . $dir_ok . ' writable=' . $dir_w ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- filesystem diagnostic logging
         }
@@ -2432,7 +2501,9 @@ function cscc_ajax_img_chunk() {
 
                 // Remove DB records directly, files are already moved, so skip wp_delete_attachment()
                 // which is very slow due to hook firing (thumbnail deletion, cache clearing, etc.)
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- removes the attachment rows directly; its files are already in the recycle bin, and wp_delete_attachment() would try to delete them again
                 $wpdb->delete( $wpdb->posts,    array( 'ID'      => $id ), array( '%d' ) );
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- removes the attachment rows directly; its files are already in the recycle bin, and wp_delete_attachment() would try to delete them again
                 $wpdb->delete( $wpdb->postmeta, array( 'post_id' => $id ), array( '%d' ) );
                 clean_post_cache( $id );
 
@@ -2578,10 +2649,8 @@ function cscc_ajax_media_restore() {
                     $file_errors[] = 'Cannot create dir for: ' . $rel;
                     continue;
                 }
-                if ( ! @rename( $src, $dest ) ) {
-                    if ( ! ( copy( $src, $dest ) && unlink( $src ) ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
-                        $file_errors[] = 'Move failed: ' . $rel;
-                    }
+                if ( ! cscc_fs()->move( $src, $dest, true ) ) {
+                    $file_errors[] = 'Move failed: ' . $rel;
                 }
             }
 
@@ -2601,11 +2670,13 @@ function cscc_ajax_media_restore() {
             if ( ! empty( $entry['meta'] ) ) {
                 global $wpdb;
                 foreach ( $entry['meta'] as $row ) {
+                    // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.SlowDBQuery.slow_db_query_meta_key,WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- restores the attachment's meta rows verbatim from the recycle manifest; add_post_meta() would re-run sanitise and filter hooks on values that were already stored once, and this is an INSERT, not a meta query
                     $wpdb->insert( $wpdb->postmeta, array(
                         'post_id'    => $new_id,
                         'meta_key'   => $row['meta_key'],
                         'meta_value' => $row['meta_value'],
                     ) );
+                    // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.SlowDBQuery.slow_db_query_meta_key,WordPress.DB.SlowDBQuery.slow_db_query_meta_value
                 }
             }
 
@@ -2668,9 +2739,7 @@ function cscc_ajax_media_restore_single() {
             $dest   = $base . $rel;
             if ( file_exists( $src ) ) {
                 wp_mkdir_p( dirname( $dest ) );
-                if ( ! @rename( $src, $dest ) ) {
-                    copy( $src, $dest ) && unlink( $src ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- plugin-owned file, path validated against upload dir
-                }
+                cscc_fs()->move( $src, $dest, true );
             }
         }
 
@@ -2687,11 +2756,13 @@ function cscc_ajax_media_restore_single() {
         if ( ! empty( $entry['meta'] ) ) {
             global $wpdb;
             foreach ( $entry['meta'] as $row ) {
+                // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.SlowDBQuery.slow_db_query_meta_key,WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- restores the attachment's meta rows verbatim from the recycle manifest; add_post_meta() would re-run sanitise and filter hooks on values that were already stored once, and this is an INSERT, not a meta query
                 $wpdb->insert( $wpdb->postmeta, array(
                     'post_id'    => $new_id,
                     'meta_key'   => $row['meta_key'],
                     'meta_value' => $row['meta_value'],
                 ) );
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.SlowDBQuery.slow_db_query_meta_key,WordPress.DB.SlowDBQuery.slow_db_query_meta_value
             }
         }
 
@@ -2828,12 +2899,14 @@ function cscc_scan_orphan_files_with_exts( array $exts ): array {
 
     // 1. Files registered in attachment metadata
     $db_files = array();
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     foreach ( $wpdb->get_col( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key='_wp_attached_file'" ) as $f ) {
         $db_files[ $base . $f ] = true;
     }
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     foreach ( $wpdb->get_col( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key='_wp_attachment_metadata'" ) as $raw ) {
         // Deserialising WordPress's own postmeta: safe, written only by WP core attachment APIs.
-        $data = maybe_unserialize( $raw ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_maybe_unserialize -- reading WP core postmeta
+        $data = maybe_unserialize( $raw );
         if ( ! is_array( $data ) || ! isset( $data['file'] ) ) { continue; }
         $dir = trailingslashit( $base . dirname( $data['file'] ) );
         if ( isset( $data['sizes'] ) && is_array( $data['sizes'] ) ) {
@@ -2844,14 +2917,18 @@ function cscc_scan_orphan_files_with_exts( array $exts ): array {
     }
 
     // 2. Files referenced by URL in published post content
-    $contents = $wpdb->get_col(
+    $uploads_marker = cscc_uploads_url_marker();
+    $marker_regex   = '/' . preg_quote( $uploads_marker, '/' ) . '([^"\'<>\s\)]+)/i';
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
+    $contents = $wpdb->get_col( $wpdb->prepare(
         "SELECT post_content FROM {$wpdb->posts}
          WHERE post_status = 'publish'
          AND post_type NOT IN ('attachment','revision')
-         AND post_content LIKE '%wp-content/uploads/%'"
-    );
+         AND post_content LIKE %s",
+        '%' . $wpdb->esc_like( $uploads_marker ) . '%'
+    ) );
     foreach ( $contents as $c ) {
-        if ( preg_match_all( '/wp-content\/uploads\/([^"\'<>\s\)]+)/i', $c, $m ) ) {
+        if ( preg_match_all( $marker_regex, $c, $m ) ) {
             foreach ( $m[1] as $rel ) {
                 $rel = strtok( $rel, '?' ); // strip query strings
                 $db_files[ $base . $rel ] = true;
@@ -2860,9 +2937,10 @@ function cscc_scan_orphan_files_with_exts( array $exts ): array {
     }
 
     // 3. Files referenced in widget options and theme mods
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $opts = $wpdb->get_col( "SELECT option_value FROM {$wpdb->options} WHERE option_name LIKE 'widget_%' OR option_name LIKE 'theme_mods_%'" );
     foreach ( $opts as $v ) {
-        if ( preg_match_all( '/wp-content\/uploads\/([^"\'<>\s\)]+)/i', $v, $m ) ) {
+        if ( preg_match_all( $marker_regex, $v, $m ) ) {
             foreach ( $m[1] as $rel ) {
                 $rel = strtok( $rel, '?' );
                 $db_files[ $base . $rel ] = true;
@@ -3022,7 +3100,7 @@ function cscc_ajax_recycle_orphan_files() {
             continue;
         }
 
-        if ( rename( $o['path'], $dest ) ) {
+        if ( cscc_fs()->move( $o['path'], $dest, true ) ) {
             $manifest[ $rel ] = $o['path'];
             $lines[] = array( 'type' => 'deleted', 'text' => '  [RECYCLED] ' . $rel . ' (' . size_format( $o['size'] ) . ')' );
             $moved++;
@@ -3086,7 +3164,7 @@ function cscc_ajax_restore_orphan_files() {
             continue;
         }
 
-        if ( rename( $recycle_path, $original_path ) ) {
+        if ( cscc_fs()->move( $recycle_path, $original_path, true ) ) {
             $lines[] = array( 'type' => 'success', 'text' => '  [RESTORED] ' . $rel );
             $restored++;
             unset( $manifest[ $rel ] );
@@ -3230,7 +3308,7 @@ function cscc_ajax_recycle_restore_single() {
     $dest_dir = dirname( $original_path );
     if ( ! wp_mkdir_p( $dest_dir ) ) { wp_send_json_error( 'Could not create destination directory.' ); }
 
-    if ( ! rename( $recycle_path, $original_path ) ) { wp_send_json_error( 'Failed to move file.' ); }
+    if ( ! cscc_fs()->move( $recycle_path, $original_path, true ) ) { wp_send_json_error( 'Failed to move file.' ); }
 
     unset( $manifest[ $rel ] );
     if ( empty( $manifest ) ) {
@@ -3257,16 +3335,7 @@ function cscc_ajax_recycle_status() {
 
 function cscc_rmdir_recursive( string $dir ): void {
     if ( ! is_dir( $dir ) ) { return; }
-    try {
-        $iter = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
-            RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ( $iter as $f ) {
-            $f->isDir() ? rmdir( $f->getRealPath() ) : wp_delete_file( $f->getRealPath() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- recursive removal of plugin-owned temp dirs
-        }
-    } catch ( Exception $e ) {} // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch,Squiz.Commenting.EmptyCatchComment.Missing -- intentional: fall through silently if operation fails
-    rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir
+    cscc_fs()->rmdir( $dir, true );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3522,22 +3591,21 @@ function cscc_ajax_optimise_chunk() {
 
         // PNG to JPEG conversion, save to temp first, check gain, then commit or discard.
         if ( $convert_png && $mime === 'image/png' ) {
-            $new_file = preg_replace( '/\.png$/i', '.jpg', $file );
-            $tmp_file = $new_file . '.csc-tmp';
-            $result   = $editor->save( $tmp_file, 'image/jpeg' );
+            // Saved straight to a NEW file beside the original, the way core's image editor
+            // does it: nothing existing is overwritten, and wp_unique_filename() keeps an
+            // unrelated photo.jpg next to photo.png from being clobbered by the conversion.
+            $new_file = trailingslashit( dirname( $file ) ) . wp_unique_filename( dirname( $file ), preg_replace( '/\.png$/i', '.jpg', basename( $file ) ) );
+            $result   = $editor->save( $new_file, 'image/jpeg' );
             if ( is_wp_error( $result ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' PNG→JPEG: ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
             }
-            $actual_path = $result['path'];
-            if ( $actual_path !== $tmp_file ) {
-                @rename( $actual_path, $tmp_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-            }
-            $size_new = file_exists( $tmp_file ) ? filesize( $tmp_file ) : 0;
+            $new_file = $result['path'];
+            $size_new = file_exists( $new_file ) ? filesize( $new_file ) : 0;
             $saved    = max( 0, $size_old - $size_new );
             $gain_pct = $size_old > 0 ? ( $saved / $size_old ) * 100 : 0;
             if ( $size_new >= $size_old || $gain_pct < $min_gain_pct ) {
-                wp_delete_file( $tmp_file );
+                wp_delete_file( $new_file );
                 $lines[] = array( 'type' => 'info', 'text' => '  Skipped ID ' . $id . ', ' . esc_html( $title ) . ' (gain only ' . round( $gain_pct ) . '%, below ' . $min_gain_pct . '% threshold).' );
                 continue;
             }
@@ -3548,7 +3616,6 @@ function cscc_ajax_optimise_chunk() {
             // left the attachment pointing at a file that no longer existed, a permanently broken
             // image. Now the worst a kill in that gap leaves is an orphaned .png on disk, which
             // costs a little space and breaks nothing.
-            @rename( $tmp_file, $new_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
             update_attached_file( $id, $new_file );
             wp_delete_file( $file );
             $meta = wp_generate_attachment_metadata( $id, $new_file );
@@ -3563,13 +3630,9 @@ function cscc_ajax_optimise_chunk() {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
             }
-            $actual_path = $result['path'];
-            if ( $actual_path !== $tmp_file ) {
-                // WP image editor may save to a slightly different path (e.g. it appends the
-                // correct extension).  Simply move that file to our canonical tmp name.
-                // Do NOT wp_delete_file() first, that deletes the only copy we have.
-                @rename( $actual_path, $tmp_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-            }
+            // WP image editor may save to a slightly different path (e.g. it appends the
+            // correct extension), so the temp file is wherever the editor says it put it.
+            $tmp_file = $result['path'];
             // Safety: if temp still doesn't exist after rename, abort, original must not be touched.
             if ( ! file_exists( $tmp_file ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ', temp file missing after save; original preserved.' );
@@ -3591,7 +3654,8 @@ function cscc_ajax_optimise_chunk() {
             // gone and the replacement not yet in place, and a request killed in that window
             // destroyed the image outright, with no copy anywhere. That window is why this handler
             // appeared to need a raised time limit; closing it is what let the limit go.
-            @rename( $tmp_file, $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic in-place replace of the attachment's file; WP_Filesystem::move() deletes the destination first, the exact window described above
+            @rename( $tmp_file, $file );
             if ( $resized ) {
                 // Dimensions changed, regenerate thumbnails at new size.
                 $meta = wp_generate_attachment_metadata( $id, $file );
@@ -3661,10 +3725,12 @@ function cscc_update_image_references( $attachment_id, $old_file, $new_file ) {
     $old_url    = $upload_dir['baseurl'] . '/' . ltrim( str_replace( $base, '', $old_file ), '/' );
     $new_url    = $upload_dir['baseurl'] . '/' . ltrim( str_replace( $base, '', $new_file ), '/' );
 
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off bulk rewrite of image URLs in post content after a PNG to JPEG conversion; no WordPress API does a bulk replace
     $wpdb->query( $wpdb->prepare(
         "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
         $old_url, $new_url, '%' . $wpdb->esc_like( basename( $old_file ) ) . '%'
     ) );
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- repoints the converted attachment guid; no WordPress API updates a guid
     $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->posts} SET guid = %s WHERE ID = %d", $new_url, $attachment_id ) );
 }
 
@@ -3710,12 +3776,7 @@ function cscc_cspj_chunk_dir( $upload_id ) {
 
 function cscc_cspj_delete_dir( $dir ) {
     if ( ! file_exists( $dir ) ) { return; }
-    $it    = new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS );
-    $files = new RecursiveIteratorIterator( $it, RecursiveIteratorIterator::CHILD_FIRST );
-    foreach ( $files as $file ) {
-        $file->isDir() ? rmdir( $file->getRealPath() ) : wp_delete_file( $file->getRealPath() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- recursive removal of plugin-owned temp dirs
-    }
-    rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rmdir_rmdir -- plugin-owned temp dir
+    cscc_fs()->rmdir( $dir, true );
 }
 
 function cscc_cspj_resolve_dimensions( $size, $ow, $oh, $cw, $ch, $constrain ) {
@@ -3846,7 +3907,11 @@ function cscc_ajax_cspj_chunk_upload() {
     if ( $upload_id === '' || $index < 0 || $total <= 0 ) {
         wp_send_json_error( 'Invalid chunk parameters.' );
     }
-    if ( empty( $_FILES['chunk'] ) || ! is_uploaded_file( $_FILES['chunk']['tmp_name'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- tmp_name is a server-generated path from PHP's upload mechanism, not user-supplied
+    // Read once, each value sanitised on the line that reads it. tmp_name and size are set by
+    // PHP's upload handling, and is_uploaded_file() below confirms the path is one PHP created.
+    $chunk_tmp  = isset( $_FILES['chunk']['tmp_name'] ) && is_string( $_FILES['chunk']['tmp_name'] ) ? sanitize_text_field( $_FILES['chunk']['tmp_name'] ) : '';
+    $chunk_size = isset( $_FILES['chunk']['size'] ) ? absint( $_FILES['chunk']['size'] ) : 0;
+    if ( '' === $chunk_tmp || ! is_uploaded_file( $chunk_tmp ) ) {
         wp_send_json_error( 'No chunk received by the server.' );
     }
 
@@ -3871,7 +3936,7 @@ function cscc_ajax_cspj_chunk_upload() {
 
     $chunk_mb    = cscc_get_cspj_chunk_mb();
     $chunk_bytes = intval( floor( $chunk_mb * 1048576 ) );
-    if ( $_FILES['chunk']['size'] > $chunk_bytes + 4096 ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- size is a server-generated integer from PHP's upload mechanism, not user-supplied
+    if ( $chunk_size > $chunk_bytes + 4096 ) {
         wp_send_json_error( 'Chunk exceeds configured chunk size of ' . $chunk_mb . ' MB.' );
     }
 
@@ -3880,7 +3945,9 @@ function cscc_ajax_cspj_chunk_upload() {
     if ( $real_dir === false || strpos( realpath( dirname( $part ) ) . DIRECTORY_SEPARATOR, $real_dir . DIRECTORY_SEPARATOR ) !== 0 ) {
         wp_send_json_error( 'Invalid chunk destination.' );
     }
-    if ( ! move_uploaded_file( $_FILES['chunk']['tmp_name'], $part ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- tmp_name is a server-generated path from PHP's upload mechanism, not user-supplied
+    // is_uploaded_file() above has already confirmed $chunk_tmp is PHP's own upload, which is
+    // the check move_uploaded_file() would have made.
+    if ( ! cscc_fs()->move( $chunk_tmp, $part, true ) ) {
         wp_send_json_error( 'Server failed to write chunk to disk.' );
     }
     wp_send_json_success( array( 'index' => $index ) );
@@ -3899,7 +3966,7 @@ function cscc_ajax_cspj_chunk_finish() {
     $size       = sanitize_text_field( wp_unslash( $_POST['size'] ?? 'original' ) );
     $custom_w   = intval( wp_unslash( $_POST['custom_w'] ?? 0 ) );
     $custom_h   = intval( wp_unslash( $_POST['custom_h'] ?? 0 ) );
-    $constrain  = isset( $_POST['constrain'] ) && wp_unslash( $_POST['constrain'] ) === '1'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- boolean toggle, validated via strict comparison
+    $constrain  = isset( $_POST['constrain'] ) && '1' === sanitize_key( wp_unslash( $_POST['constrain'] ) );
 
     $dir       = cscc_cspj_chunk_dir( $upload_id );
     $meta_path = trailingslashit( $dir ) . 'meta.json';
@@ -3930,11 +3997,11 @@ function cscc_ajax_cspj_chunk_finish() {
     for ( $i = 0; $i < $total; $i++ ) {
         $part = trailingslashit( $dir ) . sprintf( 'chunk-%06d.part', $i );
         $in   = fopen( $part, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- local binary chunk assembly, WP_Filesystem does not support binary stream operations
-        if ( ! $in ) { fclose( $out ); wp_send_json_error( 'Failed to read chunk ' . $i . '.' ); }
+        if ( ! $in ) { fclose( $out ); wp_send_json_error( 'Failed to read chunk ' . $i . '.' ); } // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the stream opened above; WP_Filesystem has no stream or append API, and joining up to 200 MB of parts in memory would exceed the PHP memory limit
         stream_copy_to_stream( $in, $out );
-        fclose( $in );
+        fclose( $in ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the chunk stream opened above (see the fopen() note)
     }
-    fclose( $out );
+    fclose( $out ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the assembled-file stream opened above (see the fopen() note)
 
     $finfo = finfo_open( FILEINFO_MIME_TYPE );
     $mime  = finfo_file( $finfo, $assembled );
@@ -3972,10 +4039,15 @@ function cscc_ajax_cspj_add_to_library() {
 
     if ( ! file_exists( $path ) ) { wp_send_json_error( 'File not found on disk.' ); }
 
+    // Resolved before the prefix test: a raw strpos() against basedir accepted
+    // "<basedir>/../../anything", which then got renamed and registered as an attachment.
     $upload_dir = wp_upload_dir();
-    if ( strpos( $path, $upload_dir['basedir'] ) !== 0 ) {
+    $real_path  = realpath( $path );
+    $real_base  = realpath( $upload_dir['basedir'] );
+    if ( false === $real_path || false === $real_base || 0 !== strpos( $real_path, trailingslashit( $real_base ) ) ) {
         wp_send_json_error( 'Invalid file path.' );
     }
+    $path = $real_path;
 
     $final_path = $path;
     $final_url  = $url;
@@ -3995,7 +4067,7 @@ function cscc_ajax_cspj_add_to_library() {
         }
 
         if ( $proposed !== $path ) {
-            if ( ! rename( $path, $proposed ) ) {
+            if ( ! cscc_fs()->move( $path, $proposed ) ) {
                 wp_send_json_error( 'Could not rename the file on disk.' );
             }
             $final_path = $proposed;
@@ -4039,8 +4111,10 @@ function cscc_ajax_scan_broken_images() {
     $upload_dir = wp_upload_dir();
     $upload_url = trailingslashit( $upload_dir['baseurl'] );
     $upload_base = trailingslashit( $upload_dir['basedir'] );
+    $uploads_marker = cscc_uploads_url_marker();
 
     // Get total count on first call
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $total = $wpdb->get_var(
         "SELECT COUNT(*) FROM {$wpdb->posts}
          WHERE post_status = 'publish'
@@ -4050,7 +4124,7 @@ function cscc_ajax_scan_broken_images() {
 
     // Get batch of posts containing images
     $like_img = '%' . $wpdb->esc_like( '<img' ) . '%';
-    $posts = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is $wpdb->posts, not user input
+    $posts = $wpdb->get_results( $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- table name is $wpdb->posts, not user input
         "SELECT ID, post_title, post_content FROM {$wpdb->posts}
          WHERE post_status = 'publish'
          AND post_type IN ('post', 'page')
@@ -4070,13 +4144,13 @@ function cscc_ajax_scan_broken_images() {
 
         foreach ( $matches[1] as $url ) {
             // Only check URLs from our uploads directory
-            if ( strpos( $url, 'wp-content/uploads/' ) === false ) {
+            $pos = strpos( $url, $uploads_marker );
+            if ( $pos === false ) {
                 continue;
             }
 
-            // Convert URL to file path
-            $rel_path = preg_replace( '#^https?://[^/]+/#', '', $url );
-            $file_path = CSCC_Paths::root_file( $rel_path );
+            // Convert URL to file path: whatever follows the uploads folder, under basedir
+            $file_path = $upload_base . substr( $url, $pos + strlen( $uploads_marker ) );
 
             // Also try matching via upload_url
             if ( strpos( $url, $upload_url ) === 0 ) {
@@ -4216,7 +4290,7 @@ function cscc_health_dir_size( string $dir ): int {
  */
 function cscc_get_autoload_size(): int {
     global $wpdb;
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     return (int) $wpdb->get_var( "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload NOT IN ('no','off')" );
 }
 
@@ -4258,7 +4332,7 @@ function cscc_health_get_cpu_load(): float {
     }
     // Fallback: read /proc/loadavg
     if ( is_readable( '/proc/loadavg' ) ) {
-        $raw = @file_get_contents( '/proc/loadavg' );
+        $raw = @file_get_contents( '/proc/loadavg' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads a local kernel status file, not a URL
         if ( $raw !== false ) {
             $parts = explode( ' ', trim( $raw ) );
             return round( floatval( $parts[0] ), 2 );
@@ -4274,7 +4348,7 @@ function cscc_health_get_cpu_load(): float {
 function cscc_health_get_memory_used_bytes(): int {
     // Linux: parse /proc/meminfo
     if ( is_readable( '/proc/meminfo' ) ) {
-        $raw = @file_get_contents( '/proc/meminfo' );
+        $raw = @file_get_contents( '/proc/meminfo' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads a local kernel status file, not a URL
         if ( $raw !== false ) {
             $mem_total    = 0;
             $mem_free     = 0;
@@ -4299,7 +4373,7 @@ function cscc_health_get_memory_used_bytes(): int {
  */
 function cscc_health_get_memory_total_bytes(): int {
     if ( is_readable( '/proc/meminfo' ) ) {
-        $raw = @file_get_contents( '/proc/meminfo' );
+        $raw = @file_get_contents( '/proc/meminfo' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads a local kernel status file, not a URL
         if ( $raw !== false && preg_match( '/^MemTotal:\s+(\d+)\s+kB/m', $raw, $m ) ) {
             return intval( $m[1] ) * 1024;
         }
@@ -4308,52 +4382,11 @@ function cscc_health_get_memory_total_bytes(): int {
 }
 
 /**
- * Find the sar binary path. Apache's PATH is often restricted, so we check common locations.
- */
-/**
- * Get the system timezone for sar queries. WordPress may override PHP's timezone
- * via date_default_timezone_set(), but sar uses the OS timezone. We need to match.
- */
-function cscc_health_system_time( string $fmt, int $ts = 0 ): string {
-    static $sys_tz = null;
-    if ( $sys_tz === null ) {
-        // Read system timezone, not WordPress timezone
-        $tz_file = @file_get_contents( '/etc/timezone' );
-        if ( $tz_file ) {
-            $sys_tz = trim( $tz_file );
-        } else {
-            $link = @readlink( '/etc/localtime' );
-            if ( $link && preg_match( '#zoneinfo/(.+)$#', $link, $m ) ) {
-                $sys_tz = $m[1];
-            } else {
-                $sys_tz = 'UTC';
-            }
-        }
-    }
-    $old_tz = date_default_timezone_get();
-    date_default_timezone_set( $sys_tz ); // phpcs:ignore WordPress.DateTime.RestrictedFunctions.timezone_change_date_default_timezone_set -- required to display server timezone info in system health; timezone is restored immediately after
-    $result = gmdate( $fmt, $ts ?: time() );
-    date_default_timezone_set( $old_tz ); // phpcs:ignore WordPress.DateTime.RestrictedFunctions.timezone_change_date_default_timezone_set -- required to display server timezone info in system health; timezone is restored immediately after
-    return $result;
-}
-
-function cscc_health_find_sar(): string {
-    static $cached = null;
-    if ( $cached !== null ) { return $cached; }
-    $paths = array( '/usr/bin/sar', '/usr/sbin/sar', '/usr/local/bin/sar' );
-    foreach ( $paths as $p ) {
-        if ( @is_executable( $p ) ) { $cached = $p; return $p; }
-    }
-    $cached = '';
-    return '';
-}
-
-/**
  * Get the number of CPU cores.
  */
 function cscc_health_get_cpu_count(): int {
     if ( is_readable( '/proc/cpuinfo' ) ) {
-        $raw = @file_get_contents( '/proc/cpuinfo' );
+        $raw = @file_get_contents( '/proc/cpuinfo' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads a local kernel status file, not a URL
         if ( $raw !== false ) {
             return max( 1, substr_count( $raw, 'processor' ) );
         }
@@ -4362,17 +4395,7 @@ function cscc_health_get_cpu_count(): int {
 }
 
 /**
- * Get MAX CPU usage percentage over the last hour.
- *
- * Uses sar (sysstat) if available to read per minute samples from the last 60 minutes
- * and returns the highest CPU% seen. This captures spikes that a single point in time
- * snapshot would miss. Falls back to instantaneous load average conversion if sar
- * is not installed.
- *
- * sar -u output lines look like:
- *   14:01:01  all  0.50  0.00  0.25  0.00  0.00  99.25
- * Columns: time, CPU, %user, %nice, %system, %iowait, %steal, %idle
- * CPU% = 100 - %idle
+ * Current CPU usage percentage, from the 1-minute load average divided by the core count.
  */
 function cscc_health_get_cpu_pct(): float {
     $load = cscc_health_get_cpu_load();
@@ -4382,15 +4405,7 @@ function cscc_health_get_cpu_pct(): float {
 }
 
 /**
- * Get MAX memory usage percentage over the last hour.
- *
- * Uses sar -r (sysstat) if available to read per minute memory samples and returns
- * the highest memory% seen. Falls back to instantaneous /proc/meminfo reading.
- *
- * sar -r output lines look like:
- *   14:01:01  1024000  512000  50.00  128000  384000  ...
- * Columns: time, kbmemfree, kbavail, %memused, kbbuffers, kbcached, ...
- * We use the %memused column directly.
+ * Current memory usage percentage, from a /proc/meminfo snapshot.
  */
 function cscc_health_get_mem_pct(): float {
     $used  = cscc_health_get_memory_used_bytes();
@@ -4405,6 +4420,7 @@ function cscc_health_get_mem_pct(): float {
 function cscc_health_get_db_size_bytes(): int {
     global $wpdb;
     $db_name = DB_NAME;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- reads the database size from information_schema; no WordPress API reports it
     $row = $wpdb->get_row( $wpdb->prepare(
         'SELECT SUM(data_length + index_length) AS size FROM information_schema.tables WHERE table_schema = %s',
         $db_name
@@ -4719,7 +4735,7 @@ function cscc_ajax_health_weekly_data() {
     wp_send_json_success( array( 'data' => get_option( CSCC_HEALTH_WEEKLY_KEY, array() ) ) );
 }
 
-// ─── AJAX: Test sysstat availability ─────────────────────────────────────────
+// ─── AJAX: Test the live CPU and memory readings ─────────────────────────────
 
 add_action( 'wp_ajax_cscc_health_sysstat_test', 'cscc_ajax_health_sysstat_test' );
 function cscc_ajax_health_sysstat_test() {
@@ -4752,7 +4768,7 @@ function cscc_cron_register_timing_hooks() {
 	if ( ! defined( 'DOING_CRON' ) || ! DOING_CRON ) {
 		return;
 	}
-	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- reads the cron array to display and time jobs; no interval is added or changed
 	if ( ! is_array( $cron_array ) ) {
 		return;
 	}
@@ -4822,7 +4838,7 @@ function cscc_ajax_cron_delete() {
 		wp_send_json_error( 'Missing hook name.' );
 	}
 
-	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- reads the cron array to display and time jobs; no interval is added or changed
 	$saved      = array();
 
 	foreach ( (array) $cron_array as $timestamp => $hooks ) {
@@ -5211,7 +5227,7 @@ function cscc_ajax_cron_status() {
 		wp_send_json_error( 'Insufficient permissions.' );
 	}
 
-	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected
+	$cron_array = _get_cron_array(); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- reads the cron array to display and time jobs; no interval is added or changed
 	if ( ! is_array( $cron_array ) ) {
 		$cron_array = array();
 	}
@@ -5375,13 +5391,13 @@ function cscc_ajax_cron_run_now() {
 	}
 
 	$allowed = array( 'cscc_scheduled_db_cleanup', 'cscc_scheduled_img_cleanup' );
-	$hook    = isset( $_POST['hook'] ) ? sanitize_key( wp_unslash( $_POST['hook'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$hook    = isset( $_POST['hook'] ) ? sanitize_key( wp_unslash( $_POST['hook'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
 
 	if ( ! in_array( $hook, $allowed, true ) ) {
 		wp_send_json_error( 'Invalid hook.' );
 	}
 
-	do_action( $hook ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores
+	do_action( $hook ); // phpcs:ignore WordPress.NamingConventions.ValidHookName.UseUnderscores,WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- $hook is checked against an allowlist of this plugin's own cscc_ cron hooks above
 	wp_send_json_success( array( 'hook' => $hook ) );
 }
 
@@ -5400,7 +5416,7 @@ function cscc_storage_recycle_dir(): string {
 function cscc_storage_recycle_manifest(): array {
 	$path = cscc_storage_recycle_dir() . '/manifest.json';
 	if ( ! file_exists( $path ) ) return [];
-	$raw = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	$raw = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads the plugin's own local manifest, not a URL
 	$data = $raw ? json_decode( $raw, true ) : null;
 	return is_array( $data ) ? $data : [];
 }
@@ -5411,9 +5427,9 @@ function cscc_storage_recycle_save_manifest( array $manifest ): void {
 	wp_mkdir_p( $dir );
 	$htaccess = $dir . '/.htaccess';
 	if ( ! file_exists( $htaccess ) ) {
-		file_put_contents( $htaccess, "Deny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents( $htaccess, "Deny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- access guard inside the plugin's own recycle folder under wp_upload_dir(), never the site's .htaccess
 	}
-	file_put_contents( $dir . '/manifest.json', wp_json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+	file_put_contents( $dir . '/manifest.json', wp_json_encode( $manifest, JSON_PRETTY_PRINT ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- the plugin's own manifest inside its recycle folder under wp_upload_dir()
 }
 
 add_action( 'wp_ajax_cscc_storage_recycle_folder', 'cscc_ajax_storage_recycle_folder' );
@@ -5440,7 +5456,7 @@ function cscc_ajax_storage_recycle_folder(): void {
 	$dest_dir = cscc_storage_recycle_dir() . '/' . $id;
 	wp_mkdir_p( dirname( $dest_dir ) );
 
-	if ( ! rename( $real, $dest_dir ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+	if ( ! cscc_fs()->move( $real, $dest_dir ) ) {
 		wp_send_json_error( 'Could not move folder, check permissions.' );
 	}
 
@@ -5474,7 +5490,7 @@ function cscc_ajax_storage_recycle_restore(): void {
 	check_ajax_referer( 'cscc_nonce', 'nonce' );
 	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
-	$id = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$id = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
 	if ( ! $id ) { wp_send_json_error( 'Missing id.' ); }
 
 	$manifest = cscc_storage_recycle_manifest();
@@ -5489,7 +5505,7 @@ function cscc_ajax_storage_recycle_restore(): void {
 	if ( is_dir( $dest ) )  { wp_send_json_error( 'A folder already exists at the original location, rename or remove it first.' ); }
 
 	wp_mkdir_p( dirname( $dest ) );
-	if ( ! rename( $src, $dest ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+	if ( ! cscc_fs()->move( $src, $dest ) ) {
 		wp_send_json_error( 'Could not restore folder, check permissions.' );
 	}
 
@@ -5504,21 +5520,14 @@ function cscc_ajax_storage_recycle_purge(): void {
 	check_ajax_referer( 'cscc_nonce', 'nonce' );
 	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'Insufficient permissions.' ); }
 
-	$id       = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$id       = sanitize_key( wp_unslash( $_POST['id'] ?? '' ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer() runs at the top of this handler
 	$manifest = cscc_storage_recycle_manifest();
 	$ids      = $id ? [ $id ] : array_keys( $manifest );
 
 	foreach ( $ids as $del_id ) {
 		$dir = cscc_storage_recycle_dir() . '/' . $del_id;
 		if ( is_dir( $dir ) ) {
-			$iter = new RecursiveIteratorIterator(
-				new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
-				RecursiveIteratorIterator::CHILD_FIRST
-			);
-			foreach ( $iter as $f ) {
-				$f->isDir() ? @rmdir( $f->getPathname() ) : wp_delete_file( $f->getPathname() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-			}
-			@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			cscc_fs()->rmdir( $dir, true );
 		}
 		unset( $manifest[ $del_id ] );
 	}
@@ -5824,14 +5833,14 @@ function cscc_dir_size_and_count( string $path ): array {
  * @param string $color Background colour for the button (CSS colour string).
  * @return void
  */
-function cscc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(2.5.3955,2.5.1.2)' ): void {
+function cscc_explain_btn( string $id, string $title, array $items, string $color = 'rgba(255,255,255,0.2)' ): void {
     $btn_id   = 'csc-explain-btn-' . $id;
     $modal_id = 'csc-explain-modal-' . $id;
     ?>
     <button type="button" id="<?php echo esc_attr( $btn_id ); ?>"
         data-color="<?php echo esc_attr( $color ); ?>"
         onclick="document.getElementById('<?php echo esc_attr( $modal_id ); ?>').style.display='flex'"
-        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(2.5.395,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
+        style="background:rgba(0,0,0,0.28)!important;border:1px solid rgba(255,255,255,0.55)!important;border-radius:5px!important;color:#fff!important;font-size:12px!important;font-weight:700!important;padding:5px 14px!important;cursor:pointer!important;margin-left:auto!important;flex-shrink:0!important;display:block!important;box-shadow:none!important;text-shadow:0 1px 2px rgba(0,0,0,0.4)!important;text-transform:none!important;letter-spacing:normal!important;line-height:1.4!important">
         Explain&hellip;
     </button>
     <div id="<?php echo esc_attr( $modal_id ); ?>" style="display:none;position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;text-transform:none;letter-spacing:normal;font-weight:normal">
@@ -6029,7 +6038,7 @@ function cscc_render_page() {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#00c853 0%,#69f0ae 100%);color:#003d00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(0,200,83,0.3)">✅ Last Run: <?php echo $last_db_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_db_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_db_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -6150,7 +6159,7 @@ function cscc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.395,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.395,255,0.28)'" onmouseout="this.style.background='rgba(2.5.395,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0d1b2a;border-bottom:2px solid #00e5ff;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#00e5ff;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#00e5ff;color:#0d1b2a;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚙ Database Console</span></div>
@@ -6293,7 +6302,7 @@ function cscc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.395,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.395,255,0.28)'" onmouseout="this.style.background='rgba(2.5.395,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #e040fb;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#e040fb;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#e040fb;color:#fff;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">🖼 Image Console</span></div>
@@ -6381,9 +6390,9 @@ function cscc_render_page() {
                     $last_img_sched = get_option( 'cscc_last_scheduled_img_cleanup', '' );
                     ?>
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(2.5.399,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(255,109,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,2.5.1.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -6451,7 +6460,7 @@ function cscc_render_page() {
             <div class="csc-card">
                 <div class="csc-card-header csc-card-header-dark" style="display:flex;align-items:center;justify-content:space-between">
                     <span>Output Log</span>
-                    <button class="btn-copy-log" style="background:rgba(2.5.395,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(2.5.395,255,0.28)'" onmouseout="this.style.background='rgba(2.5.395,255,0.15)'">&#128203; Copy</button>
+                    <button class="btn-copy-log" style="background:rgba(255,255,255,0.15);border:none;color:#1a1a1a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&#128203; Copy</button>
                 </div>
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#0a1f00;border-bottom:2px solid #76ff03;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#76ff03;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#76ff03;color:#0a1f00;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">⚡ Optimisation Console</span></div>
@@ -6568,9 +6577,9 @@ function cscc_render_page() {
                 <div class="csc-card-body csc-terminal-wrap">
                     <div style="display:flex;align-items:center;gap:6px;padding:4px 12px;background:#1a0533;border-bottom:2px solid #ce93d8;border-radius:6px 6px 0 0"><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.5;display:inline-block;flex-shrink:0"></span><span style="width:7px;height:7px;border-radius:50%;background:#ce93d8;opacity:.25;display:inline-block;flex-shrink:0"></span><span style="margin-left:8px;background:#ce93d8;color:#1a0533;font-family:monospace;font-size:10px;font-weight:800;letter-spacing:.1em;padding:2px 10px;border-radius:20px;text-transform:uppercase">📷 Converter Console</span>
                         <span style="margin-left:auto;display:flex;gap:6px">
-                            <button id="cspj-debug-copy" style="background:rgba(2.5.3955,2.5.1.15);border:1px solid rgba(2.5.3955,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
-                            <button id="cspj-debug-clear" style="background:rgba(2.5.3955,2.5.1.15);border:1px solid rgba(2.5.3955,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
-                            <button id="cspj-debug-toggle" style="background:rgba(2.5.3955,2.5.1.15);border:1px solid rgba(2.5.3955,2.5.1.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
+                            <button id="cspj-debug-copy" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">📋 Copy</button>
+                            <button id="cspj-debug-clear" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">🗑 Clear</button>
+                            <button id="cspj-debug-toggle" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;cursor:pointer">▼</button>
                         </span>
                     </div>
                     <div id="cspj-debug-env" style="padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--csc-border);font-size:11px;color:var(--csc-muted);font-family:monospace;line-height:1.7"></div>
@@ -6609,17 +6618,12 @@ function cscc_render_page() {
                         array(
                             'name' => 'CPU Peak Monitoring',
                             'rec'  => 'Recommended',
-                            'desc' => 'Records the maximum CPU usage percentage each hour. With sysstat installed, captures per minute peaks from sar (so brief spikes are caught). Without sysstat, falls back to an instantaneous load average snapshot.',
+                            'desc' => 'Records CPU usage each hour, worked out from the 1-minute load average divided by the number of CPU cores. It is a point-in-time reading taken when the hourly collection runs, so a brief spike between readings is not captured.',
                         ),
                         array(
                             'name' => 'Memory Peak Monitoring',
                             'rec'  => 'Recommended',
-                            'desc' => 'Records the maximum memory usage percentage each hour. With sysstat installed, captures per minute peaks from sar. Without sysstat, falls back to an instantaneous /proc/meminfo reading.',
-                        ),
-                        array(
-                            'name' => 'sysstat (sar)',
-                            'rec'  => 'Recommended',
-                            'desc' => 'sysstat continuously samples CPU and memory every 10 minutes in the background, giving accurate peak values rather than single point snapshots. Without sysstat, the plugin falls back to instantaneous readings which may show 0% on lightly loaded servers.\n\nStep 1: Install sysstat.\nAmazon Linux / RHEL: sudo yum install sysstat -y\nUbuntu / Debian: sudo apt install sysstat -y\n\nStep 2: Enable the service and the collection timer.\nsudo systemctl enable sysstat && sudo systemctl start sysstat\nsudo systemctl enable sysstat-collect.timer && sudo systemctl start sysstat-collect.timer\n\nStep 3: Force an immediate first collection (optional, otherwise wait 10 minutes).\nsudo /usr/lib64/sa/sa1 1 1\n\nStep 4: Verify data is being collected.\nLC_ALL=C /usr/bin/sar -u 2>&1 | tail -5\n\nYou should see CPU usage lines with timestamps. If you only see a header with no data, the collection timer is not running. The sysstat-collect.timer is the part that actually triggers data collection every 10 minutes. On Amazon Linux 2023, enabling sysstat alone is not enough; you must also enable sysstat-collect.timer separately.\n\nUse the Test Sysstat button below to verify the plugin can read sar data.',
+                            'desc' => 'Records memory usage each hour from a /proc/meminfo reading (total minus free, buffers and cache). Like the CPU figure, it is a point-in-time reading taken when the hourly collection runs.',
                         ),
                         array(
                             'name' => 'Data Retention',
@@ -6727,7 +6731,7 @@ function cscc_render_page() {
                         <div id="csc-sysstat-status" style="padding:12px 16px;border-radius:6px;border:1px solid #e0e0e0;margin-bottom:16px;font-size:12px;display:none">
                             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                                 <span id="csc-sysstat-icon" style="font-size:14px">&middot;</span>
-                                <strong id="csc-sysstat-label">Checking sysstat...</strong>
+                                <strong id="csc-sysstat-label">Reading...</strong>
                                 <span id="csc-sysstat-detail" style="color:#50575e"></span>
                             </div>
                             <div id="csc-sysstat-instructions" style="display:none;margin-top:8px;padding:8px 12px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:4px;font-family:monospace;font-size:11px;word-break:break-all"></div>
@@ -6736,7 +6740,7 @@ function cscc_render_page() {
                         <div class="csc-button-row" style="gap:10px">
                             <button class="csc-btn csc-btn-secondary" id="btn-health-refresh">🔄 Refresh</button>
                             <button class="csc-btn csc-btn-primary" id="btn-health-collect">📊 Collect Metrics Now</button>
-                            <button class="csc-btn csc-btn-secondary" id="btn-sysstat-test">🔧 Test Sysstat</button>
+                            <button class="csc-btn csc-btn-secondary" id="btn-sysstat-test">🔧 Test Metrics</button>
                         </div>
 
                     </div>
@@ -6855,6 +6859,28 @@ function cscc_render_page() {
                             <div class="csc-stat-value"><?php echo esc_html( CLOUDSCALE_CLEANUP_VERSION ); ?></div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="csc-card">
+                <div class="csc-card-header csc-card-header-slate-db"><span>Site Options</span> <?php cscc_explain_btn(
+                    'site-options',
+                    'Site Options, What each option does',
+                    array(
+                        array(
+                            'rec'  => '⬜ Optional',
+                            'name' => 'Turn off the WordPress emoji script',
+                            'desc' => 'WordPress loads a small script on every page that replaces emoji characters with images from the WordPress.org emoji CDN when it decides a browser cannot draw them itself. Modern browsers all can, so the script usually does nothing but cost a request, and if the CDN is unreachable the replaced emoji show as broken images. Ticking this removes the script, its styles and its DNS prefetch hint from the front end, the admin, feeds and emails, and emoji are drawn by the browser instead. Off by default, so WordPress behaves as normal unless you choose this. Untick it to restore the WordPress default.',
+                        ),
+                    )
+                ); ?></div>
+                <div class="csc-card-body">
+                    <label class="csc-toggle-label">
+                        <input type="checkbox" name="cscc_disable_emoji_polyfill" value="1" <?php checked( get_option( 'cscc_disable_emoji_polyfill', '0' ), '1' ); ?>>
+                        Turn off the WordPress emoji script
+                    </label>
+                    <p class="csc-note">Off by default. When ticked, emoji are drawn by the browser and nothing is loaded from the WordPress.org emoji CDN.</p>
+                    <button class="csc-btn csc-btn-primary csc-save-btn" data-group="site">Save Options</button>
                 </div>
             </div>
 

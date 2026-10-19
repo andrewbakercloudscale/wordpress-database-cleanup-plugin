@@ -2122,61 +2122,6 @@ function cscOrphanToggle(el, type) {
     });
 
 
-    // Sysstat test
-    $('#btn-sysstat-test').on('click', function() {
-        var $btn = $(this);
-        $btn.prop('disabled', true).html('⏳ Testing...');
-        var $box = $('#csc-sysstat-status');
-        $box.show();
-        $('#csc-sysstat-label').text('Testing sysstat...');
-        $('#csc-sysstat-icon').text('⏳');
-        $('#csc-sysstat-detail').text('');
-        $('#csc-sysstat-instructions').hide();
-
-        $.post(CSC.ajax_url, { action: 'cscc_health_sysstat_test', nonce: CSC.nonce }, function(resp) {
-            $btn.prop('disabled', false).html('🔧 Test Sysstat');
-            if (!resp.success) {
-                $('#csc-sysstat-icon').text('❌');
-                $('#csc-sysstat-label').text('Test failed');
-                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
-                return;
-            }
-            var d = resp.data;
-            if (!d.exec_available) {
-                $('#csc-sysstat-icon').text('❌');
-                $('#csc-sysstat-label').text('exec() disabled');
-                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
-            } else if (!d.sar_installed) {
-                $('#csc-sysstat-icon').text('❌');
-                $('#csc-sysstat-label').text('sysstat not installed');
-                $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
-            } else if (!d.sysstat_active) {
-                $('#csc-sysstat-icon').text('⚠️');
-                $('#csc-sysstat-label').text('sysstat installed but service inactive');
-                $('#csc-sysstat-detail').text(d.sar_version + ' at ' + d.sar_path);
-                $box.css({ background: '#fffbeb', borderColor: '#fde68a' });
-            } else if (!d.sar_has_data) {
-                $('#csc-sysstat-icon').text('⚠️');
-                $('#csc-sysstat-label').text('sysstat active, no data yet');
-                $('#csc-sysstat-detail').text(d.sar_version + ', wait 10 minutes for first samples');
-                $box.css({ background: '#fffbeb', borderColor: '#fde68a' });
-            } else {
-                $('#csc-sysstat-icon').text('✅');
-                $('#csc-sysstat-label').text('sysstat working');
-                $('#csc-sysstat-detail').text(d.sar_version + ' | ' + d.sar_samples + ' samples/hr | CPU ' + d.cpu_pct_now + '% | Mem ' + d.mem_pct_now + '%');
-                $box.css({ background: '#f0fdf4', borderColor: '#bbf7d0' });
-            }
-            if (d.instructions) {
-                $('#csc-sysstat-instructions').text(d.instructions).show();
-            }
-        }).fail(function() {
-            $btn.prop('disabled', false).html('🔧 Test Sysstat');
-            $('#csc-sysstat-icon').text('❌');
-            $('#csc-sysstat-label').text('Network error');
-            $box.css({ background: '#fef2f2', borderColor: '#fecaca' });
-        });
-    });
-
     // Copy log to clipboard
     $(document).on('click', '.btn-copy-log', function() {
         var $btn = $(this);
@@ -3163,7 +3108,7 @@ jQuery(function($) {
         var $b = $(this).prop('disabled',true).html('⏳ Testing...');
         var blue = {background:'#e3f2fd',borderColor:'#90caf9'};
         var $box = $('#csc-sysstat-status').show().css(blue);
-        $('#csc-sysstat-label').text('Testing sysstat...').css('color','#1565c0');
+        $('#csc-sysstat-label').text('Testing...').css('color','#1565c0');
         $('#csc-sysstat-icon').text('⏳');
         $('#csc-sysstat-detail').text('').css('color','#1565c0');
         $('#csc-sysstat-instructions').hide();

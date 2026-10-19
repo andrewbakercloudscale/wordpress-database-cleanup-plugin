@@ -721,6 +721,7 @@ rsync -a \
   --exclude='archive' \
   --exclude='CloudScaleCleanup.jpg' \
   --exclude='repo' \
+  --exclude='CHANGELOG.md' \
   "$REPO_DIR/" "$TEMP_DIR/$PLUGIN_NAME/"
 
 # ── Deterministic WordPress.org file-write standards guard ───────────────────

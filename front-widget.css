@@ -1,0 +1,14 @@
+/* CloudScale Cleanup: front-end "Site Maintenance" widget. Loaded only while the widget is active. */
+.csc-front-widget{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13.5px}
+.csc-fw-list{margin:0 0 12px;padding:0;list-style:none}
+.csc-fw-list li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.07)}
+.csc-fw-list li:last-child{border-bottom:none}
+.csc-fw-label{color:#555;font-size:12.5px}
+.csc-fw-value{font-weight:600;color:#1a1f2e;font-size:12.5px}
+.csc-fw-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.csc-fw-link{display:inline-block;font-size:12px;font-weight:600;padding:6px 12px;border-radius:5px;text-decoration:none;background:#1a1f2e;color:#fff!important;transition:background .15s}
+.csc-fw-link:hover{background:#4a9eff;color:#fff!important}
+.csc-fw-link-admin{background:#27ae60}
+.csc-fw-link-admin:hover{background:#219150}
+.csc-fw-credit{font-size:11px;color:#999;margin:0}
+.csc-fw-credit a{color:#4a9eff;text-decoration:none}

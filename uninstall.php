@@ -10,7 +10,7 @@ defined( 'ABSPATH' ) || exit;
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 // Settings.
-$options = [ // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- file-scope variables in uninstall.php only; no namespace conflict risk
+$cscc_options = [
     'cscc_loaded_version',
     'cscc_clean_revisions',
     'cscc_clean_drafts',
@@ -55,8 +55,26 @@ $options = [ // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPre
     'cscc_cron_recycle_bin',
 ];
 
-foreach ( $options as $option ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- file-scope variables in uninstall.php only; no namespace conflict risk
-    delete_option( $option );
+foreach ( $cscc_options as $cscc_option ) {
+    delete_option( $cscc_option );
+}
+
+// Then everything else carrying the plugin's prefix, so a row added after this list was
+// written (queue transients, run state, alert settings) is not left behind. A hand list
+// drifts; a prefix sweep cannot. Each row goes through delete_option() so the object cache
+// is cleared with it.
+global $wpdb;
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off uninstall sweep by prefix; no WordPress API lists options by prefix
+$cscc_swept = $wpdb->get_col(
+    $wpdb->prepare(
+        "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+        $wpdb->esc_like( 'cscc_' ) . '%',
+        $wpdb->esc_like( '_transient_cscc_' ) . '%',
+        $wpdb->esc_like( '_transient_timeout_cscc_' ) . '%'
+    )
+);
+foreach ( (array) $cscc_swept as $cscc_option ) {
+    delete_option( $cscc_option );
 }
 
 // Clear scheduled cron events.
