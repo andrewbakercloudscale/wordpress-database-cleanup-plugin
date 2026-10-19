@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.131
+Stable tag: 2.5.133
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -140,6 +140,11 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 4. Site Health panel showing disk usage, storage runway, and server resource metrics.
 
 == Changelog ==
+
+= 2.5.132 =
+* Fixed: scheduled database and image cleanups that went missing from the cron queue (for example after the 2.5 hook rename) are queued again automatically. The hourly temporary-file sweep is queued on upgraded sites too. Standby copies stay disarmed.
+* Fixed: the unused-media scan no longer flags images used only in drafts, pending, scheduled or private posts, or media that plugins link through post meta (audio narration, ACF fields, WooCommerce galleries). The orphaned-file scan reads the same posts.
+* Changed: scheduled database cleanups never delete drafts. Drafts are only removed by a manual run, and their age is measured from the last edit rather than creation.
 
 = 2.5.130 =
 * Changed: the WordPress emoji script is no longer removed by default. Turning it off is now an opt-in setting (Cron tab, Site Options).

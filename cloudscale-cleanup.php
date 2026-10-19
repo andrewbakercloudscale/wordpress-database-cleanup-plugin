@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.131
+ * Version:     2.5.133
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -87,7 +87,7 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.131' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.133' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -765,7 +765,7 @@ function cscc_next_run_timestamp( $days, $hour ) {
 /*
  * Neither scheduled cleanup may run on a copy of another site.
  *
- * Both delete PERMANENTLY -- wp_delete_post( $id, true ) over revisions, drafts,
+ * Both delete PERMANENTLY -- wp_delete_post( $id, true ) over revisions,
  * trashed posts and autodrafts, wp_delete_comment( $id, true ) over spam and trash,
  * plus orphaned post and user meta -- and on a standby every one of those rows is
  * about to be replaced by the primary's copy anyway, so the work is pure waste that
@@ -783,6 +783,34 @@ add_action( 'init', static function (): void {
     }
 }, 7 );
 
+/*
+ * Self-heal: re-queue any schedule that is enabled but missing from the cron queue.
+ *
+ * The scheduled cleanups are single events that each run re-queues, and only a settings save
+ * or a completed run puts them back. The cscc_ prefix rename (May 2026) renamed the hooks, so
+ * the old events fired into nothing and the new names were never queued: production went five
+ * months with both schedules enabled and neither running. The chunk sweep was only ever queued
+ * on activation, so an upgrade-in-place never had it. Runs after the standby disarm above
+ * (priority 7) and does nothing on a standby, so the two never fight.
+ */
+add_action( 'init', 'cscc_ensure_crons', 20 );
+function cscc_ensure_crons() {
+    if ( wp_installing() || ( class_exists( 'CSCC_Site_Role' ) && CSCC_Site_Role::is_standby() ) ) {
+        return;
+    }
+    if ( ( get_option( 'cscc_schedule_db_enabled', '0' ) === '1' && ! wp_next_scheduled( 'cscc_scheduled_db_cleanup' ) )
+        || ( get_option( 'cscc_schedule_img_enabled', '0' ) === '1' && ! wp_next_scheduled( 'cscc_scheduled_img_cleanup' ) ) ) {
+        cscc_schedule_crons();
+    }
+    $legacy = wp_next_scheduled( 'cspj_cleanup_chunks' );
+    if ( $legacy ) {
+        wp_unschedule_event( $legacy, 'cspj_cleanup_chunks' );
+    }
+    if ( ! wp_next_scheduled( 'cscc_cleanup_chunks' ) ) {
+        wp_schedule_event( time() + HOUR_IN_SECONDS, 'hourly', 'cscc_cleanup_chunks' );
+    }
+}
+
 add_action( 'cscc_scheduled_db_cleanup', 'cscc_cron_db_cleanup' );
 function cscc_cron_db_cleanup() {
     // Refused as well as disarmed: a direct do_action or `wp cron event run`
@@ -793,7 +821,8 @@ function cscc_cron_db_cleanup() {
     try {
         $ids = cscc_build_db_id_list();
         foreach ( $ids['revisions']      as $id ) { wp_delete_post( intval( $id ), true ); }
-        foreach ( $ids['drafts']         as $id ) { wp_delete_post( intval( $id ), true ); }
+        // Drafts are deliberately skipped here: a draft is unfinished work, not clutter, and an
+        // unattended run deleting it permanently cannot be undone. Only a manual run removes them.
         foreach ( $ids['trashed']        as $id ) { wp_delete_post( intval( $id ), true ); }
         foreach ( $ids['autodrafts']     as $id ) { wp_delete_post( intval( $id ), true ); }
         cscc_delete_expired_transients();
@@ -898,7 +927,7 @@ function cscc_build_db_id_list( $overrides = array() ) {
     return array(
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
         'revisions'      => $tog( 'cscc_clean_revisions' )      ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type='revision' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $ra ) ) : array(),
-        'drafts'         => $tog( 'cscc_clean_drafts' )         ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $da ) ) : array(),
+        'drafts'         => $tog( 'cscc_clean_drafts' )         ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_modified < DATE_SUB(NOW(), INTERVAL %d DAY)", $da ) ) : array(),
         'trashed'        => $tog( 'cscc_clean_trashed' )        ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='trash' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $ta ) ) : array(),
         'autodrafts'     => $tog( 'cscc_clean_autodrafts' )     ? $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status='auto-draft' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $aa ) ) : array(),
         'spam_comments'  => $tog( 'cscc_clean_spam_comments' )  ? $wpdb->get_col( $wpdb->prepare( "SELECT comment_ID FROM {$wpdb->comments} WHERE comment_approved='spam' AND comment_date < DATE_SUB(NOW(), INTERVAL %d DAY)", $sa ) ) : array(),
@@ -985,7 +1014,7 @@ function cscc_ajax_scan_db() {
 
     if ( $toggle( 'cscc_clean_drafts' ) ) {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
-        $drafts = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_title, post_date FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_date < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY post_date DESC LIMIT 500", $da ) );
+        $drafts = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_title, post_modified AS post_date FROM {$wpdb->posts} WHERE post_status='draft' AND post_type='post' AND post_modified < DATE_SUB(NOW(), INTERVAL %d DAY) ORDER BY post_modified DESC LIMIT 500", $da ) );
         $lines[] = array( 'type' => 'section', 'text' => 'Draft Posts (older than ' . $da . ' days)' );
         foreach ( $drafts as $d ) { $lines[] = array( 'type' => 'item', 'text' => '  [DRAFT] ID ' . $d->ID . ', ' . esc_html( $d->post_title ) . ' (' . $d->post_date . ')' ); }
         $lines[] = array( 'type' => 'count', 'text' => '  Found: ' . count( $drafts ) );
@@ -2005,9 +2034,10 @@ function cscc_get_used_attachment_ids() {
         $used[ intval( $id ) ] = true;
     }
 
-    // Gutenberg block IDs and legacy class-based image references, batch to avoid loading all content at once
+    // Gutenberg block IDs and legacy class-based image references, batch to avoid loading all content at once.
+    // Drafts, pending, scheduled and private posts count: an image in a draft you are still writing is in use.
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
-    $post_ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status='publish' AND post_type NOT IN ('attachment','revision')" );
+    $post_ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_status IN ('publish','draft','pending','future','private') AND post_type NOT IN ('attachment','revision')" );
     $contents = array();
     foreach ( array_chunk( $post_ids, 50 ) as $batch ) {
         $placeholders = implode( ',', array_fill( 0, count( $batch ), '%d' ) );
@@ -2072,6 +2102,21 @@ function cscc_get_used_attachment_ids() {
                 }
             }
         }
+    }
+
+    // Attachment IDs held in post meta. Other plugins link media this way and never put it in
+    // post content: the SEO plugin's audio narration (_cloudscale_seo_ai_optimizer_audio_id),
+    // ACF image fields, WooCommerce galleries. A numeric meta value that happens to equal an
+    // attachment ID only over-protects, which is the safe direction for a delete.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
+    $meta_ids = $wpdb->get_col( "SELECT DISTINCT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} a ON a.ID = pm.meta_value AND a.post_type = 'attachment' WHERE pm.meta_key NOT IN ('_edit_last','_edit_lock','_wp_attached_file','_wp_attachment_metadata') AND pm.meta_value REGEXP '^[0-9]+$' AND pm.post_id <> a.ID" );
+    foreach ( $meta_ids as $id ) {
+        $used[ intval( $id ) ] = true;
+    }
+    // Comma-separated ID lists (WooCommerce _product_image_gallery and similar)
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
+    foreach ( $wpdb->get_col( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_value REGEXP '^[0-9]+(,[0-9]+)+$'" ) as $list ) {
+        foreach ( explode( ',', $list ) as $id ) { $used[ intval( $id ) ] = true; }
     }
 
     // Widget options and theme mods
@@ -2889,7 +2934,7 @@ function cscc_get_orphan_files_multi( array $types ): array {
 /**
  * Core orphan scanner shared by both single-type and multi-type functions.
  * Builds a whitelist of known files from: attachment metadata, thumbnail sizes,
- * AND any image/file URLs referenced in published post content.
+ * AND any image/file URLs referenced in post content (published, draft, pending, scheduled, private).
  */
 function cscc_scan_orphan_files_with_exts( array $exts ): array {
     global $wpdb;
@@ -2916,13 +2961,13 @@ function cscc_scan_orphan_files_with_exts( array $exts ): array {
         }
     }
 
-    // 2. Files referenced by URL in published post content
+    // 2. Files referenced by URL in post content (published, draft, pending, scheduled, private)
     $uploads_marker = cscc_uploads_url_marker();
     $marker_regex   = '/' . preg_quote( $uploads_marker, '/' ) . '([^"\'<>\s\)]+)/i';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- bulk cleanup query on core tables that no WordPress API offers; it must see live rows, so a cache would only return stale counts
     $contents = $wpdb->get_col( $wpdb->prepare(
         "SELECT post_content FROM {$wpdb->posts}
-         WHERE post_status = 'publish'
+         WHERE post_status IN ('publish','draft','pending','future','private')
          AND post_type NOT IN ('attachment','revision')
          AND post_content LIKE %s",
         '%' . $wpdb->esc_like( $uploads_marker ) . '%'
@@ -5918,7 +5963,7 @@ function cscc_render_page() {
             'Database Cleanup, What it does',
             [
             [ 'rec' => '✅ Recommended', 'name' => 'Post Revisions', 'desc' => 'Every time you save or update a post, WordPress stores a complete copy. On an active blog this can mean hundreds of revision rows per post. They consume significant database space over time.' ],
-            [ 'rec' => '✅ Recommended', 'name' => 'Draft Posts', 'desc' => 'Posts saved as drafts but never published. The threshold controls how old a draft must be before deletion, fresh drafts are never touched.' ],
+            [ 'rec' => '✅ Recommended', 'name' => 'Draft Posts', 'desc' => 'Posts saved as drafts but never published. The threshold controls how long a draft must go unedited before deletion, fresh drafts are never touched. Scheduled runs never delete drafts, only a manual Run Cleanup does.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Trashed Posts', 'desc' => 'Posts moved to the trash. WordPress keeps them indefinitely by default. This removes them permanently after the configured number of days.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Auto-Drafts', 'desc' => 'WordPress creates an auto-draft record when you open Add New Post. If you navigate away without saving, the empty record remains. These accumulate silently.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Expired Transients', 'desc' => 'Temporary cached values stored in your options table by plugins and themes. After expiry WordPress should delete them, but many accumulate. Completely safe to delete.' ],
@@ -5934,7 +5979,7 @@ function cscc_render_page() {
                             <?php
                             $db_toggles = array(
                                 'cscc_clean_revisions'      => array( 'Post Revisions',    'Old revision copies saved every time a post is edited. On active blogs these accumulate into thousands of rows.' ),
-                                'cscc_clean_drafts'         => array( 'Draft Posts',        'Unpublished drafts older than the configured threshold. Fresh drafts are never touched.' ),
+                                'cscc_clean_drafts'         => array( 'Draft Posts',        'Unpublished drafts not edited within the configured threshold. Fresh drafts are never touched, and scheduled runs skip drafts entirely.' ),
                                 'cscc_clean_trashed'        => array( 'Trashed Posts',      'Posts in the WordPress trash older than the threshold. WordPress keeps them indefinitely by default.' ),
                                 'cscc_clean_autodrafts'     => array( 'Auto-Drafts',        'Empty placeholder records left when the editor is abandoned without saving.' ),
                                 'cscc_clean_transients'     => array( 'Expired Transients', 'Stale cached values stored in wp_options past their expiry date. Completely safe to delete.' ),
@@ -6012,6 +6057,8 @@ function cscc_render_page() {
             [ 'rec' => 'ℹ️ Info', 'name' => 'What scheduling does', 'desc' => 'When enabled, the plugin registers a WordPress Cron job that automatically runs the full database cleanup on the selected days at the configured hour, without you having to log in manually.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'Day and hour selection', 'desc' => 'You can select multiple days per week. The hour is in your server local time, not your browser timezone. Most VPS hosts default to UTC.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'How WordPress Cron works', 'desc' => 'WordPress Cron is triggered by page visits, not a real system clock. On low-traffic sites a job scheduled for 3AM may not run until the first visitor arrives. For precise scheduling, disable WP-Cron in wp-config.php and add a real server cron.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Drafts are never scheduled', 'desc' => 'A scheduled run cleans revisions, trash, auto-drafts, expired transients, orphaned meta and spam or trashed comments, but never drafts. A draft is unfinished work and the delete is permanent, so drafts are only removed when you run the cleanup yourself.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Missed schedules repair themselves', 'desc' => 'If the next run ever goes missing from the WordPress Cron queue while scheduling is enabled (a plugin update, a migration, a restored database), the plugin notices on the next page load and queues it again. Standby copies are the exception: they stay disarmed.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'After each scheduled run', 'desc' => 'The plugin automatically schedules the next run after each execution, so the schedule remains active indefinitely without any manual intervention.' ],
             ],
             '#f48fb1'
@@ -6176,7 +6223,7 @@ function cscc_render_page() {
             'unused-images',
             'Unused Media, How detection works',
             [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What unused means', 'desc' => 'An attachment is considered unused if it cannot be found in post content, featured images, widget settings, theme mods, the site logo, or the site icon. These are media files registered in WordPress but not referenced anywhere on your site.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What unused means', 'desc' => 'An attachment is considered unused if it cannot be found in the content of any published, draft, pending, scheduled or private post, in featured images, in post meta (where plugins such as audio narration, ACF and WooCommerce store media IDs), widget settings, theme mods, the site logo, or the site icon.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'What is always protected', 'desc' => 'The site logo and site icon set in Appearance Customize are never flagged as unused, regardless of whether they appear in post content.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'The recycle workflow', 'desc' => 'Unused media is moved to a recycle bin rather than deleted immediately. The recycle bin stores the full attachment record, metadata, and all physical files so they can be completely restored if needed. Only Permanently Delete removes files for good.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'Moves are processed in batches of 25 per request so the operation never risks hitting PHP timeout limits, even on shared hosting with libraries of thousands of images.' ],
@@ -6240,7 +6287,7 @@ function cscc_render_page() {
             [ 'rec' => 'ℹ️ Info', 'name' => 'What an unregistered file is', 'desc' => 'A file that exists physically on disk inside wp-content/uploads but has no corresponding WordPress media library record in the database. Unlike unused media (which has a database record but no references), these files have no database record at all.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'How they accumulate', 'desc' => 'Files uploaded via FTP without being registered in WordPress, partially completed uploads, images imported without the media importer, or files left behind by deleted plugins.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'The recycle workflow', 'desc' => 'Scan finds unregistered files. Move to Recycle places them in wp-content/uploads/.csc-recycle/ with a manifest recording their original paths. Restore moves them back exactly. Permanently Delete wipes the recycle bin.' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What the scan checks', 'desc' => 'Every file found recursively under the uploads directory is checked against files registered in _wp_attached_file and _wp_attachment_metadata, plus any file URLs referenced in published post content. Files not in any of these sets are reported as unregistered.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What the scan checks', 'desc' => 'Every file found recursively under the uploads directory is checked against files registered in _wp_attached_file and _wp_attachment_metadata, plus any file URLs referenced in published, draft, pending, scheduled or private post content. Files not in any of these sets are reported as unregistered.' ],
             ],
             '#ff4081'
         ); ?></div>
