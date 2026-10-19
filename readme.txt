@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.133
+Stable tag: 2.5.135
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -140,6 +140,10 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 4. Site Health panel showing disk usage, storage runway, and server resource metrics.
 
 == Changelog ==
+
+= 2.5.134 =
+* Fixed: scheduled cleanups run at the chosen hour in the site's timezone. They previously ran offset by the site's UTC offset (02:00 ran at 04:00 on a UTC+2 site), and the Next Run badge hid it. Existing schedules are re-queued on the corrected clock automatically.
+* Fixed: a schedule that includes today now runs today if the hour has not passed yet, instead of waiting a week.
 
 = 2.5.132 =
 * Fixed: scheduled database and image cleanups that went missing from the cron queue (for example after the 2.5 hook rename) are queued again automatically. The hourly temporary-file sweep is queued on upgraded sites too. Standby copies stay disarmed.

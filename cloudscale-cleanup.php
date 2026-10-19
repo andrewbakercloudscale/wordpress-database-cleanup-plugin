@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.133
+ * Version:     2.5.135
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -87,7 +87,7 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.133' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.135' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -743,22 +743,27 @@ function cscc_schedule_crons() {
     }
 }
 
+/*
+ * The hour is the site's own clock (Settings > General > Timezone), returned as a real UTC
+ * timestamp for wp_schedule_single_event(). The old version built a "local" timestamp from
+ * current_time( 'timestamp' ) and scheduled it as UTC, so on a UTC+2 site "02:00" ran at
+ * 04:00, and the Next Run badge (date_i18n) hid it by making the same mistake in reverse.
+ * Today counts when the hour has not passed yet.
+ */
 function cscc_next_run_timestamp( $days, $hour ) {
-    $map = array(
-        'mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday',
-        'thu' => 'Thursday', 'fri' => 'Friday', 'sat' => 'Saturday', 'sun' => 'Sunday',
+    $wanted = array_intersect(
+        array_map( static function ( $d ) { return strtolower( trim( (string) $d ) ); }, (array) $days ),
+        array( 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun' )
     );
-    $now  = current_time( 'timestamp' );
-    $best = null;
-    foreach ( $days as $d ) {
-        $d = strtolower( trim( $d ) );
-        if ( ! isset( $map[ $d ] ) ) { continue; }
-        $candidate = strtotime( 'next ' . $map[ $d ], $now );
-        $candidate = mktime( $hour, 0, 0, gmdate( 'n', $candidate ), gmdate( 'j', $candidate ), gmdate( 'Y', $candidate ) );
-        if ( $candidate <= $now ) { $candidate += WEEK_IN_SECONDS; }
-        if ( $best === null || $candidate < $best ) { $best = $candidate; }
+    if ( array() === $wanted ) { return null; }
+    $now = new DateTimeImmutable( 'now', wp_timezone() );
+    for ( $i = 0; $i <= 7; $i++ ) {
+        $candidate = $now->setTime( max( 0, min( 23, (int) $hour ) ), 0 )->modify( '+' . $i . ' days' );
+        if ( $candidate > $now && in_array( strtolower( $candidate->format( 'D' ) ), $wanted, true ) ) {
+            return $candidate->getTimestamp();
+        }
     }
-    return $best;
+    return null;
 }
 
 // Cron handlers, run synchronously (no HTTP chunking needed in a cron context)
@@ -797,6 +802,12 @@ add_action( 'init', 'cscc_ensure_crons', 20 );
 function cscc_ensure_crons() {
     if ( wp_installing() || ( class_exists( 'CSCC_Site_Role' ) && CSCC_Site_Role::is_standby() ) ) {
         return;
+    }
+    // Once per install: events queued before 2.5.134 sit at the wrong hour (see
+    // cscc_next_run_timestamp), so re-queue them on the corrected clock.
+    if ( get_option( 'cscc_crons_site_tz', '0' ) !== '1' ) {
+        cscc_schedule_crons();
+        update_option( 'cscc_crons_site_tz', '1' );
     }
     if ( ( get_option( 'cscc_schedule_db_enabled', '0' ) === '1' && ! wp_next_scheduled( 'cscc_scheduled_db_cleanup' ) )
         || ( get_option( 'cscc_schedule_img_enabled', '0' ) === '1' && ! wp_next_scheduled( 'cscc_scheduled_img_cleanup' ) ) ) {
@@ -6055,7 +6066,7 @@ function cscc_render_page() {
             'Scheduled Database Cleanup, How it works',
             [
             [ 'rec' => 'ℹ️ Info', 'name' => 'What scheduling does', 'desc' => 'When enabled, the plugin registers a WordPress Cron job that automatically runs the full database cleanup on the selected days at the configured hour, without you having to log in manually.' ],
-            [ 'rec' => '⬜ Optional', 'name' => 'Day and hour selection', 'desc' => 'You can select multiple days per week. The hour is in your server local time, not your browser timezone. Most VPS hosts default to UTC.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Day and hour selection', 'desc' => 'You can select multiple days per week. The hour is in the site timezone set under Settings, General, not your browser or server timezone.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'How WordPress Cron works', 'desc' => 'WordPress Cron is triggered by page visits, not a real system clock. On low-traffic sites a job scheduled for 3AM may not run until the first visitor arrives. For precise scheduling, disable WP-Cron in wp-config.php and add a real server cron.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Drafts are never scheduled', 'desc' => 'A scheduled run cleans revisions, trash, auto-drafts, expired transients, orphaned meta and spam or trashed comments, but never drafts. A draft is unfinished work and the delete is permanent, so drafts are only removed when you run the cleanup yourself.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Missed schedules repair themselves', 'desc' => 'If the next run ever goes missing from the WordPress Cron queue while scheduling is enabled (a plugin update, a migration, a restored database), the plugin notices on the next page load and queues it again. Standby copies are the exception: they stay disarmed.' ],
@@ -6085,7 +6096,7 @@ function cscc_render_page() {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#00c853 0%,#69f0ae 100%);color:#003d00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(0,200,83,0.3)">✅ Last Run: <?php echo $last_db_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_db_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_db_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_db_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#2979ff 0%,#82b1ff 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(41,121,255,0.3)">⏰ Next Run: <?php echo esc_html( wp_date( 'D j M Y H:i', $next_db_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -6439,7 +6450,7 @@ function cscc_render_page() {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px">
                         <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ff6d00 0%,#ffab40 100%);color:#3e1c00;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(255,109,0,0.3)">✅ Last Run: <?php echo $last_img_sched ? esc_html( date_i18n( 'D j M Y H:i', strtotime( $last_img_sched ) ) ) : 'Never'; ?></span>
                         <?php if ( $next_img_sched ) : ?>
-                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,255,0.3)">⏰ Next Run: <?php echo esc_html( date_i18n( 'D j M Y H:i', $next_img_sched ) ); ?></span>
+                        <span style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#aa00ff 0%,#d500f9 100%);color:#fff;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:0.3px;box-shadow:0 2px 8px rgba(170,0,255,0.3)">⏰ Next Run: <?php echo esc_html( wp_date( 'D j M Y H:i', $next_img_sched ) ); ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
