@@ -201,6 +201,16 @@ if ! php "$SCRIPT_DIR/tests/no-native-dialogs-test.php"; then
 fi
 echo ""
 
+echo "Checking a production deploy fails when the public download on S3 was not updated..."
+if ! php "$SCRIPT_DIR/tests/deploy-s3-exit-test.php"; then
+    echo ""
+    echo "ERROR: deploy S3 exit tests failed. Build blocked."
+    echo "  A failed S3 upload would end the deploy with exit 0 again, the retry would be lost, or"
+    echo "  a standby, help-site or SKIP_S3_PUBLISH=1 deploy would try to upload."
+    exit 1
+fi
+echo ""
+
 echo "Checking WP bootstrap safety..."
 BOOTSTRAP_ERRORS=0
 _BOOTSTRAP_FORBIDDEN='current_user_can,is_user_logged_in,wp_get_current_user,get_current_user_id,check_admin_referer,check_ajax_referer,is_multisite,switch_to_blog,restore_current_blog'
