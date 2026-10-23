@@ -37,6 +37,7 @@ $cscc_options = [
     'cscc_img_max_height',
     'cscc_img_quality',
     'cscc_convert_png_to_jpg',
+    'cscc_convert_to_webp',
     // Both names: the key was renamed for WordPress.org's one-prefix-per-plugin rule and the
     // old row is deliberately left in place on upgrade, so uninstall is what finally removes it.
     'cscc_chunk_mb',

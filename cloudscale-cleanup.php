@@ -2,8 +2,8 @@
 /**
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
- * Description: Database and media library cleanup with dry-run preview, image optimisation, PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.135
+ * Description: Database and media library cleanup with dry-run preview, image optimisation, WebP and PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
+ * Version:     2.5.136
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -87,7 +87,7 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.135' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.136' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -685,7 +685,7 @@ function cscc_ajax_save_settings() {
     );
     $bools = array(
         'cscc_schedule_db_enabled', 'cscc_schedule_img_enabled', 'cscc_convert_png_to_jpg',
-        'cscc_disable_emoji_polyfill',
+        'cscc_convert_to_webp', 'cscc_disable_emoji_polyfill',
     );
     $arrays = array( 'cscc_schedule_db_days', 'cscc_schedule_img_days' );
 
@@ -3398,6 +3398,51 @@ function cscc_rmdir_recursive( string $dir ): void {
 // IMAGE OPTIMISATION
 // ═════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Whether this server's image editor (Imagick or GD) can write WebP. Core asks the same
+ * question before it offers WebP sub-sizes; a GD built without libwebp answers no.
+ */
+function cscc_webp_supported(): bool {
+    return wp_image_editor_supports( array( 'mime_type' => 'image/webp' ) );
+}
+
+/**
+ * The WebP setting as the optimiser applies it: switched on AND writable here. An option left
+ * on after a server move to a host without WebP falls back to the JPEG/PNG behaviour.
+ */
+function cscc_webp_enabled(): bool {
+    return get_option( 'cscc_convert_to_webp', '0' ) === '1' && cscc_webp_supported();
+}
+
+/**
+ * True when a PNG carries transparency: an alpha channel (colour types 4 and 6) or a tRNS chunk
+ * before the image data. JPEG has no alpha, so converting one fills the see-through area with a
+ * solid colour and a logo on a coloured header comes out in a box. Anything unreadable, or a
+ * tRNS search that runs past the read window, answers true so the file is left alone.
+ *
+ * @param string $file Absolute path to the PNG.
+ * @return bool
+ */
+function cscc_png_has_alpha( string $file ): bool {
+    if ( '' === $file || ! is_readable( $file ) ) { return true; }
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads the header of a local upload, not a remote URL
+    $head = file_get_contents( $file, false, null, 0, 262144 );
+    if ( false === $head || strlen( $head ) < 33 || "\x89PNG\r\n\x1a\n" !== substr( $head, 0, 8 ) ) { return true; }
+
+    $colour_type = ord( $head[25] );
+    if ( 4 === $colour_type || 6 === $colour_type ) { return true; }
+
+    $len_total = strlen( $head );
+    for ( $pos = 8; $pos + 8 <= $len_total; ) {
+        $chunk = unpack( 'Nlen', substr( $head, $pos, 4 ) );
+        $type  = substr( $head, $pos + 4, 4 );
+        if ( 'tRNS' === $type ) { return true; }
+        if ( 'IDAT' === $type || 'IEND' === $type ) { return false; }
+        $pos += 12 + (int) $chunk['len'];
+    }
+    return true;
+}
+
 // Dry run scan
 /**
  * Shared candidate builder for both the dry-run scan and the live optimiser.
@@ -3410,12 +3455,13 @@ function cscc_rmdir_recursive( string $dir ): void {
  * @param int  $max_w        Max width px.
  * @param int  $max_h        Max height px.
  * @param bool $convert_png  Whether PNG→JPEG conversion is enabled.
+ * @param bool $to_webp      Whether JPEG and PNG originals are converted to WebP (wins over PNG→JPEG).
  * @param int  $min_size_b   Minimum file size in bytes (0 = no limit).
  * @param int  $min_gain_pct Minimum estimated gain % to include (0 = no limit).
  * @param int  &$skipped_small  Out-param: count of files excluded by size threshold.
  * @return array
  */
-function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, int $min_size_b, int $min_gain_pct, int &$skipped_small ): array {
+function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, bool $to_webp, int $min_size_b, int $min_gain_pct, int &$skipped_small ): array {
     $skipped_small = 0;
     $candidates    = array();
 
@@ -3428,6 +3474,8 @@ function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, in
     ) );
 
     foreach ( $all as $id ) {
+        // Reset per image: `$file ?? ...` below otherwise reused the previous image's path.
+        $file = null;
         $mime = get_post_mime_type( $id );
         if ( ! $mime ) { continue; }
 
@@ -3458,7 +3506,15 @@ function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, in
             $flags[] = 'oversized (' . $w . 'x' . $h . ')';
         }
 
-        if ( $is_jpeg ) {
+        if ( $to_webp ) {
+            // WebP at the same quality setting: about 30% under a JPEG, well over half under a PNG.
+            $est     = (int) ( $size * ( $is_jpeg ? 0.30 : 0.60 ) );
+            $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
+            if ( $est > 1024 && $est_pct >= $min_gain_pct ) {
+                $flags[]     = ( $is_jpeg ? 'JPEG' : 'PNG' ) . '→WebP (~' . size_format( $est ) . ', ~' . round( $est_pct ) . '%)';
+                $est_saving += $est;
+            }
+        } elseif ( $is_jpeg ) {
             $est     = (int) ( $size * 0.22 );
             $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
             if ( $est > 1024 && $est_pct >= $min_gain_pct ) {
@@ -3467,7 +3523,7 @@ function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, in
             }
         }
 
-        if ( $convert_png && $is_png ) {
+        if ( ! $to_webp && $convert_png && $is_png && ! cscc_png_has_alpha( (string) get_attached_file( $id ) ) ) {
             $est     = (int) ( $size * 0.55 );
             $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
             if ( $est_pct >= $min_gain_pct ) {
@@ -3511,11 +3567,12 @@ function cscc_ajax_scan_optimise() {
     $max_h        = intval( get_option( 'cscc_img_max_height',   1080 ) );
     $quality      = intval( get_option( 'cscc_img_quality',      82   ) );
     $convert_png  = get_option( 'cscc_convert_png_to_jpg', '0' ) === '1';
+    $to_webp      = cscc_webp_enabled();
     $min_size_kb  = max( 0, intval( get_option( 'cscc_img_min_size_kb',  100 ) ) );
     $min_gain_pct = max( 0, intval( get_option( 'cscc_img_min_gain_pct',  10 ) ) );
 
     $skipped_small = 0;
-    $candidates    = cscc_optimise_candidates( $max_w, $max_h, $convert_png, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
+    $candidates    = cscc_optimise_candidates( $max_w, $max_h, $convert_png, $to_webp, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
 
     $lines   = array();
     $lines[] = array( 'type' => 'section', 'text' => 'Image Optimisation Scan, max ' . $max_w . 'x' . $max_h . 'px · quality ' . $quality . ' · skip <' . $min_size_kb . ' KB · skip <' . $min_gain_pct . '% gain' );
@@ -3529,8 +3586,13 @@ function cscc_ajax_scan_optimise() {
     }
 
     $lines[] = array( 'type' => 'count', 'text' => '  Estimated total saving: ' . size_format( $total_saving ) );
-    if ( $convert_png ) {
-        $lines[] = array( 'type' => 'info', 'text' => '  Note: PNG→JPEG conversion is ON.' );
+    if ( $to_webp ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Note: WebP conversion is ON. JPEGs and PNGs become .webp and post content is repointed.' );
+    } elseif ( get_option( 'cscc_convert_to_webp', '0' ) === '1' ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Note: WebP conversion is switched on but this server cannot write WebP, so it is not applied.' );
+    }
+    if ( $convert_png && ! $to_webp ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Note: PNG→JPEG conversion is ON. PNGs with transparency are kept as PNG.' );
     }
     wp_send_json_success( $lines );
 }
@@ -3544,11 +3606,12 @@ function cscc_ajax_optimise_start() {
     $max_w        = intval( get_option( 'cscc_img_max_width',    1920 ) );
     $max_h        = intval( get_option( 'cscc_img_max_height',   1080 ) );
     $convert_png  = get_option( 'cscc_convert_png_to_jpg', '0' ) === '1';
+    $to_webp      = cscc_webp_enabled();
     $min_size_kb  = max( 0, intval( get_option( 'cscc_img_min_size_kb',  100 ) ) );
     $min_gain_pct = max( 0, intval( get_option( 'cscc_img_min_gain_pct',  10 ) ) );
 
     $skipped_small = 0;
-    $candidates    = cscc_optimise_candidates( $max_w, $max_h, $convert_png, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
+    $candidates    = cscc_optimise_candidates( $max_w, $max_h, $convert_png, $to_webp, $min_size_kb * 1024, $min_gain_pct, $skipped_small );
     $queue         = array_column( $candidates, 'id' );
 
     // Store in a plain wp_option (autoload=no), transients are unreliable when object
@@ -3592,6 +3655,7 @@ function cscc_ajax_optimise_chunk() {
     $max_h        = intval( get_option( 'cscc_img_max_height',   1080 ) );
     $quality      = intval( get_option( 'cscc_img_quality',      82   ) );
     $convert_png  = get_option( 'cscc_convert_png_to_jpg', '0' ) === '1';
+    $to_webp      = cscc_webp_enabled();
     $min_gain_pct = max( 0, intval( get_option( 'cscc_img_min_gain_pct', 10 ) ) );
 
     // NO deadline check and no time-limit lift here, and both omissions are deliberate.
@@ -3632,7 +3696,20 @@ function cscc_ajax_optimise_chunk() {
         }
         list( $w, $h ) = $dims;
 
-        $editor = wp_get_image_editor( $file );
+        // Format conversion: JPEG/PNG to WebP when that is on (WebP keeps transparency), else
+        // PNG to JPEG for PNGs with nothing see-through. A transparent PNG falls through to the
+        // resize-only branch below and stays a PNG.
+        $target_mime = '';
+        if ( $to_webp && in_array( $mime, array( 'image/jpeg', 'image/png' ), true ) ) {
+            $target_mime = 'image/webp';
+        } elseif ( $convert_png && $mime === 'image/png' && ! cscc_png_has_alpha( $file ) ) {
+            $target_mime = 'image/jpeg';
+        }
+        $conversion = $target_mime ? strtoupper( str_replace( 'image/', '', $mime ) ) . '→' . ( 'image/webp' === $target_mime ? 'WebP' : 'JPEG' ) : '';
+
+        // Asked for by output format, so a site with both libraries gets the one that can write
+        // it (GD without libwebp loads a JPEG fine and then fails on save).
+        $editor = wp_get_image_editor( $file, $target_mime ? array( 'mime_type' => $target_mime ) : array() );
         if ( is_wp_error( $editor ) ) {
             $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $editor->get_error_message() ) );
             continue;
@@ -3645,15 +3722,15 @@ function cscc_ajax_optimise_chunk() {
             $editor->resize( $max_w, $max_h, false );
         }
 
-        // PNG to JPEG conversion, save to temp first, check gain, then commit or discard.
-        if ( $convert_png && $mime === 'image/png' ) {
+        if ( $target_mime ) {
             // Saved straight to a NEW file beside the original, the way core's image editor
             // does it: nothing existing is overwritten, and wp_unique_filename() keeps an
             // unrelated photo.jpg next to photo.png from being clobbered by the conversion.
-            $new_file = trailingslashit( dirname( $file ) ) . wp_unique_filename( dirname( $file ), preg_replace( '/\.png$/i', '.jpg', basename( $file ) ) );
-            $result   = $editor->save( $new_file, 'image/jpeg' );
+            $new_ext  = 'image/webp' === $target_mime ? '.webp' : '.jpg';
+            $new_file = trailingslashit( dirname( $file ) ) . wp_unique_filename( dirname( $file ), preg_replace( '/\.(png|jpe?g)$/i', $new_ext, basename( $file ) ) );
+            $result   = $editor->save( $new_file, $target_mime );
             if ( is_wp_error( $result ) ) {
-                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' PNG→JPEG: ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' ' . $conversion . ': ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
             }
             $new_file = $result['path'];
@@ -3670,14 +3747,20 @@ function cscc_ajax_optimise_chunk() {
             // ORDER MATTERS, and it changed: the database is pointed at the new file BEFORE the
             // old one is deleted. It used to delete the .png first, so a request killed in the gap
             // left the attachment pointing at a file that no longer existed, a permanently broken
-            // image. Now the worst a kill in that gap leaves is an orphaned .png on disk, which
+            // image. Now the worst a kill in that gap leaves is an orphaned original on disk, which
             // costs a little space and breaks nothing.
+            $old_meta = wp_get_attachment_metadata( $id );
             update_attached_file( $id, $new_file );
             wp_delete_file( $file );
             $meta = wp_generate_attachment_metadata( $id, $new_file );
+            // A big upload's attached file is core's "-scaled" copy and the camera original sits
+            // beside it. Keep pointing at it, or it is untracked and outlives the attachment.
+            if ( is_array( $old_meta ) && ! empty( $old_meta['original_image'] ) && empty( $meta['original_image'] ) ) {
+                $meta['original_image'] = $old_meta['original_image'];
+            }
             wp_update_attachment_metadata( $id, $meta );
-            wp_update_post( array( 'ID' => $id, 'post_mime_type' => 'image/jpeg' ) );
-            cscc_update_image_references( $id, $file, $new_file );
+            wp_update_post( array( 'ID' => $id, 'post_mime_type' => $target_mime ) );
+            cscc_update_image_references( $id, $file, $new_file, is_array( $old_meta ) ? $old_meta : array(), is_array( $meta ) ? $meta : array() );
         } else {
             // JPEG recompress / resize, save to temp, check gain, then commit or discard.
             $tmp_file    = $file . '.csc-tmp';
@@ -3730,7 +3813,7 @@ function cscc_ajax_optimise_chunk() {
         $total_saved += $saved;
         $total_count++;
 
-        $lines[] = array( 'type' => 'deleted', 'text' => '  [OPTIMISED] ID ' . $id . ', ' . esc_html( $title ) . ' ' . size_format( $size_old ) . ' → ' . size_format( $size_new ) . ' (saved ' . size_format( $saved ) . ')' );
+        $lines[] = array( 'type' => 'deleted', 'text' => '  [OPTIMISED] ID ' . $id . ', ' . esc_html( $title ) . ' ' . size_format( $size_old ) . ' → ' . size_format( $size_new ) . ' (saved ' . size_format( $saved ) . ( $conversion ? ', ' . $conversion : '' ) . ')' );
     }
 
     // Advance the queue now, after the attempt rather than before it. Popped whether the image
@@ -3773,19 +3856,33 @@ function cscc_ajax_optimise_finish() {
     ) ) );
 }
 
-// Helper: update image URL references after PNG → JPEG conversion
-function cscc_update_image_references( $attachment_id, $old_file, $new_file ) {
+// Helper: update image URL references after a format conversion (PNG→JPEG, JPEG/PNG→WebP).
+// Each thumbnail size is repointed too, matched by size name, so an <img> of the "large" size
+// in a post becomes the new large file rather than staying on the old format. The old size
+// files are left on disk: a page builder or theme option can hold their URLs outside
+// post_content, and a stale-but-working image beats a broken one.
+function cscc_update_image_references( $attachment_id, $old_file, $new_file, $old_meta = array(), $new_meta = array() ) {
     global $wpdb;
     $upload_dir = wp_upload_dir();
     $base       = trailingslashit( $upload_dir['basedir'] );
     $old_url    = $upload_dir['baseurl'] . '/' . ltrim( str_replace( $base, '', $old_file ), '/' );
     $new_url    = $upload_dir['baseurl'] . '/' . ltrim( str_replace( $base, '', $new_file ), '/' );
 
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off bulk rewrite of image URLs in post content after a PNG to JPEG conversion; no WordPress API does a bulk replace
-    $wpdb->query( $wpdb->prepare(
-        "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
-        $old_url, $new_url, '%' . $wpdb->esc_like( basename( $old_file ) ) . '%'
-    ) );
+    $pairs = array( basename( $old_file ) => array( $old_url, $new_url ) );
+    $dir_url = trailingslashit( dirname( $new_url ) );
+    foreach ( (array) ( $old_meta['sizes'] ?? array() ) as $size_name => $old_size ) {
+        $new_size = $new_meta['sizes'][ $size_name ] ?? null;
+        if ( empty( $old_size['file'] ) || empty( $new_size['file'] ) || $old_size['file'] === $new_size['file'] ) { continue; }
+        $pairs[ $old_size['file'] ] = array( $dir_url . $old_size['file'], $dir_url . $new_size['file'] );
+    }
+
+    foreach ( $pairs as $old_name => $urls ) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- one-off bulk rewrite of image URLs in post content after a format conversion; no WordPress API does a bulk replace
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
+            $urls[0], $urls[1], '%' . $wpdb->esc_like( $old_name ) . '%'
+        ) );
+    }
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- repoints the converted attachment guid; no WordPress API updates a guid
     $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->posts} SET guid = %s WHERE ID = %d", $new_url, $attachment_id ) );
 }
@@ -6466,15 +6563,16 @@ function cscc_render_page() {
             'Image Optimisation, How it works',
             [
             [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Processes your original uploaded images in two ways: Resize (scales down images exceeding your configured maximum, preserving aspect ratio) and Recompress (re-saves JPEG files at the configured quality level).' ],
-            [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'Thumbnails are only regenerated when an image is resized or converted from PNG to JPEG. For quality-only recompression the existing thumbnails stay valid and are left untouched, making those runs much faster.' ],
-            [ 'rec' => '⬜ Optional', 'name' => 'PNG to JPEG conversion', 'desc' => 'When enabled, PNG files without transparency are converted to JPEG. Photographic PNGs typically shrink by 40-70% when converted. PNG files with transparency are never converted.' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'Thumbnails are only regenerated when an image is resized or converted to another format. For quality-only recompression the existing thumbnails stay valid and are left untouched, making those runs much faster.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'WebP conversion', 'desc' => 'When enabled, JPEG and PNG originals are converted to WebP, thumbnails are regenerated as WebP, and image links in post content (full size and every thumbnail size) are repointed to the new files. WebP keeps transparency, so logos and icons convert safely. Typical saving is 25-35% on a JPEG and 50-80% on a PNG. Every current browser displays WebP. Old thumbnail files are left on disk so links held outside post content keep working.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'PNG to JPEG conversion', 'desc' => 'When enabled (and WebP conversion is off), PNG files without transparency are converted to JPEG. Photographic PNGs typically shrink by 40-70% when converted. PNG files with transparency are never converted.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Chunked processing', 'desc' => 'One image is processed per request to stay well within server and gateway timeout limits. Each request completes in seconds regardless of image size.' ],
             [ 'rec' => '💡 Tip', 'name' => 'Always dry run first', 'desc' => 'Press Dry Run to preview potential savings, then review the output log carefully before optimising. No files are modified until you press the optimise button.' ],
             ],
             '#ff1744'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Resizes oversized originals and recompresses JPEGs to the configured quality target. Processes one image per request, each request completes in seconds. Files under the minimum size or below the gain threshold are skipped automatically.</p>
+                        <p>Resizes oversized originals, recompresses JPEGs to the configured quality target, and optionally converts JPEGs and PNGs to WebP. Processes one image per request, each request completes in seconds. Files under the minimum size or below the gain threshold are skipped automatically.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-optimise">🔍 Dry Run, Preview Savings</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-run-optimise">⚡ Optimise Images Now</button>
@@ -6495,7 +6593,8 @@ function cscc_render_page() {
             [ 'rec' => '✅ Recommended', 'name' => 'JPEG quality (1-100)', 'desc' => 'Controls compression when saving JPEG files. 80-85 is the sweet spot, excellent quality with significant size reduction. Default: 82.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Minimum file size (KB)', 'desc' => 'Images smaller than this threshold are skipped entirely. Already-small files yield tiny absolute savings and re-compressing them at a lower quality setting can actually increase their size. Default: 100 KB.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Minimum gain threshold (%)', 'desc' => 'After compressing to a temp file, if the size saving is below this percentage the original is kept and the result discarded. Protects already-optimised images from being overwritten with a negligibly smaller (or larger) version. Default: 10%.' ],
-            [ 'rec' => '⬜ Optional', 'name' => 'Convert non-transparent PNGs to JPEG', 'desc' => 'Converts eligible PNGs (those with no transparency) to JPEG. A PNG screenshot at 200KB will typically become a 40-80KB JPEG with no visible difference at screen resolution.' ],
+            [ 'rec' => '✅ Recommended', 'name' => 'Convert JPEGs and PNGs to WebP', 'desc' => 'Converts originals to WebP at the quality setting above, keeping transparency, and repoints post content to the new files. Takes priority over PNG to JPEG. Greyed out when this server\'s image library (Imagick or GD) cannot write WebP; ask your host to enable WebP support in it.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Convert non-transparent PNGs to JPEG', 'desc' => 'Converts eligible PNGs (those with no transparency) to JPEG. A PNG screenshot at 200KB will typically become a 40-80KB JPEG with no visible difference at screen resolution. Ignored while WebP conversion is on.' ],
             ],
             '#ffd600'
         ); ?></div>
@@ -6505,11 +6604,16 @@ function cscc_render_page() {
                         <label>JPEG quality (1 to 100)    <input type="number" class="csc-setting" name="cscc_img_quality"       value="<?php echo esc_attr( get_option( 'cscc_img_quality',       82   ) ); ?>" min="1" max="100"></label>
                         <label>Min. file size (KB)     <input type="number" class="csc-setting" name="cscc_img_min_size_kb"   value="<?php echo esc_attr( get_option( 'cscc_img_min_size_kb',  100  ) ); ?>" min="0"></label>
                         <label>Min. gain threshold (%) <input type="number" class="csc-setting" name="cscc_img_min_gain_pct"  value="<?php echo esc_attr( get_option( 'cscc_img_min_gain_pct',  10  ) ); ?>" min="0" max="99"></label>
+                        <?php $cscc_webp_ok = cscc_webp_supported(); ?>
                         <label class="csc-toggle-label">
-                            <input type="checkbox" name="cscc_convert_png_to_jpg" value="1" <?php checked( get_option( 'cscc_convert_png_to_jpg', '1' ), '1' ); ?>>
+                            <input type="checkbox" name="cscc_convert_to_webp" value="1" <?php checked( get_option( 'cscc_convert_to_webp', '0' ), '1' ); ?> <?php disabled( ! $cscc_webp_ok ); ?>>
+                            Convert JPEGs and PNGs to WebP<?php echo $cscc_webp_ok ? '' : esc_html( ' (this server cannot write WebP)' ); ?>
+                        </label>
+                        <label class="csc-toggle-label">
+                            <input type="checkbox" name="cscc_convert_png_to_jpg" value="1" <?php checked( get_option( 'cscc_convert_png_to_jpg', '0' ), '1' ); ?>>
                             Convert non-transparent PNGs to JPEG
                         </label>
-                        <p class="csc-note">Recommended defaults: 1920&times;1080 · quality 82 · skip under 100 KB · skip if gain &lt; 10%. PNG conversion yields 40 to 70% size reduction on photographic images.</p>
+                        <p class="csc-note">Recommended defaults: 1920&times;1080 · quality 82 · skip under 100 KB · skip if gain &lt; 10% · WebP on. WebP saves 25 to 35% on JPEGs and 50 to 80% on PNGs, transparency included.</p>
                         <button class="csc-btn csc-btn-primary csc-save-btn" data-group="optimise">Save Settings</button>
                     </div>
                 </div>

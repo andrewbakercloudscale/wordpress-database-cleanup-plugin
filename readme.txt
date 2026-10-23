@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.135
+Stable tag: 2.5.136
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -36,6 +36,7 @@ Choose any combination of:
 **Image Optimisation**
 
 * Resize and recompress JPEG and PNG images exceeding configurable maximum dimensions or quality thresholds
+* Convert JPEG and PNG originals to WebP (transparency kept), with thumbnails regenerated and post content repointed to the new files
 * Destructive operation, requires explicit confirmation before running
 * Back up your uploads folder before using this feature
 
@@ -140,6 +141,12 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 4. Site Health panel showing disk usage, storage runway, and server resource metrics.
 
 == Changelog ==
+
+= 2.5.135 =
+* New: optional WebP conversion in Image Optimisation. JPEG and PNG originals become WebP at your quality setting, thumbnails are regenerated, and links in post content to the full image and every thumbnail size are updated. Skipped automatically when the server's image library cannot write WebP.
+* Fixed: PNG to JPEG optimisation now leaves PNGs with transparency alone, as the settings help always said. It converted them, filling see-through areas with a solid colour.
+* Fixed: after a PNG to JPEG conversion, post content that used a thumbnail size now points at the new thumbnail too, and a large upload's original file stays attached to its image.
+* Fixed: the "Convert PNGs to JPEG" box no longer shows ticked on a site where the setting was never saved and is therefore off.
 
 = 2.5.134 =
 * Fixed: scheduled cleanups run at the chosen hour in the site's timezone. They previously ran offset by the site's UTC offset (02:00 ran at 04:00 on a UTC+2 site), and the Next Run badge hid it. Existing schedules are re-queued on the corrected clock automatically.
