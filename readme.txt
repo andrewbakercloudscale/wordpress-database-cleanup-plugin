@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.136
+Stable tag: 2.5.137
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -37,6 +37,7 @@ Choose any combination of:
 
 * Resize and recompress JPEG and PNG images exceeding configurable maximum dimensions or quality thresholds
 * Convert JPEG and PNG originals to WebP (transparency kept), with thumbnails regenerated and post content repointed to the new files
+* Lossy or lossless: lossless mode re-saves PNGs at maximum compression (or as lossless WebP) with every pixel unchanged, and never re-encodes a JPEG at lower quality
 * Destructive operation, requires explicit confirmation before running
 * Back up your uploads folder before using this feature
 
@@ -141,6 +142,9 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 4. Site Health panel showing disk usage, storage runway, and server resource metrics.
 
 == Changelog ==
+
+= 2.5.137 =
+* New: lossless mode in Image Optimisation. PNGs are re-saved at maximum compression with identical pixels, or as lossless WebP when WebP conversion is on; JPEG compression is left alone. Uses Imagick when present; with GD only, 16-bit and colour-profiled PNGs are skipped rather than changed.
 
 = 2.5.135 =
 * New: optional WebP conversion in Image Optimisation. JPEG and PNG originals become WebP at your quality setting, thumbnails are regenerated, and links in post content to the full image and every thumbnail size are updated. Skipped automatically when the server's image library cannot write WebP.

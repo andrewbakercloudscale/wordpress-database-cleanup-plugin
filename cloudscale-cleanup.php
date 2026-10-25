@@ -3,7 +3,7 @@
  * Plugin Name: CloudScale Cleanup
  * Plugin URI:  https://cloudscale.consulting
  * Description: Database and media library cleanup with dry-run preview, image optimisation, WebP and PNG to JPEG conversion, and chunked processing safe on any server. Free, open source, no subscriptions.
- * Version:     2.5.136
+ * Version:     2.5.137
  * Author:      CloudScale
  * Author URI:  https://cloudscale.consulting
  * License:     GPL-2.0-or-later
@@ -87,7 +87,7 @@ add_action( 'admin_init', function () {
     remove_action( 'admin_print_styles', 'print_emoji_styles' );
 }, 1 );
 
-define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.136' );
+define( 'CLOUDSCALE_CLEANUP_VERSION', '2.5.137' );
 define( 'CLOUDSCALE_CLEANUP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_URL', plugin_dir_url( __FILE__ ) );
 define( 'CLOUDSCALE_CLEANUP_SLUG', 'cloudscale-cleanup' );
@@ -685,7 +685,7 @@ function cscc_ajax_save_settings() {
     );
     $bools = array(
         'cscc_schedule_db_enabled', 'cscc_schedule_img_enabled', 'cscc_convert_png_to_jpg',
-        'cscc_convert_to_webp', 'cscc_disable_emoji_polyfill',
+        'cscc_convert_to_webp', 'cscc_img_lossless', 'cscc_disable_emoji_polyfill',
     );
     $arrays = array( 'cscc_schedule_db_days', 'cscc_schedule_img_days' );
 
@@ -3443,6 +3443,126 @@ function cscc_png_has_alpha( string $file ): bool {
     return true;
 }
 
+/**
+ * Whether lossless mode is on. Lossless re-saves PNGs at maximum compression with pixels
+ * untouched and never re-encodes a JPEG's compression; resizing an oversized original still
+ * applies, because that is the dimensions setting and not the compression one.
+ */
+function cscc_lossless_enabled(): bool {
+    return get_option( 'cscc_img_lossless', '0' ) === '1';
+}
+
+/**
+ * True when GD can re-save this PNG without changing what it shows. GD reads 16-bit PNGs as
+ * 8-bit and drops an embedded colour profile, so either one would make a "lossless" save
+ * visibly different; those files are left for Imagick or skipped. Unreadable answers false.
+ *
+ * @param string $file Absolute path to the PNG.
+ * @return bool
+ */
+function cscc_png_gd_lossless_safe( string $file ): bool {
+    if ( '' === $file || ! is_readable( $file ) ) { return false; }
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads the header of a local upload, not a remote URL
+    $head = file_get_contents( $file, false, null, 0, 262144 );
+    if ( false === $head || strlen( $head ) < 33 || "\x89PNG\r\n\x1a\n" !== substr( $head, 0, 8 ) ) { return false; }
+    if ( 16 === ord( $head[24] ) ) { return false; }
+
+    $len_total = strlen( $head );
+    for ( $pos = 8; $pos + 8 <= $len_total; ) {
+        $chunk = unpack( 'Nlen', substr( $head, $pos, 4 ) );
+        $type  = substr( $head, $pos + 4, 4 );
+        if ( 'iCCP' === $type ) { return false; }
+        if ( 'IDAT' === $type ) { return true; }
+        $pos += 12 + (int) $chunk['len'];
+    }
+    return false;
+}
+
+/**
+ * Lossless save of a PNG, as a PNG at zlib level 9 or as lossless WebP, scaled down to fit
+ * the maximum dimensions first when it is larger. Core's image editor cannot do this: it
+ * re-encodes WebP lossy at the quality setting and gives no say over PNG compression, so the
+ * library is driven directly. Imagick first (keeps 16-bit depth and the colour profile), GD
+ * otherwise. Metadata other than the colour profile is stripped.
+ *
+ * @param string $src    Absolute path to the source PNG.
+ * @param string $dest   Absolute path to write; must not exist.
+ * @param string $mime   'image/png' or 'image/webp'.
+ * @param int    $max_w  Max width px.
+ * @param int    $max_h  Max height px.
+ * @return array{path:string}|WP_Error
+ */
+function cscc_lossless_save( string $src, string $dest, string $mime, int $max_w, int $max_h ) {
+    $webp = 'image/webp' === $mime;
+
+    if ( class_exists( 'Imagick' ) ) {
+        try {
+            $im = new Imagick( $src );
+            if ( $im->getImageWidth() > $max_w || $im->getImageHeight() > $max_h ) {
+                $im->resizeImage( $max_w, $max_h, Imagick::FILTER_LANCZOS, 1, true );
+            }
+            $icc = $im->getImageProfiles( 'icc', true );
+            $im->stripImage();
+            if ( ! empty( $icc['icc'] ) ) { $im->profileImage( 'icc', $icc['icc'] ); }
+            if ( $webp ) {
+                $im->setImageFormat( 'webp' );
+                $im->setOption( 'webp:lossless', 'true' );
+                $im->setOption( 'webp:method', '6' );
+            } else {
+                $im->setImageFormat( 'png' );
+                $im->setOption( 'png:compression-level', '9' );
+                $im->setOption( 'png:compression-filter', '5' );
+            }
+            $im->writeImage( $dest );
+            $im->clear();
+        } catch ( Exception $e ) {
+            if ( file_exists( $dest ) ) { wp_delete_file( $dest ); }
+            return new WP_Error( 'cscc_lossless', 'Imagick: ' . $e->getMessage() );
+        }
+        return file_exists( $dest ) ? array( 'path' => $dest ) : new WP_Error( 'cscc_lossless', 'Imagick wrote no file.' );
+    }
+
+    if ( ! function_exists( 'imagecreatefrompng' ) ) {
+        return new WP_Error( 'cscc_lossless', 'Neither Imagick nor GD is available.' );
+    }
+    if ( ! cscc_png_gd_lossless_safe( $src ) ) {
+        return new WP_Error( 'cscc_lossless', '16-bit or colour-profiled PNG, which GD cannot re-save without changing it; left as it is.' );
+    }
+    if ( $webp && ! defined( 'IMG_WEBP_LOSSLESS' ) ) {
+        return new WP_Error( 'cscc_lossless', 'This PHP build cannot write lossless WebP (needs PHP 8.1+ with WebP in GD).' );
+    }
+
+    $img = @imagecreatefrompng( $src );
+    if ( ! $img ) {
+        return new WP_Error( 'cscc_lossless', 'GD could not read the PNG.' );
+    }
+    $w = imagesx( $img );
+    $h = imagesy( $img );
+    if ( $w > $max_w || $h > $max_h ) {
+        $ratio = min( $max_w / $w, $max_h / $h );
+        $nw    = max( 1, (int) round( $w * $ratio ) );
+        $nh    = max( 1, (int) round( $h * $ratio ) );
+        $out   = imagecreatetruecolor( $nw, $nh );
+        imagealphablending( $out, false );
+        imagesavealpha( $out, true );
+        imagefill( $out, 0, 0, imagecolorallocatealpha( $out, 0, 0, 0, 127 ) );
+        imagecopyresampled( $out, $img, 0, 0, 0, 0, $nw, $nh, $w, $h );
+        $img = $out;
+    }
+    if ( $webp && ! imageistruecolor( $img ) ) {
+        imagepalettetotruecolor( $img );
+    }
+    imagealphablending( $img, false );
+    imagesavealpha( $img, true );
+    $ok = $webp ? imagewebp( $img, $dest, IMG_WEBP_LOSSLESS ) : imagepng( $img, $dest, 9 );
+    unset( $img );
+    if ( ! $ok || ! file_exists( $dest ) ) {
+        if ( file_exists( $dest ) ) { wp_delete_file( $dest ); }
+        return new WP_Error( 'cscc_lossless', 'GD could not write the file.' );
+    }
+    return array( 'path' => $dest );
+}
+
 // Dry run scan
 /**
  * Shared candidate builder for both the dry-run scan and the live optimiser.
@@ -3464,6 +3584,7 @@ function cscc_png_has_alpha( string $file ): bool {
 function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, bool $to_webp, int $min_size_b, int $min_gain_pct, int &$skipped_small ): array {
     $skipped_small = 0;
     $candidates    = array();
+    $lossless      = cscc_lossless_enabled(); // read here, not passed: the chunk handler reads the same option
 
     $all = get_posts( array(
         'post_type'      => 'attachment',
@@ -3506,7 +3627,18 @@ function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, bo
             $flags[] = 'oversized (' . $w . 'x' . $h . ')';
         }
 
-        if ( $to_webp ) {
+        if ( $lossless ) {
+            // Lossless leaves a JPEG's compression alone (only an oversized one is resized) and
+            // re-saves a PNG losslessly: about 15% off as a PNG, about 25% off as lossless WebP.
+            if ( $is_png ) {
+                $est     = (int) ( $size * ( $to_webp ? 0.25 : 0.15 ) );
+                $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
+                if ( $est > 1024 && $est_pct >= $min_gain_pct ) {
+                    $flags[]     = ( $to_webp ? 'PNG→lossless WebP' : 'lossless PNG' ) . ' (~' . size_format( $est ) . ', ~' . round( $est_pct ) . '%)';
+                    $est_saving += $est;
+                }
+            }
+        } elseif ( $to_webp ) {
             // WebP at the same quality setting: about 30% under a JPEG, well over half under a PNG.
             $est     = (int) ( $size * ( $is_jpeg ? 0.30 : 0.60 ) );
             $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
@@ -3523,7 +3655,7 @@ function cscc_optimise_candidates( int $max_w, int $max_h, bool $convert_png, bo
             }
         }
 
-        if ( ! $to_webp && $convert_png && $is_png && ! cscc_png_has_alpha( (string) get_attached_file( $id ) ) ) {
+        if ( ! $lossless && ! $to_webp && $convert_png && $is_png && ! cscc_png_has_alpha( (string) get_attached_file( $id ) ) ) {
             $est     = (int) ( $size * 0.55 );
             $est_pct = $size > 0 ? ( $est / $size ) * 100 : 0;
             if ( $est_pct >= $min_gain_pct ) {
@@ -3586,12 +3718,14 @@ function cscc_ajax_scan_optimise() {
     }
 
     $lines[] = array( 'type' => 'count', 'text' => '  Estimated total saving: ' . size_format( $total_saving ) );
-    if ( $to_webp ) {
+    if ( cscc_lossless_enabled() ) {
+        $lines[] = array( 'type' => 'info', 'text' => '  Note: Lossless mode is ON. PNGs are re-saved with identical pixels' . ( $to_webp ? ' (as lossless WebP, post content repointed)' : '' ) . ', JPEG compression is left alone, PNG→JPEG is off. Oversized originals are still resized.' );
+    } elseif ( $to_webp ) {
         $lines[] = array( 'type' => 'info', 'text' => '  Note: WebP conversion is ON. JPEGs and PNGs become .webp and post content is repointed.' );
     } elseif ( get_option( 'cscc_convert_to_webp', '0' ) === '1' ) {
         $lines[] = array( 'type' => 'info', 'text' => '  Note: WebP conversion is switched on but this server cannot write WebP, so it is not applied.' );
     }
-    if ( $convert_png && ! $to_webp ) {
+    if ( $convert_png && ! $to_webp && ! cscc_lossless_enabled() ) {
         $lines[] = array( 'type' => 'info', 'text' => '  Note: PNG→JPEG conversion is ON. PNGs with transparency are kept as PNG.' );
     }
     wp_send_json_success( $lines );
@@ -3656,6 +3790,7 @@ function cscc_ajax_optimise_chunk() {
     $quality      = intval( get_option( 'cscc_img_quality',      82   ) );
     $convert_png  = get_option( 'cscc_convert_png_to_jpg', '0' ) === '1';
     $to_webp      = cscc_webp_enabled();
+    $lossless     = cscc_lossless_enabled();
     $min_gain_pct = max( 0, intval( get_option( 'cscc_img_min_gain_pct', 10 ) ) );
 
     // NO deadline check and no time-limit lift here, and both omissions are deliberate.
@@ -3699,27 +3834,40 @@ function cscc_ajax_optimise_chunk() {
         // Format conversion: JPEG/PNG to WebP when that is on (WebP keeps transparency), else
         // PNG to JPEG for PNGs with nothing see-through. A transparent PNG falls through to the
         // resize-only branch below and stays a PNG.
+        // Lossless mode: a PNG may become lossless WebP, nothing else changes format (a JPEG as
+        // lossless WebP comes out larger, and PNG to JPEG is lossy by definition).
+        $resized      = ( $w > $max_w || $h > $max_h );
+        $lossless_png = $lossless && 'image/png' === $mime;
+        if ( $lossless && ! $lossless_png && ! $resized ) {
+            $lines[] = array( 'type' => 'info', 'text' => '  Skipped ID ' . $id . ', lossless mode leaves JPEG compression alone.' );
+            continue;
+        }
         $target_mime = '';
-        if ( $to_webp && in_array( $mime, array( 'image/jpeg', 'image/png' ), true ) ) {
+        if ( $lossless ) {
+            $target_mime = ( $lossless_png && $to_webp ) ? 'image/webp' : '';
+        } elseif ( $to_webp && in_array( $mime, array( 'image/jpeg', 'image/png' ), true ) ) {
             $target_mime = 'image/webp';
         } elseif ( $convert_png && $mime === 'image/png' && ! cscc_png_has_alpha( $file ) ) {
             $target_mime = 'image/jpeg';
         }
-        $conversion = $target_mime ? strtoupper( str_replace( 'image/', '', $mime ) ) . '→' . ( 'image/webp' === $target_mime ? 'WebP' : 'JPEG' ) : '';
+        $conversion = $target_mime ? strtoupper( str_replace( 'image/', '', $mime ) ) . '→' . ( $lossless ? 'lossless ' : '' ) . ( 'image/webp' === $target_mime ? 'WebP' : 'JPEG' ) : ( $lossless_png ? 'lossless' : '' );
 
         // Asked for by output format, so a site with both libraries gets the one that can write
         // it (GD without libwebp loads a JPEG fine and then fails on save).
-        $editor = wp_get_image_editor( $file, $target_mime ? array( 'mime_type' => $target_mime ) : array() );
-        if ( is_wp_error( $editor ) ) {
-            $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $editor->get_error_message() ) );
-            continue;
-        }
+        // A lossless PNG bypasses core's editor entirely (see cscc_lossless_save()).
+        $editor = null;
+        if ( ! $lossless_png ) {
+            $editor = wp_get_image_editor( $file, $target_mime ? array( 'mime_type' => $target_mime ) : array() );
+            if ( is_wp_error( $editor ) ) {
+                $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $editor->get_error_message() ) );
+                continue;
+            }
 
-        $editor->set_quality( $quality );
+            $editor->set_quality( $quality );
 
-        $resized = ( $w > $max_w || $h > $max_h );
-        if ( $resized ) {
-            $editor->resize( $max_w, $max_h, false );
+            if ( $resized ) {
+                $editor->resize( $max_w, $max_h, false );
+            }
         }
 
         if ( $target_mime ) {
@@ -3728,7 +3876,9 @@ function cscc_ajax_optimise_chunk() {
             // unrelated photo.jpg next to photo.png from being clobbered by the conversion.
             $new_ext  = 'image/webp' === $target_mime ? '.webp' : '.jpg';
             $new_file = trailingslashit( dirname( $file ) ) . wp_unique_filename( dirname( $file ), preg_replace( '/\.(png|jpe?g)$/i', $new_ext, basename( $file ) ) );
-            $result   = $editor->save( $new_file, $target_mime );
+            $result   = $lossless_png
+                ? cscc_lossless_save( $file, $new_file, $target_mime, $max_w, $max_h )
+                : $editor->save( $new_file, $target_mime );
             if ( is_wp_error( $result ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ' ' . $conversion . ': ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
@@ -3764,7 +3914,9 @@ function cscc_ajax_optimise_chunk() {
         } else {
             // JPEG recompress / resize, save to temp, check gain, then commit or discard.
             $tmp_file    = $file . '.csc-tmp';
-            $result      = $editor->save( $tmp_file );
+            $result      = $lossless_png
+                ? cscc_lossless_save( $file, $tmp_file, 'image/png', $max_w, $max_h )
+                : $editor->save( $tmp_file );
             if ( is_wp_error( $result ) ) {
                 $lines[] = array( 'type' => 'error', 'text' => '  [ERROR] ID ' . $id . ': ' . CSCC_Error_Text::in_seconds( $result->get_error_message() ) );
                 continue;
@@ -6562,7 +6714,8 @@ function cscc_render_page() {
             'img-optimise',
             'Image Optimisation, How it works',
             [
-            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Processes your original uploaded images in two ways: Resize (scales down images exceeding your configured maximum, preserving aspect ratio) and Recompress (re-saves JPEG files at the configured quality level).' ],
+            [ 'rec' => 'ℹ️ Info', 'name' => 'What it does', 'desc' => 'Processes your original uploaded images in two ways: Resize (scales down images exceeding your configured maximum, preserving aspect ratio) and Recompress, either lossy (re-saves JPEG files at the configured quality level) or lossless (re-saves PNG files at maximum compression with every pixel unchanged).' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Lossless mode', 'desc' => 'When enabled, nothing is re-encoded at a lower quality. PNGs are re-saved at maximum compression with metadata stripped and the colour profile kept, typically 5-20% smaller with identical pixels; with WebP conversion on they become lossless WebP instead, typically 20-30% smaller than the PNG. JPEG compression is left alone, and PNG to JPEG conversion is off. Oversized originals are still resized to your maximum dimensions, so set those high if dimensions must not change either.' ],
             [ 'rec' => 'ℹ️ Info', 'name' => 'Thumbnail regeneration', 'desc' => 'Thumbnails are only regenerated when an image is resized or converted to another format. For quality-only recompression the existing thumbnails stay valid and are left untouched, making those runs much faster.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'WebP conversion', 'desc' => 'When enabled, JPEG and PNG originals are converted to WebP, thumbnails are regenerated as WebP, and image links in post content (full size and every thumbnail size) are repointed to the new files. WebP keeps transparency, so logos and icons convert safely. Typical saving is 25-35% on a JPEG and 50-80% on a PNG. Every current browser displays WebP. Old thumbnail files are left on disk so links held outside post content keep working.' ],
             [ 'rec' => '⬜ Optional', 'name' => 'PNG to JPEG conversion', 'desc' => 'When enabled (and WebP conversion is off), PNG files without transparency are converted to JPEG. Photographic PNGs typically shrink by 40-70% when converted. PNG files with transparency are never converted.' ],
@@ -6572,7 +6725,7 @@ function cscc_render_page() {
             '#ff1744'
         ); ?></div>
                     <div class="csc-card-body">
-                        <p>Resizes oversized originals, recompresses JPEGs to the configured quality target, and optionally converts JPEGs and PNGs to WebP. Processes one image per request, each request completes in seconds. Files under the minimum size or below the gain threshold are skipped automatically.</p>
+                        <p>Resizes oversized originals, recompresses JPEGs to the configured quality target (or, in lossless mode, re-saves PNGs with identical pixels), and optionally converts JPEGs and PNGs to WebP. Processes one image per request, each request completes in seconds. Files under the minimum size or below the gain threshold are skipped automatically.</p>
                         <div class="csc-button-row">
                             <button class="csc-btn csc-btn-secondary" id="btn-scan-optimise">🔍 Dry Run, Preview Savings</button>
                             <button class="csc-btn csc-btn-danger"    id="btn-run-optimise">⚡ Optimise Images Now</button>
@@ -6594,7 +6747,8 @@ function cscc_render_page() {
             [ 'rec' => '✅ Recommended', 'name' => 'Minimum file size (KB)', 'desc' => 'Images smaller than this threshold are skipped entirely. Already-small files yield tiny absolute savings and re-compressing them at a lower quality setting can actually increase their size. Default: 100 KB.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Minimum gain threshold (%)', 'desc' => 'After compressing to a temp file, if the size saving is below this percentage the original is kept and the result discarded. Protects already-optimised images from being overwritten with a negligibly smaller (or larger) version. Default: 10%.' ],
             [ 'rec' => '✅ Recommended', 'name' => 'Convert JPEGs and PNGs to WebP', 'desc' => 'Converts originals to WebP at the quality setting above, keeping transparency, and repoints post content to the new files. Takes priority over PNG to JPEG. Greyed out when this server\'s image library (Imagick or GD) cannot write WebP; ask your host to enable WebP support in it.' ],
-            [ 'rec' => '⬜ Optional', 'name' => 'Convert non-transparent PNGs to JPEG', 'desc' => 'Converts eligible PNGs (those with no transparency) to JPEG. A PNG screenshot at 200KB will typically become a 40-80KB JPEG with no visible difference at screen resolution. Ignored while WebP conversion is on.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Convert non-transparent PNGs to JPEG', 'desc' => 'Converts eligible PNGs (those with no transparency) to JPEG. A PNG screenshot at 200KB will typically become a 40-80KB JPEG with no visible difference at screen resolution. Ignored while WebP conversion or lossless mode is on.' ],
+            [ 'rec' => '⬜ Optional', 'name' => 'Lossless mode', 'desc' => 'Re-saves PNGs at maximum compression with identical pixels (as lossless WebP when WebP conversion is on) and never re-encodes a JPEG at a lower quality. Smaller savings than lossy, but no quality loss at all. Uses Imagick when present; with GD only, 16-bit and colour-profiled PNGs are skipped because GD cannot re-save them unchanged.' ],
             ],
             '#ffd600'
         ); ?></div>
@@ -6612,6 +6766,10 @@ function cscc_render_page() {
                         <label class="csc-toggle-label">
                             <input type="checkbox" name="cscc_convert_png_to_jpg" value="1" <?php checked( get_option( 'cscc_convert_png_to_jpg', '0' ), '1' ); ?>>
                             Convert non-transparent PNGs to JPEG
+                        </label>
+                        <label class="csc-toggle-label">
+                            <input type="checkbox" name="cscc_img_lossless" value="1" <?php checked( get_option( 'cscc_img_lossless', '0' ), '1' ); ?>>
+                            Lossless mode (no quality loss)
                         </label>
                         <p class="csc-note">Recommended defaults: 1920&times;1080 · quality 82 · skip under 100 KB · skip if gain &lt; 10% · WebP on. WebP saves 25 to 35% on JPEGs and 50 to 80% on PNGs, transparency included.</p>
                         <button class="csc-btn csc-btn-primary csc-save-btn" data-group="optimise">Save Settings</button>
