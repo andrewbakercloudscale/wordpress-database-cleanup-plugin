@@ -30,6 +30,9 @@ No subscriptions. No external services. No calls home.
 ### Image Optimisation
 
 - Resize and recompress JPEG and PNG images exceeding configurable maximum dimensions or quality thresholds
+- Lossy or lossless: lossless mode re-saves PNGs at maximum compression (or as lossless WebP) with identical pixels and never re-encodes a JPEG
+- Optional JPEG/PNG to WebP conversion (transparency kept), with thumbnails regenerated and post content repointed
+- Optional PNG to JPEG conversion for PNGs without transparency
 - Destructive operation with explicit confirmation required
 - Backup recommended before running
 

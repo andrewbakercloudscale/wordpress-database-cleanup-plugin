@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.137
+Stable tag: 2.5.138
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -143,7 +143,7 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
-= 2.5.137 =
+= 2.5.138 =
 * New: lossless mode in Image Optimisation. PNGs are re-saved at maximum compression with identical pixels, or as lossless WebP when WebP conversion is on; JPEG compression is left alone. Uses Imagick when present; with GD only, 16-bit and colour-profiled PNGs are skipped rather than changed.
 
 = 2.5.135 =
