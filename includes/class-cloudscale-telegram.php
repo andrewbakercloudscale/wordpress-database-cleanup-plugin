@@ -910,7 +910,19 @@ class CSCC_Telegram {
 		return sanitize_text_field( $host );
 	}
 
-	private static function alert_origin(): string {
+	/**
+	 * The origin block printed under every alert.
+	 *
+	 * @param bool $request_is_subject Whether the HTTP request executing this code is the alert's
+	 *        subject. True for almost every alert (a login, a firewall block: the request is the
+	 *        event). False when the current request only CARRIES the alert, which it never caused,
+	 *        for example the Edge Gateway POSTing a batch of events it detected elsewhere: there the
+	 *        courier is a trusted local request to our own events route, and 'From'/'Request' would
+	 *        name that courier as though it were the attacker. The real actor is then in the body,
+	 *        so only the host is printed and the request lines are left off.
+	 * @return string
+	 */
+	private static function alert_origin( bool $request_is_subject = true ): string {
 		$host = self::host_label();
 
 		/*
@@ -931,6 +943,14 @@ class CSCC_Telegram {
 
 		$lines   = array();
 		$lines[] = 'Host: ' . $host . ( '' !== $server_ip ? ' (container ' . $server_ip . ')' : '' );
+
+		// The request lines describe the request in flight. When that request is only the courier
+		// of an event detected elsewhere, they name the courier, not the attacker, so they are
+		// omitted and the body's own 'from X' stands as the source.
+		if ( ! $request_is_subject ) {
+			return "\n" . implode( "\n", $lines );
+		}
+
 		$lines[] = 'From: ' . self::trigger_source();
 
 		$account = self::acting_account();
@@ -1158,8 +1178,11 @@ class CSCC_Telegram {
 	 * @param string $text    Message body.
 	 * @param string $source  Plugin/feature name shown in the header (e.g. "Backup and Restore").
 	 * @param string $level   Alert level: info, warning, error, critical.
+	 * @param bool   $request_is_subject Whether the HTTP request in flight is this alert's subject.
+	 *        Defaults true. Pass false for an alert the current request merely carries (an Edge
+	 *        Gateway event batch), so the origin block does not name the courier as the actor.
 	 */
-	public static function send( string $text, string $source = '', string $level = 'info' ): bool {
+	public static function send( string $text, string $source = '', string $level = 'info', bool $request_is_subject = true ): bool {
 		// Before anything else, and before any call site's own toggle: a muted install
 		// sends nothing at all. See OPTION_MUTED for why this belongs here and not at
 		// the ~20 call sites.
@@ -1201,7 +1224,7 @@ class CSCC_Telegram {
 		// rather than the gate being relaxed to accommodate this.
 		$full = self::alert_prefix( $source, $level )
 			. self::localise_utc_stamps( $text )
-			. "\n" . self::alert_origin()
+			. "\n" . self::alert_origin( $request_is_subject )
 			. "\n\n" . self::local_time();
 
 		$response = wp_remote_post(
