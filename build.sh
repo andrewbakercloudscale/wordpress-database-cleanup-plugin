@@ -355,6 +355,16 @@ if ! php "$_ROLLBACK_CHECK" "$SCRIPT_DIR"; then
 fi
 echo ""
 
+# A deploy must refuse a target whose PHP files are empty. 2026-10-27: a corrupt
+# restore left the standby with 2,307 core and plugin files at 0 bytes, alive only
+# through opcache. This keeps the shared preflight wired into deploy-wordpress.sh.
+echo "Checking the deploy refuses a site with empty PHP files..."
+if ! bash "$GITHUB_DIR/shared-build-tools/check-deploy-empty-files.sh" "$SCRIPT_DIR"; then
+    echo "ERROR: deploy empty-file preflight missing or wrong (details above). Build blocked."
+    exit 1
+fi
+echo ""
+
 _README_CHECK="$GITHUB_DIR/shared-build-tools/check-readme-limits.php"
 echo "Checking readme.txt section limits..."
 if [ ! -f "$_README_CHECK" ]; then
