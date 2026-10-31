@@ -1292,6 +1292,12 @@ class CSCC_Telegram {
 	 * @param string $chat_id Chat id, already sanitised.
 	 */
 	public static function save_credentials( string $token, string $chat_id ): void {
+		// The settings card no longer puts the saved token into the page, so its field
+		// arrives blank whenever the owner did not paste a new one. Blank keeps the
+		// saved token; clearing the chat id as well is what turns Telegram off.
+		if ( '' === trim( $token ) && '' !== trim( $chat_id ) ) {
+			$token = (string) self::opt_read( self::OPTION_TOKEN, '' );
+		}
 		self::opt_write( self::OPTION_TOKEN, $token );
 		self::opt_write( self::OPTION_CHAT_ID, $chat_id );
 		self::broadcast( array( 'telegram_bot_token' => $token, 'telegram_chat_id' => $chat_id ) );
@@ -1311,6 +1317,10 @@ class CSCC_Telegram {
 				check_ajax_referer( 'cscc_telegram_fetch', 'nonce' );
 
 				$token = sanitize_text_field( wp_unslash( $_POST['telegram_token'] ?? '' ) );
+				// Blank field: the saved token, which the page no longer carries.
+				if ( ! $token ) {
+					$token = (string) self::opt_read( self::OPTION_TOKEN, '' );
+				}
 				if ( ! $token ) {
 					wp_send_json_error( 'Bot token is required.' );
 					return;
@@ -1422,7 +1432,10 @@ class CSCC_Telegram {
 	public static function render_settings_fields( string $text_domain, string $source = '' ): void {
 		static $js_output = false;
 
-		$token       = esc_attr( (string) self::opt_read( self::OPTION_TOKEN, '' ) );
+		// Only whether a token is saved reaches the page, never the token: anything that
+		// can read the page's HTML (a script bug, a browser extension, a shared screen)
+		// could otherwise send alerts as this bot or read its chats.
+		$token_set   = '' !== trim( (string) self::opt_read( self::OPTION_TOKEN, '' ) );
 		$chat_id     = esc_attr( (string) self::opt_read( self::OPTION_CHAT_ID, '' ) );
 		$test_nonce  = wp_create_nonce( 'cscc_telegram_test' );
 		$fetch_nonce = wp_create_nonce( 'cscc_telegram_fetch' );
@@ -1433,13 +1446,14 @@ class CSCC_Telegram {
 				<span style="color:#fff;font-weight:700;font-size:0.9rem;"><?php echo esc_html( 'Telegram' ); ?></span>
 			</div>
 			<div style="padding:14px;background:#f0f9ff;">
-				<p class="cs-help"><?php echo esc_html( 'Instant push to your phone. Create a bot via @BotFather on Telegram, then paste the token and your chat ID below.' ); ?></p>
+				<p class="cs-help"><?php echo esc_html( 'Instant push to your phone. Create a bot via @BotFather on Telegram, then paste the token and your chat ID below. A saved token is not shown again: leave the field blank to keep it, paste a new one to replace it, or clear the Chat ID to turn Telegram off.' ); ?></p>
 				<div style="margin-bottom:6px;">
 					<label class="cs-field-label" style="display:block;margin-bottom:3px;"><?php echo esc_html( 'Bot Token' ); ?></label>
 					<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 						<input type="password" id="cs-telegram-token"
-						       value="<?php echo esc_attr( $token ); ?>"
-						       placeholder="123456789:ABCdefGhI..."
+						       value=""
+						       data-set="<?php echo $token_set ? '1' : '0'; ?>"
+						       placeholder="<?php echo esc_attr( $token_set ? 'Saved. Paste a new token to replace it' : '123456789:ABCdefGhI...' ); ?>"
 						       autocomplete="off" style="width:100%;max-width:300px;padding:4px 8px;height:32px;">
 						<button type="button" id="cs-telegram-token-toggle" class="button" style="height:32px;padding:0 10px;font-size:0.82rem;">
 							<?php echo esc_html( 'Show' ); ?>

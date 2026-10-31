@@ -46,7 +46,9 @@
                 var token  = ( document.getElementById( 'cs-telegram-token' ).value || '' ).trim();
                 var msg    = document.getElementById( 'cs-telegram-fetch-msg' );
                 var chatIn = document.getElementById( 'cs-telegram-chat-id' );
-                if ( ! token ) { msg.textContent = 'Enter bot token first.'; msg.style.color = '#c00'; return; }
+                // A saved token is not in the page; a blank field asks the server to use it.
+                var saved  = document.getElementById( 'cs-telegram-token' ).dataset.set === '1';
+                if ( ! token && ! saved ) { msg.textContent = 'Enter bot token first.'; msg.style.color = '#c00'; return; }
                 btn.disabled = true;
                 msg.textContent = 'Fetching...'; msg.style.color = '#666';
                 var fd = new FormData();
