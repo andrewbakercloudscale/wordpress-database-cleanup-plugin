@@ -101,7 +101,9 @@ if ( ! class_exists( 'CSCC_Site_Role' ) ) {
 			// The mechanism being DEPLOYED is what makes a missing file meaningful. On a
 			// host that has never heard of it, absence says nothing and must not imply
 			// standby, or every ordinary WordPress install suppresses itself.
-			if ( is_dir( dirname( $flag ) ) ) {
+			// Silenced: under open_basedir this path is refused with a warning on every request.
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			if ( @is_dir( dirname( $flag ) ) ) {
 				if ( ! is_readable( $flag ) ) {
 					return true; // Deployed and unreadable: assume copy.
 				}
@@ -124,7 +126,8 @@ if ( ! class_exists( 'CSCC_Site_Role' ) ) {
 			// The marker the admin screen writes, which is the only durable signal on a
 			// host without /etc/cloudscale.
 			$marker = self::content_dir() . '/csbr-site-role.json';
-			if ( is_readable( $marker ) ) {
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- open_basedir, as above.
+			if ( @is_readable( $marker ) ) {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a small marker the estate owns
 				$data = json_decode( (string) file_get_contents( $marker ), true );
 				if ( is_array( $data ) && ! empty( $data['role'] ) ) {
