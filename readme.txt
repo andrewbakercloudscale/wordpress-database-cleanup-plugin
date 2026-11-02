@@ -4,7 +4,7 @@ Tags: cleanup, database, media, revisions, transients
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.138
+Stable tag: 2.5.139
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -143,7 +143,7 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
-= Unreleased =
+= 2.5.139 =
 * Fix: deleting a converted image now resolves the path first, so a crafted path cannot reach a file outside the converted images folder.
 
 = 2.5.138 =
