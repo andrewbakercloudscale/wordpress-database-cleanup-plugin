@@ -3362,6 +3362,7 @@ function cscc_ajax_recycle_restore_single() {
     if ( ! file_exists( $recycle_path ) ) { wp_send_json_error( 'File missing from recycle bin.' ); }
 
     $dest_dir = dirname( $original_path );
+    // security-reviewed: original path is read from the server-side recycle manifest by exact key, not from the request
     if ( ! wp_mkdir_p( $dest_dir ) ) { wp_send_json_error( 'Could not create destination directory.' ); }
 
     if ( ! cscc_fs()->move( $recycle_path, $original_path, true ) ) { wp_send_json_error( 'Failed to move file.' ); }
@@ -4230,6 +4231,7 @@ function cscc_ajax_cspj_chunk_upload() {
     if ( ! file_exists( $meta_path ) ) {
         wp_send_json_error( 'Upload session metadata missing.' );
     }
+    // security-reviewed: session folder name passes through sanitize_file_name in cscc_cspj_chunk_dir, so it stays in the chunk root
     $meta = json_decode( file_get_contents( $meta_path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     if ( intval( $meta['user_id'] ?? 0 ) !== get_current_user_id() ) {
         wp_send_json_error( 'Upload session owner mismatch.' );
@@ -4279,6 +4281,7 @@ function cscc_ajax_cspj_chunk_finish() {
         wp_send_json_error( 'Upload session not found (expired or invalid).' );
     }
 
+    // security-reviewed: session folder name passes through sanitize_file_name in cscc_cspj_chunk_dir, so it stays in the chunk root
     $meta = json_decode( file_get_contents( $meta_path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads plugin-owned local files, not remote URLs
     if ( empty( $meta['total_chunks'] ) ) {
         wp_send_json_error( 'Upload session metadata missing.' );
@@ -4296,11 +4299,13 @@ function cscc_ajax_cspj_chunk_finish() {
     }
 
     $assembled = trailingslashit( $dir ) . 'assembled.png';
+    // security-reviewed: session folder name passes through sanitize_file_name in cscc_cspj_chunk_dir, so it stays in the chunk root
     $out = fopen( $assembled, 'wb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- local binary chunk assembly, WP_Filesystem does not support binary stream operations
     if ( ! $out ) { wp_send_json_error( 'Failed to create assembled file.' ); }
 
     for ( $i = 0; $i < $total; $i++ ) {
         $part = trailingslashit( $dir ) . sprintf( 'chunk-%06d.part', $i );
+        // security-reviewed: session folder name passes through sanitize_file_name in cscc_cspj_chunk_dir, the part name is a formatted integer
         $in   = fopen( $part, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- local binary chunk assembly, WP_Filesystem does not support binary stream operations
         if ( ! $in ) { fclose( $out ); wp_send_json_error( 'Failed to read chunk ' . $i . '.' ); } // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- closes the stream opened above; WP_Filesystem has no stream or append API, and joining up to 200 MB of parts in memory would exceed the PHP memory limit
         stream_copy_to_stream( $in, $out );
@@ -4496,21 +4501,21 @@ function cscc_ajax_cspj_delete_converted() {
     $path = sanitize_text_field( wp_unslash( $_POST['path'] ?? '' ) );
     if ( empty( $path ) ) { wp_send_json_error( 'No path provided.' ); }
 
+    // Resolve before comparing. A prefix test on the raw string accepted
+    // uploads/cspj-converted/../../wp-config.php, which begins correctly and names the folder.
     $upload_dir = wp_upload_dir();
-    if ( strpos( $path, $upload_dir['basedir'] ) !== 0 ) {
-        wp_send_json_error( 'Invalid file path.' );
+    $real_dir   = realpath( trailingslashit( $upload_dir['basedir'] ) . 'cspj-converted' );
+    $real_path  = realpath( $path );
+    if ( false === $real_dir || false === $real_path ) {
+        wp_send_json_error( 'File not found.' );
     }
-    // Only allow deletion from the cspj-converted directory
-    if ( strpos( $path, 'cspj-converted' ) === false ) {
+    if ( 0 !== strpos( $real_path, trailingslashit( $real_dir ) ) || ! is_file( $real_path ) ) {
         wp_send_json_error( 'Can only delete files from the cspj-converted folder.' );
     }
 
-    if ( file_exists( $path ) ) {
-        wp_delete_file( $path );
-        wp_send_json_success( 'File deleted.' );
-    } else {
-        wp_send_json_error( 'File not found.' );
-    }
+    // security-reviewed: path was resolved and confined to the cspj-converted folder just above
+    wp_delete_file( $real_path );
+    wp_send_json_success( 'File deleted.' );
 }
 
 // Cron: cleanup stale chunks.

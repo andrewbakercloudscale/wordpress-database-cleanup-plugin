@@ -143,6 +143,9 @@ No. Deleted database rows are gone. Take a database backup before running any cl
 
 == Changelog ==
 
+= Unreleased =
+* Fix: deleting a converted image now resolves the path first, so a crafted path cannot reach a file outside the converted images folder.
+
 = 2.5.138 =
 * New: lossless mode in Image Optimisation. PNGs are re-saved at maximum compression with identical pixels, or as lossless WebP when WebP conversion is on; JPEG compression is left alone. Uses Imagick when present; with GD only, 16-bit and colour-profiled PNGs are skipped rather than changed.
 
